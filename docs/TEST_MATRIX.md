@@ -663,6 +663,7 @@ Recent focused evidence:
   hoặc không có giá hợp lệ dừng fail-closed, không fallback sang capture,
   `sellPrice`, `rowTotal` hay PPM. Preview và HTML/TSV Word dùng
   `lineAfterVat` với nhãn `Thành tiền (VNĐ) (đã bao gồm VAT)`; bảng vẫn 7 cột
+  theo thứ tự `STT / Tên hàng hóa / Mã hàng / ĐVT / SL / Đơn giá / Thành tiền`
   và giữ tỷ lệ/border/Unicode. Local proof: Prisma validate, Nest build,
   focused Nest 3 suites/33 tests, full Nest 90 suites/896 tests, Flutter
   focused 10 tests và `flutter analyze --no-pub` đều pass. Full Flutter run
@@ -670,6 +671,24 @@ Recent focused evidence:
   `sales_report_hub_test.dart`; rerun riêng suite đó pass 25 tests. Staging
   phải smoke payload ERP đã làm sạch có giá shipment khác capture, quantity > 1
   và Word paste trước khi chuyển `Ready for Release`.
+
+- `CONTRACT-APPENDIX-001` / `OPS-209`, 2026-08-19: Contract Appendix dùng
+  đồng thời `finalSellPrice` và `rowTotal` từ shipment; `rowTotal` là nguồn
+  `lineAfterVat`, không fallback về capture hoặc phép nhân giá đơn vị. Preview /
+  save nhận tối đa 10 `orderCodes`, tối đa 200 source lines, lookup atomic và
+  gộp dòng chỉ khi SKU, gross unit, tax semantics và đơn vị giống nhau; snapshot
+  lưu source-order provenance. Flutter thêm/xóa danh sách trước `Lấy thông tin`,
+  khóa tập đơn sau fetch và reset có xác nhận. Đây là high-risk contract/API/
+  migration/UI work; focused proof phải bao phủ ERP/calculator/service,
+  migration legacy, Flutter state/clipboard và affected Sales Report lookup.
+  Local proof: Prisma format/validate/generate, OPS-209 migration static contract,
+  focused Nest 2 suites/18 tests, full Nest 124 suites/1,327 passed/6 skipped,
+  Nest build, focused Flutter 14 tests, Flutter feature analyzer, Windows debug,
+  Web release, and explicit Android staging debug build all pass; full Flutter is
+  rerunning after the final provider adjustment. Docker/PostgreSQL scratch
+  migration, staging ERP/Word smoke, and authenticated Chrome audit remain open.
+  Chưa có approved Figma revision cho multi-order interaction; không gọi visual
+  scope complete trước node map, geometry proof, staging build và Chrome audit.
 
 - `SALES-REPORT-001` / `SALES-REPORT-002`, 2026-07-17: biểu mẫu khách chưa
   mua đã bỏ ô Zalo tự do; số điện thoại chỉ nhận đúng 10 chữ số bắt đầu bằng

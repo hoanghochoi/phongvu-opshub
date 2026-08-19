@@ -47,6 +47,8 @@
     "verify:ops39:migration": "npm run run:nest-command -- node scripts/verify-ops39-migration-static.mjs",
     "preverify:ops40:migration": "node ../scripts/run-with-toolchain.mjs --root .. --profile nestjs --preflight-only",
     "verify:ops40:migration": "npm run run:nest-command -- node scripts/verify-ops40-migration-static.mjs",
+    "preverify:ops209:migration": "node ../scripts/run-with-toolchain.mjs --root .. --profile nestjs --preflight-only",
+    "verify:ops209:migration": "npm run run:nest-command -- node scripts/verify-ops209-migration-static.mjs",
     "preverify:ops40:postgres": "node ../scripts/run-with-toolchain.mjs --root .. --profile nestjs --preflight-only",
     "verify:ops40:postgres": "pwsh -NoProfile -File scripts/verify-ops40-postgres.ps1",
     "presupport-chat:purge-expired": "node ../scripts/run-with-toolchain.mjs --root .. --profile nestjs --preflight-only",

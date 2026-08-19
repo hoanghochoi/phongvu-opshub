@@ -64,6 +64,30 @@
   timing ngoài phạm vi ở `sales_report_hub_test.dart`; rerun riêng cùng suite
   đạt 25 test. Staging smoke ERP/Word vẫn là gate trước `Ready for Release`.
 
+### OPS-209 implementation gate
+
+- ERP fixture `quantity=2`, shipment `finalSellPrice=250`, `rowTotal=499` phải
+  trả `lineAfterVat=499`; missing/negative/fractional/unsafe row total,
+  shipment thiếu hoặc mơ hồ phải fail-closed và không fallback.
+- Multi-order request phải trim/deduplicate tối đa 10 mã, dừng atomic khi một
+  đơn lỗi, giới hạn 200 source lines, deduplicate PPM trên toàn batch và giữ
+  thứ tự user nhập. Dòng tương thích được gộp và cộng `rowTotal`; khác giá,
+  thuế hoặc đơn vị không gộp.
+- Migration fresh/upgrade/rollback scratch, legacy snapshot read/copy,
+  history search theo mọi source order, quote conflict khi rowTotal/tập đơn
+  đổi và Sales Report capture-price regression đều bắt buộc.
+- Flutter state phải prove add/remove/duplicate/max/no-API-before-fetch,
+  locked/reset flow; visual interaction chỉ được prove sau approved Figma node
+  map ở compact/medium/expanded/wide.
+- Staging smoke phải có rowTotal khác tích finalSellPrice, hai đơn, save/refetch,
+  history và Word Windows paste; proof ghi vào OPS-209 trước status transition.
+- Local OPS-209 proof on 2026-08-19: focused Nest 2 suites/18 tests, full Nest
+  124 suites (1,327 passed, 6 skipped), Nest build, focused Flutter 14 tests,
+  Flutter feature analyzer, Windows debug, Web release, and explicit Android
+  staging debug all pass. Full Flutter is rerunning after the final provider
+  adjustment; Docker/PostgreSQL migration rehearsal, staging smoke, and the
+  approved Figma/node-map visual gate remain open.
+
 ## Integration and Manual
 
 - Backend smoke SKU `220909037` trả `vatRateBps=0` và SKU `250902982` trả

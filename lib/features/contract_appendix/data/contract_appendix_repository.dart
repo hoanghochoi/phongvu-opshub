@@ -6,12 +6,12 @@ import '../domain/contract_appendix.dart';
 
 abstract interface class ContractAppendixDataSource {
   Future<ContractAppendixDocument> preview({
-    required String orderCode,
+    required List<String> orderCodes,
     List<Map<String, dynamic>> overrides = const [],
   });
 
   Future<ContractAppendixDocument> save({
-    required String orderCode,
+    required List<String> orderCodes,
     required String quoteVersion,
     required List<Map<String, dynamic>> overrides,
   });
@@ -32,13 +32,13 @@ class ContractAppendixRepository implements ContractAppendixDataSource {
 
   @override
   Future<ContractAppendixDocument> preview({
-    required String orderCode,
+    required List<String> orderCodes,
     List<Map<String, dynamic>> overrides = const [],
   }) async {
     final response = await _apiClient.post(
       ApiConstants.contractAppendicesPreviewEndpoint,
       body: {
-        'orderCode': orderCode.trim(),
+        'orderCodes': _normalizeOrderCodes(orderCodes),
         if (overrides.isNotEmpty) 'overrides': overrides,
       },
     );
@@ -47,14 +47,14 @@ class ContractAppendixRepository implements ContractAppendixDataSource {
 
   @override
   Future<ContractAppendixDocument> save({
-    required String orderCode,
+    required List<String> orderCodes,
     required String quoteVersion,
     required List<Map<String, dynamic>> overrides,
   }) async {
     final response = await _apiClient.post(
       ApiConstants.contractAppendicesEndpoint,
       body: {
-        'orderCode': orderCode.trim(),
+        'orderCodes': _normalizeOrderCodes(orderCodes),
         'quoteVersion': quoteVersion,
         if (overrides.isNotEmpty) 'overrides': overrides,
       },
@@ -95,4 +95,9 @@ class ContractAppendixRepository implements ContractAppendixDataSource {
     }
     return decoded.map((key, value) => MapEntry(key.toString(), value));
   }
+
+  List<String> _normalizeOrderCodes(List<String> orderCodes) => orderCodes
+      .map((value) => value.trim())
+      .where((value) => value.isNotEmpty)
+      .toList(growable: false);
 }

@@ -176,7 +176,7 @@ export class ContractAppendixShipmentPriceException extends BadRequestException 
     public readonly reason: 'MISSING' | 'AMBIGUOUS' | 'INVALID_PRICE',
   ) {
     super(
-      'Chưa lấy được giá giao hàng cho một số sản phẩm. Vui lòng kiểm tra lại đơn hàng rồi thử lại.',
+      'Chưa lấy được giá và tổng cộng giao hàng cho một số sản phẩm. Vui lòng kiểm tra lại đơn hàng rồi thử lại.',
     );
   }
 }
@@ -239,9 +239,9 @@ export class SalesReportErpService {
   }
 
   /**
-   * Contract Appendix must use the final sell price from the shipment line.
-   * Keep this separate from the Sales Report lookup contract, whose existing
-   * consumers continue to receive order-capture prices.
+   * Contract Appendix must use final sell price and row total from the
+   * shipment line. Keep this separate from the Sales Report lookup contract,
+   * whose existing consumers continue to receive order-capture prices.
    */
   async lookupContractAppendixOrder(orderCodeInput: string) {
     return this.lookupOrderForPurpose(
@@ -1027,18 +1027,32 @@ export class SalesReportErpService {
     accessToken: string,
   ): Promise<SalesReportErpOrderItem[]> {
     const items = await this.normalizeItems(order, accessToken, null);
-    const shipmentPrices = this.resolveShipmentFinalSellPrices(order);
+    const orderItems: any[] = Array.isArray(order?.orderCaptureLineItems)
+      ? order.orderCaptureLineItems
+      : [];
+    const shipmentValues = this.resolveContractAppendixShipmentValues(order);
     return items.map((item, index) => ({
       ...item,
-      finalSellPrice: shipmentPrices[index],
+      // Sales Report keeps its historical truncating normalizer. Contract
+      // Appendix must fail closed for fractional/unsafe quantities instead of
+      // silently turning them into a different source line.
+      quantity: this.toSafeInteger(orderItems[index]?.quantity),
+      finalSellPrice: shipmentValues[index].finalSellPrice,
+      rowTotal: shipmentValues[index].rowTotal,
       raw: {
         ...item.raw,
-        finalSellPrice: shipmentPrices[index],
+        finalSellPrice: shipmentValues[index].finalSellPrice,
+        rowTotal: shipmentValues[index].rowTotal,
+        contractAppendixSourceLineId: shipmentValues[index].sourceLineId,
       },
     }));
   }
 
-  private resolveShipmentFinalSellPrices(order: any): number[] {
+  private resolveContractAppendixShipmentValues(order: any): Array<{
+    finalSellPrice: number;
+    rowTotal: number;
+    sourceLineId: string;
+  }> {
     const orderItems: any[] = Array.isArray(order?.orderCaptureLineItems)
       ? order.orderCaptureLineItems
       : [];
@@ -1061,18 +1075,26 @@ export class SalesReportErpService {
     }
 
     try {
-      const prices = orderItems.map((item) => {
+      const values = orderItems.map((item) => {
         const matched = this.matchShipmentItem(item, index, orderSkuCounts);
-        const price = this.toInt(matched?.finalSellPrice);
-        if (price === null || !Number.isSafeInteger(price) || price < 0) {
+        const finalSellPrice = this.toSafeInteger(matched?.finalSellPrice);
+        const rowTotal = this.toSafeInteger(matched?.rowTotal);
+        if (finalSellPrice === null || finalSellPrice < 0) {
           throw new ContractAppendixShipmentPriceException('INVALID_PRICE');
         }
-        return price;
+        if (rowTotal === null || rowTotal < 0) {
+          throw new ContractAppendixShipmentPriceException('INVALID_PRICE');
+        }
+        return {
+          finalSellPrice,
+          rowTotal,
+          sourceLineId: this.contractAppendixSourceLineId(matched),
+        };
       });
       this.logger.log(
         `Contract appendix shipment price mapping succeeded: orderItemCount=${orderItems.length} shipmentItemCount=${shipmentItems.length}`,
       );
-      return prices;
+      return values;
     } catch (error) {
       const reason =
         error instanceof ContractAppendixShipmentPriceException
@@ -1083,6 +1105,28 @@ export class SalesReportErpService {
       );
       throw error;
     }
+  }
+
+  // Kept as a private compatibility seam for existing tests and internal
+  // callers while the Contract Appendix resolver now validates rowTotal too.
+  private resolveShipmentFinalSellPrices(order: any): number[] {
+    return this.resolveContractAppendixShipmentValues(order).map(
+      (value) => value.finalSellPrice,
+    );
+  }
+
+  private contractAppendixSourceLineId(item: any) {
+    for (const field of [
+      'orderCaptureLineItemId',
+      'orderLineItemId',
+      'lineItemId',
+    ]) {
+      const value = this.optionalText(item?.[field]);
+      if (value) return `${field}:${value}`;
+    }
+    const sellerSku = this.optionalText(item?.sellerSku);
+    if (sellerSku) return `sellerSku:${sellerSku}`;
+    throw new ContractAppendixShipmentPriceException('MISSING');
   }
 
   private extractShipmentItems(order: any): any[] {

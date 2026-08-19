@@ -1,8 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/theme/app_colors.dart';
@@ -14,12 +14,17 @@ import '../../../../app/widgets/app_combobox.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_pagination.dart';
-import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/app_toast.dart';
 import '../../../../core/formatting/money_formatters.dart';
 import '../../domain/contract_appendix.dart';
 import '../providers/contract_appendix_provider.dart';
 
+/// Contract Appendix follows the approved OPS-209 R2 node map.
+///
+/// The shell (rail/sidebar/top bar) remains owned by [AppShell]. This screen
+/// owns the R2 command card, state feedback, ERP preview/editor, and history
+/// surface so the same interaction works in standalone widget tests and in
+/// the authenticated route.
 class ContractAppendixScreen extends StatefulWidget {
   const ContractAppendixScreen({super.key});
 
@@ -31,6 +36,7 @@ class _ContractAppendixScreenState extends State<ContractAppendixScreen>
     with SingleTickerProviderStateMixin {
   final _orderController = TextEditingController();
   final _historyController = TextEditingController();
+  final _orderFocusNode = FocusNode();
   late final TabController _tabController;
   bool _historyLoaded = false;
 
@@ -39,7 +45,7 @@ class _ContractAppendixScreenState extends State<ContractAppendixScreen>
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ContractAppendixProvider>().initialize();
+      if (mounted) context.read<ContractAppendixProvider>().initialize();
     });
   }
 
@@ -48,55 +54,60 @@ class _ContractAppendixScreenState extends State<ContractAppendixScreen>
     _tabController.dispose();
     _orderController.dispose();
     _historyController.dispose();
+    _orderFocusNode.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<ContractAppendixProvider>();
-    return AppResponsiveScrollView(
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _Header(tabController: _tabController, onTab: _onTab),
-          if (provider.errorMessage != null) ...[
-            const SizedBox(height: 16),
-            AppStatusBanner(
-              icon: PhosphorIconsRegular.warningCircle,
-              title: 'Chưa thực hiện được',
-              message: provider.errorMessage!,
-              tone: AppStateTone.error,
+    final viewportWidth = MediaQuery.sizeOf(context).width;
+    return ColoredBox(
+      color: AppColors.canvasOf(context),
+      child: AppResponsiveScrollView(
+        maxWidth: AppLayoutTokens.commandWorkspaceMaxWidth,
+        padding: _pagePadding(viewportWidth),
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        child: Column(
+          key: const Key('contract-appendix-workspace'),
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _WorkspaceHeader(
+              key: const Key('contract-appendix-workspace-header'),
+              tabController: _tabController,
+              onTab: _onTab,
+            ),
+            const SizedBox(height: 12),
+            AnimatedBuilder(
+              animation: _tabController,
+              builder: (context, _) => _tabController.index == 0
+                  ? _CreateWorkspace(
+                      orderController: _orderController,
+                      orderFocusNode: _orderFocusNode,
+                      provider: provider,
+                      showToast: _showToast,
+                    )
+                  : _HistoryWorkspace(
+                      searchController: _historyController,
+                      provider: provider,
+                      showToast: _showToast,
+                      openDetail: _openHistoryDetail,
+                    ),
             ),
           ],
-          if (provider.successMessage != null) ...[
-            const SizedBox(height: 16),
-            AppStatusBanner(
-              icon: PhosphorIconsRegular.checkCircle,
-              title: 'Đã cập nhật',
-              message: provider.successMessage!,
-              tone: AppStateTone.success,
-            ),
-          ],
-          const SizedBox(height: 16),
-          AnimatedBuilder(
-            animation: _tabController,
-            builder: (context, _) => _tabController.index == 0
-                ? _CreateWorkspace(
-                    orderController: _orderController,
-                    provider: provider,
-                    showToast: _showToast,
-                  )
-                : _HistoryWorkspace(
-                    searchController: _historyController,
-                    provider: provider,
-                    showToast: _showToast,
-                    openDetail: _openHistoryDetail,
-                  ),
-          ),
-        ],
+        ),
       ),
     );
+  }
+
+  static EdgeInsets _pagePadding(double width) {
+    if (width < AppLayoutTokens.compactBreakpoint) {
+      return const EdgeInsets.fromLTRB(16, 8, 16, 24);
+    }
+    if (width >= AppLayoutTokens.commandWorkspaceMaxWidth) {
+      return const EdgeInsets.fromLTRB(32, 16, 32, 24);
+    }
+    return const EdgeInsets.fromLTRB(24, 16, 24, 24);
   }
 
   void _onTab(int index) {
@@ -136,141 +147,731 @@ class _ContractAppendixScreenState extends State<ContractAppendixScreen>
   }
 }
 
-class _Header extends StatelessWidget {
+class _WorkspaceHeader extends StatelessWidget {
   final TabController tabController;
   final ValueChanged<int> onTab;
 
-  const _Header({required this.tabController, required this.onTab});
+  const _WorkspaceHeader({
+    super.key,
+    required this.tabController,
+    required this.onTab,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      key: const Key('contract-appendix-workspace-header'),
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(
-          'Phụ lục hợp đồng',
-          style: AppTextStyles.headingM.copyWith(
-            color: AppColors.textPrimaryOf(context),
+        Expanded(
+          child: Text(
+            'Phụ lục hợp đồng',
+            style: AppTextStyles.headingM.copyWith(
+              color: AppColors.textPrimaryOf(context),
+            ),
           ),
         ),
-        const SizedBox(height: 4),
-        Text(
-          'Tạo bảng phụ lục từ đơn hàng và quản lý lịch sử gần đây.',
-          style: AppTextStyles.bodyS.copyWith(
-            color: AppColors.textSecondaryOf(context),
-          ),
-        ),
-        const SizedBox(height: 16),
-        TabBar(
-          controller: tabController,
-          onTap: onTab,
-          isScrollable: false,
-          labelColor: AppColors.primaryOf(context),
-          unselectedLabelColor: AppColors.textSecondaryOf(context),
-          indicatorColor: AppColors.primaryOf(context),
-          indicatorWeight: 3,
-          dividerColor: AppColors.borderOf(context),
-          tabs: const [
-            Tab(text: 'Tạo phụ lục'),
-            Tab(text: 'Lịch sử 30 ngày'),
-          ],
-        ),
+        _ViewTabBar(controller: tabController, onTab: onTab),
       ],
+    );
+  }
+}
+
+class _ViewTabBar extends StatelessWidget {
+  final TabController controller;
+  final ValueChanged<int> onTab;
+
+  const _ViewTabBar({required this.controller, required this.onTab});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            color: AppColors.cardOf(context),
+            border: Border.all(color: AppColors.borderOf(context)),
+            borderRadius: AppRadius.allMd,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _ViewTab(
+                label: 'Tạo mới',
+                selected: controller.index == 0,
+                onTap: () {
+                  controller.animateTo(0);
+                  onTab(0);
+                },
+              ),
+              _ViewTab(
+                label: 'Lịch sử',
+                selected: controller.index == 1,
+                onTap: () {
+                  controller.animateTo(1);
+                  onTab(1);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ViewTab extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ViewTab({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = selected
+        ? AppColors.primaryOf(context)
+        : AppColors.textSecondaryOf(context);
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: Material(
+        color: selected
+            ? AppColors.primarySurfaceOf(context)
+            : AppColors.transparent,
+        borderRadius: AppRadius.allMd,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: AppRadius.allMd,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Text(
+              label,
+              style: AppTextStyles.labelS.copyWith(color: foreground),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
 
 class _CreateWorkspace extends StatelessWidget {
   final TextEditingController orderController;
+  final FocusNode orderFocusNode;
   final ContractAppendixProvider provider;
   final void Function(String message, {bool error}) showToast;
 
   const _CreateWorkspace({
     required this.orderController,
+    required this.orderFocusNode,
     required this.provider,
     required this.showToast,
   });
 
   @override
   Widget build(BuildContext context) {
+    final hasDraft = provider.draft != null;
+    final showEmptyPreview =
+        !hasDraft && !provider.isLookingUp && provider.errorMessage == null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _OrderCommandBar(
+        _OrderCommandArea(
           controller: orderController,
-          isLoading: provider.isLookingUp,
-          onSubmit: () => _lookup(context),
+          focusNode: orderFocusNode,
+          provider: provider,
+          onAdd: () => _addOrder(context),
+          onFetch: () => _fetch(context),
+          onReset: () => _confirmReset(context),
         ),
-        const SizedBox(height: 16),
-        if (provider.draft == null)
-          const AppSurfaceCard(
-            child: AppStatePanel.empty(
-              icon: PhosphorIconsRegular.fileText,
-              title: 'Chưa có bảng phụ lục',
-              message: 'Nhập mã đơn hàng và chọn “Lấy thông tin” để bắt đầu.',
-              compact: true,
-            ),
-          )
-        else
+        if (provider.isLookingUp) ...[
+          const SizedBox(height: 12),
+          const _R2StatusCard(
+            tone: _R2StatusTone.info,
+            title: 'Đang lấy dữ liệu đơn hàng',
+            message:
+                'Đang xử lý các đơn theo thứ tự bạn thêm. Không hiển thị bảng một phần.',
+          ),
+        ] else if (provider.errorMessage != null) ...[
+          const SizedBox(height: 12),
+          _R2StatusCard(
+            tone: _isValidationError(provider.errorMessage!)
+                ? _R2StatusTone.warning
+                : _R2StatusTone.error,
+            title: _isValidationError(provider.errorMessage!)
+                ? 'Cần kiểm tra danh sách'
+                : 'Không thể lấy thông tin',
+            message: _friendlyError(provider.errorMessage!),
+          ),
+        ],
+        if (showEmptyPreview) ...[
+          const SizedBox(height: 12),
+          const _EmptyPreviewCard(),
+        ],
+        if (hasDraft) ...[
+          const SizedBox(height: 12),
           _DocumentWorkspace(provider: provider, showToast: showToast),
+        ],
       ],
     );
   }
 
-  Future<void> _lookup(BuildContext context) async {
+  void _addOrder(BuildContext context) {
+    final ok = provider.addOrderCode(orderController.text);
+    if (ok) {
+      orderController.clear();
+      if (context.mounted) orderFocusNode.requestFocus();
+      return;
+    }
+    if (context.mounted) orderFocusNode.requestFocus();
+  }
+
+  Future<void> _fetch(BuildContext context) async {
     FocusManager.instance.primaryFocus?.unfocus();
-    final ok = await provider.lookupOrder(orderController.text);
-    if (!context.mounted) return;
-    showToast(
-      ok
-          ? provider.successMessage ?? 'Đã lấy thông tin đơn hàng.'
-          : provider.errorMessage ?? 'Không lấy được thông tin đơn hàng.',
-      error: !ok,
+    await provider.fetchOrders();
+  }
+
+  Future<void> _confirmReset(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Chọn lại đơn hàng?'),
+        content: const Text(
+          'Tập đơn hiện tại và bản nháp sẽ được đặt lại. Bản đã lưu vẫn còn trong lịch sử.',
+        ),
+        actions: [
+          AppDialogCancelButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            label: 'Hủy',
+          ),
+          SizedBox(
+            width: 112,
+            height: 40,
+            child: AppPrimaryButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              label: 'Chọn lại',
+              size: AppButtonSize.small,
+              height: 40,
+              padding: EdgeInsets.zero,
+            ),
+          ),
+        ],
+      ),
     );
+    if (confirmed == true && context.mounted) {
+      provider.resetOrderSelection();
+      orderController.clear();
+      orderFocusNode.requestFocus();
+    }
   }
 }
 
-class _OrderCommandBar extends StatelessWidget {
+class _OrderCommandArea extends StatelessWidget {
   final TextEditingController controller;
-  final bool isLoading;
-  final VoidCallback onSubmit;
+  final FocusNode focusNode;
+  final ContractAppendixProvider provider;
+  final VoidCallback onAdd;
+  final VoidCallback onFetch;
+  final VoidCallback onReset;
 
-  const _OrderCommandBar({
+  const _OrderCommandArea({
     required this.controller,
-    required this.isLoading,
-    required this.onSubmit,
+    required this.focusNode,
+    required this.provider,
+    required this.onAdd,
+    required this.onFetch,
+    required this.onReset,
   });
 
   @override
   Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact =
+            constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
+        final wide = constraints.maxWidth >= 1000;
+        final command = _OrderCommandCard(
+          controller: controller,
+          focusNode: focusNode,
+          provider: provider,
+          compact: compact,
+          onAdd: onAdd,
+          onFetch: onFetch,
+          onReset: onReset,
+        );
+        if (!wide) return command;
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(flex: 710, child: command),
+            const SizedBox(width: 24),
+            Expanded(flex: 392, child: _OrderSummaryCard(provider: provider)),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _OrderCommandCard extends StatelessWidget {
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final ContractAppendixProvider provider;
+  final bool compact;
+  final VoidCallback onAdd;
+  final VoidCallback onFetch;
+  final VoidCallback onReset;
+
+  const _OrderCommandCard({
+    required this.controller,
+    required this.focusNode,
+    required this.provider,
+    required this.compact,
+    required this.onAdd,
+    required this.onFetch,
+    required this.onReset,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final locked = provider.isOrderSelectionLocked;
+    final busy = provider.isLookingUp;
+    final selected = provider.selectedOrderCodes;
+    final validationError =
+        provider.errorMessage != null &&
+        _isValidationError(provider.errorMessage!);
+    final input = AppTextInput(
+      key: const Key('contract-appendix-order-input'),
+      controller: controller,
+      focusNode: focusNode,
+      enabled: !locked && !busy,
+      readOnly: locked || busy,
+      autocorrect: false,
+      textCapitalization: TextCapitalization.characters,
+      textInputAction: TextInputAction.done,
+      onSubmitted: (_) => onAdd(),
+      label: 'Mã đơn hàng',
+      hintText: 'DH-240819-001',
+      suffixIcon: Icon(
+        PhosphorIconsRegular.magnifyingGlass,
+        size: 20,
+        color: AppColors.textSecondaryOf(context),
+      ),
+      fixedHeight: 48,
+      dense: true,
+      borderColor: validationError ? AppColors.errorOf(context) : null,
+    );
+    final addButton = SizedBox(
+      width: compact ? 108 : 112,
+      height: 48,
+      child: AppSecondaryButton(
+        key: const Key('contract-appendix-add-order-button'),
+        onPressed: locked || busy ? null : onAdd,
+        label: 'Thêm đơn',
+        size: AppButtonSize.medium,
+        height: 48,
+        radius: AppRadius.md,
+        padding: EdgeInsets.zero,
+      ),
+    );
+    final fetchButton = SizedBox(
+      width: compact ? double.infinity : 180,
+      height: 48,
+      child: AppPrimaryButton(
+        key: const Key('contract-appendix-fetch-button'),
+        onPressed: busy
+            ? null
+            : locked
+            ? onReset
+            : provider.canFetchOrders
+            ? onFetch
+            : null,
+        label: busy
+            ? 'Đang lấy thông tin…'
+            : locked
+            ? 'Chọn lại đơn hàng'
+            : 'Lấy thông tin (${selected.length} đơn)',
+        isLoading: busy,
+        loadingLabel: 'Đang lấy thông tin…',
+        size: AppButtonSize.medium,
+        height: 48,
+        radius: AppRadius.md,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+      ),
+    );
     return AppSurfaceCard(
-      child: Row(
-        key: const Key('contract-appendix-order-command-row'),
-        crossAxisAlignment: CrossAxisAlignment.start,
+      key: const Key('contract-appendix-order-command-row'),
+      padding: EdgeInsets.all(compact ? 15 : 19),
+      radius: AppRadius.lg,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: AppTextInput(
-              key: const Key('contract-appendix-order-input'),
-              controller: controller,
-              enabled: !isLoading,
-              textInputAction: TextInputAction.search,
-              onSubmitted: (_) => onSubmit(),
-              label: 'Mã đơn hàng',
-              hintText: 'Nhập mã đơn hàng',
-              icon: PhosphorIconsRegular.magnifyingGlass,
+          Text(
+            'DỮ LIỆU NGUỒN',
+            style: AppTextStyles.captionBold.copyWith(
+              color: AppColors.primaryOf(context),
+              letterSpacing: 0.3,
             ),
           ),
+          const SizedBox(height: 8),
+          Text(
+            'Tạo phụ lục hợp đồng',
+            style: AppTextStyles.headingM.copyWith(
+              color: AppColors.textPrimaryOf(context),
+              fontSize: compact ? 20 : 22,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            compact
+                ? 'Thêm tối đa 10 đơn hàng trước khi lấy thông tin.'
+                : 'Thêm tối đa 10 đơn hàng theo đúng thứ tự bạn nhập trước khi bấm lấy thông tin.',
+            style: AppTextStyles.bodyS.copyWith(
+              color: AppColors.textSecondaryOf(context),
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (compact) ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: input),
+                const SizedBox(width: 8),
+                addButton,
+              ],
+            ),
+            const SizedBox(height: 8),
+            fetchButton,
+          ] else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: input),
+                const SizedBox(width: 12),
+                addButton,
+                const SizedBox(width: 12),
+                fetchButton,
+              ],
+            ),
+          const SizedBox(height: 16),
+          Text(
+            'Đơn đã chọn  ${selected.length}/${ContractAppendixProvider.maxOrderCodes}',
+            style: AppTextStyles.labelS.copyWith(
+              color: AppColors.textSecondaryOf(context),
+            ),
+          ),
+          if (selected.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _OrderChipWrap(
+              orderCodes: selected,
+              locked: locked || busy,
+              onRemove: provider.removeOrderCode,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _OrderSummaryCard extends StatelessWidget {
+  final ContractAppendixProvider provider;
+
+  const _OrderSummaryCard({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    final locked = provider.isOrderSelectionLocked;
+    return AppSurfaceCard(
+      padding: const EdgeInsets.all(19),
+      radius: AppRadius.lg,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(
+                PhosphorIconsRegular.lockKey,
+                size: 24,
+                color: locked
+                    ? AppColors.successOf(context)
+                    : AppColors.textMutedOf(context),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  locked ? 'Tập đơn đã khóa' : 'Tập đơn đang chọn',
+                  style: AppTextStyles.labelL.copyWith(
+                    color: AppColors.textPrimaryOf(context),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '${provider.selectedOrderCodes.length}/${ContractAppendixProvider.maxOrderCodes} đơn • giữ nguyên thứ tự thêm • ${locked ? 'không gọi hệ thống khi sao chép Word.' : 'chưa lấy thông tin.'}',
+            style: AppTextStyles.bodyS.copyWith(
+              color: AppColors.textSecondaryOf(context),
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (provider.selectedOrderCodes.isEmpty)
+            Text(
+              'Danh sách sẽ hiển thị tại đây.',
+              style: AppTextStyles.bodyS.copyWith(
+                color: AppColors.textMutedOf(context),
+              ),
+            )
+          else
+            Column(
+              children: [
+                for (final code in provider.selectedOrderCodes) ...[
+                  _LockedOrderPill(code: code),
+                  const SizedBox(height: 8),
+                ],
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OrderChipWrap extends StatelessWidget {
+  final List<String> orderCodes;
+  final bool locked;
+  final bool Function(String) onRemove;
+
+  const _OrderChipWrap({
+    required this.orderCodes,
+    required this.locked,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final code in orderCodes)
+          _OrderChip(
+            key: ValueKey('contract-appendix-order-chip-$code'),
+            code: code,
+            locked: locked,
+            onRemove: () => onRemove(code),
+          ),
+      ],
+    );
+  }
+}
+
+class _OrderChip extends StatelessWidget {
+  final String code;
+  final bool locked;
+  final VoidCallback onRemove;
+
+  const _OrderChip({
+    super.key,
+    required this.code,
+    required this.locked,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = !locked;
+    return Container(
+      constraints: const BoxConstraints(minHeight: 32, minWidth: 104),
+      padding: const EdgeInsets.only(left: 11, right: 4),
+      decoration: BoxDecoration(
+        color: selected
+            ? AppColors.primarySurfaceOf(context)
+            : AppColors.neutral100Of(context),
+        border: Border.all(
+          color: selected
+              ? AppColors.primaryOf(context)
+              : AppColors.borderOf(context),
+        ),
+        borderRadius: AppRadius.allPill,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Text(
+              code,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.labelS.copyWith(
+                color: selected
+                    ? AppColors.primaryOf(context)
+                    : AppColors.textSecondaryOf(context),
+              ),
+            ),
+          ),
+          if (!locked)
+            SizedBox(
+              width: 28,
+              height: 32,
+              child: IconButton(
+                tooltip: 'Xóa $code',
+                padding: EdgeInsets.zero,
+                onPressed: onRemove,
+                icon: Icon(
+                  PhosphorIconsRegular.x,
+                  size: 18,
+                  color: AppColors.primaryOf(context),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LockedOrderPill extends StatelessWidget {
+  final String code;
+
+  const _LockedOrderPill({required this.code});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: 32,
+      padding: const EdgeInsets.symmetric(horizontal: 11),
+      alignment: Alignment.centerLeft,
+      decoration: BoxDecoration(
+        color: AppColors.neutral100Of(context),
+        border: Border.all(color: AppColors.borderOf(context)),
+        borderRadius: AppRadius.allPill,
+      ),
+      child: Text(
+        code,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: AppTextStyles.labelS.copyWith(
+          color: AppColors.textSecondaryOf(context),
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyPreviewCard extends StatelessWidget {
+  const _EmptyPreviewCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSurfaceCard(
+      key: const Key('contract-appendix-empty-preview'),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      radius: AppRadius.lg,
+      child: Column(
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Xem trước phụ lục',
+              style: AppTextStyles.labelL.copyWith(
+                color: AppColors.textPrimaryOf(context),
+              ),
+            ),
+          ),
+          const SizedBox(height: 48),
+          Icon(
+            PhosphorIconsRegular.info,
+            size: 24,
+            color: AppColors.textSecondaryOf(context),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Bảng sẽ xuất hiện sau khi lấy thông tin',
+            textAlign: TextAlign.center,
+            style: AppTextStyles.labelM.copyWith(
+              color: AppColors.textSecondaryOf(context),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Thành tiền từng dòng sẽ lấy chính xác từ tổng dòng hệ thống bán hàng.',
+            textAlign: TextAlign.center,
+            style: AppTextStyles.bodyS.copyWith(
+              color: AppColors.textMutedOf(context),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+enum _R2StatusTone { info, warning, error }
+
+class _R2StatusCard extends StatelessWidget {
+  final _R2StatusTone tone;
+  final String title;
+  final String message;
+
+  const _R2StatusCard({
+    required this.tone,
+    required this.title,
+    required this.message,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final (surface, foreground, icon) = switch (tone) {
+      _R2StatusTone.info => (
+        AppColors.infoSurfaceOf(context),
+        AppColors.infoOf(context),
+        PhosphorIconsRegular.info,
+      ),
+      _R2StatusTone.warning => (
+        AppColors.warningSurfaceOf(context),
+        AppColors.warningOf(context),
+        PhosphorIconsRegular.warningCircle,
+      ),
+      _R2StatusTone.error => (
+        AppColors.errorSurfaceOf(context),
+        AppColors.errorOf(context),
+        PhosphorIconsRegular.warningCircle,
+      ),
+    };
+    return Container(
+      constraints: const BoxConstraints(minHeight: 78),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      decoration: BoxDecoration(color: surface, borderRadius: AppRadius.allMd),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 20, color: foreground),
           const SizedBox(width: 12),
-          SizedBox(
-            width: MediaQuery.sizeOf(context).width < 600 ? 132 : 176,
-            child: AppPrimaryButton(
-              key: const Key('contract-appendix-fetch-button'),
-              onPressed: isLoading ? null : onSubmit,
-              label: 'Lấy thông tin',
-              isLoading: isLoading,
-              loadingLabel: 'Đang lấy',
-              size: AppButtonSize.medium,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: AppTextStyles.labelM.copyWith(color: foreground),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  message,
+                  style: AppTextStyles.bodyS.copyWith(
+                    color: AppColors.textSecondaryOf(context),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -292,80 +893,104 @@ class _DocumentWorkspace extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (document.unresolvedTaxCount > 0) ...[
-          AppStatusBanner(
-            icon: PhosphorIconsRegular.percent,
+          _R2StatusCard(
+            tone: _R2StatusTone.warning,
             title: 'Cần chọn thuế',
             message:
-                'Chưa xác định được thuế cho ${document.unresolvedTaxCount} '
-                'sản phẩm. Vui lòng chọn thuế nhập tay trước khi lưu.',
-            tone: AppStateTone.warning,
+                'Chưa xác định được thuế cho ${document.unresolvedTaxCount} sản phẩm. Chọn thuế nhập tay trước khi lưu.',
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
         ],
-        LayoutBuilder(
-          builder: (context, constraints) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (constraints.maxWidth >= 760)
-                  _DesktopEditor(document: document, provider: provider)
-                else
-                  _MobileEditor(document: document, provider: provider),
-                const SizedBox(height: 16),
-                ContractAppendixPreviewCard(document: document),
-              ],
-            );
-          },
-        ),
-        const SizedBox(height: 16),
-        AppSurfaceCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              AppActionRow(
-                children: [
-                  AppSecondaryButton(
-                    key: const Key('contract-appendix-refresh-button'),
-                    onPressed: provider.isBusy ? null : () => _refresh(context),
-                    icon: PhosphorIconsRegular.calculator,
-                    label: 'Cập nhật xem trước',
-                    isLoading: provider.isRefreshingPreview,
-                    size: AppButtonSize.medium,
-                  ),
-                  AppPrimaryButton(
-                    key: const Key('contract-appendix-save-button'),
-                    onPressed: provider.isBusy ? null : () => _save(context),
-                    icon: PhosphorIconsRegular.floppyDisk,
-                    label: 'Lưu phụ lục',
-                    isLoading: provider.isSaving,
-                    size: AppButtonSize.medium,
-                  ),
-                  AppSecondaryButton(
-                    key: const Key('contract-appendix-copy-button'),
-                    onPressed: provider.canCopy && !provider.isCopying
-                        ? () => _copy(context)
-                        : null,
-                    icon: PhosphorIconsRegular.copy,
-                    label: 'Sao chép bảng',
-                    isLoading: provider.isCopying,
-                    size: AppButtonSize.medium,
-                  ),
-                ],
-              ),
-              if (!provider.canCopy) ...[
-                const SizedBox(height: 8),
-                Text(
-                  provider.copyDisabledReason,
-                  textAlign: TextAlign.right,
-                  style: AppTextStyles.bodyS.copyWith(
-                    color: AppColors.textMutedOf(context),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
+        ContractAppendixPreviewCard(document: document, provider: provider),
+        const SizedBox(height: 12),
+        _DocumentActions(provider: provider, showToast: showToast),
       ],
+    );
+  }
+}
+
+class _DocumentActions extends StatelessWidget {
+  final ContractAppendixProvider provider;
+  final void Function(String message, {bool error}) showToast;
+
+  const _DocumentActions({required this.provider, required this.showToast});
+
+  @override
+  Widget build(BuildContext context) {
+    final busy = provider.isBusy || provider.isCopying;
+    return AppSurfaceCard(
+      key: const Key('contract-appendix-actions'),
+      padding: const EdgeInsets.all(12),
+      radius: AppRadius.lg,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 600;
+          final children = [
+            AppSecondaryButton(
+              key: const Key('contract-appendix-refresh-button'),
+              onPressed: busy ? null : () => _refresh(context),
+              icon: PhosphorIconsRegular.arrowsClockwise,
+              label: 'Cập nhật bảng',
+              isLoading: provider.isRefreshingPreview,
+              loadingLabel: 'Đang cập nhật',
+              size: AppButtonSize.medium,
+              height: 48,
+              expand: !compact,
+            ),
+            AppPrimaryButton(
+              key: const Key('contract-appendix-save-button'),
+              onPressed: busy ? null : () => _save(context),
+              icon: PhosphorIconsRegular.floppyDisk,
+              label: 'Lưu phụ lục',
+              isLoading: provider.isSaving,
+              loadingLabel: 'Đang lưu',
+              size: AppButtonSize.medium,
+              height: 48,
+            ),
+            AppSecondaryButton(
+              key: const Key('contract-appendix-copy-button'),
+              onPressed: provider.canCopy && !provider.isCopying
+                  ? () => _copy(context)
+                  : null,
+              icon: PhosphorIconsRegular.copy,
+              label: 'Sao chép Word',
+              isLoading: provider.isCopying,
+              loadingLabel: 'Đang sao chép',
+              size: AppButtonSize.medium,
+              height: 48,
+              expand: !compact,
+            ),
+          ];
+          return compact
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var i = 0; i < children.length; i++) ...[
+                      if (i > 0) const SizedBox(height: 8),
+                      children[i],
+                    ],
+                    if (!provider.canCopy) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        provider.copyDisabledReason,
+                        textAlign: TextAlign.center,
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.textMutedOf(context),
+                        ),
+                      ),
+                    ],
+                  ],
+                )
+              : Row(
+                  children: [
+                    for (var i = 0; i < children.length; i++) ...[
+                      if (i > 0) const SizedBox(width: 8),
+                      Expanded(child: children[i]),
+                    ],
+                  ],
+                );
+        },
+      ),
     );
   }
 
@@ -405,384 +1030,392 @@ class _DocumentWorkspace extends StatelessWidget {
   }
 }
 
-class _DesktopEditor extends StatelessWidget {
+class ContractAppendixPreviewCard extends StatelessWidget {
   final ContractAppendixDocument document;
-  final ContractAppendixProvider provider;
+  final ContractAppendixProvider? provider;
 
-  const _DesktopEditor({required this.document, required this.provider});
+  const ContractAppendixPreviewCard({
+    super.key,
+    required this.document,
+    this.provider,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return AppSurfaceCard(
-      key: const Key('contract-appendix-desktop-editor'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _SectionTitle(
-            title: 'Thông tin hàng hóa',
-            subtitle: 'Giá, SKU và số lượng được khóa theo đơn hàng.',
-            trailing: '${document.items.length} dòng',
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact =
+            constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
+        return AppSurfaceCard(
+          key: const Key('contract-appendix-preview-card'),
+          padding: EdgeInsets.fromLTRB(
+            compact ? 15 : 19,
+            compact ? 15 : 19,
+            compact ? 15 : 19,
+            compact ? 18 : 19,
           ),
-          const SizedBox(height: 12),
-          Table(
-            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-            columnWidths: const {
-              0: FlexColumnWidth(1.25),
-              1: FlexColumnWidth(2.6),
-              2: FlexColumnWidth(0.65),
-              3: FlexColumnWidth(1.0),
-              4: FlexColumnWidth(1.3),
-              5: FlexColumnWidth(1.15),
-            },
-            border: TableBorder.all(color: AppColors.borderOf(context)),
+          radius: AppRadius.lg,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _desktopHeader(context),
-              for (final item in document.items)
-                TableRow(
-                  children: [
-                    _tableText(context, item.sku),
-                    _tableEditor(
-                      key: ValueKey('name-${item.sourceLineKey}'),
-                      initialValue: item.productName,
-                      label: 'Tên hàng hóa',
-                      onChanged: (value) =>
-                          provider.updateProductName(item.sourceLineKey, value),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Xem trước phụ lục',
+                      style: AppTextStyles.labelL.copyWith(
+                        color: AppColors.textPrimaryOf(context),
+                      ),
                     ),
-                    _tableText(
-                      context,
-                      item.quantity.toString(),
-                      align: TextAlign.center,
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
                     ),
-                    _tableEditor(
-                      key: ValueKey('unit-${item.sourceLineKey}'),
-                      initialValue: item.unit,
-                      label: 'ĐVT',
-                      onChanged: (value) =>
-                          provider.updateUnit(item.sourceLineKey, value),
+                    decoration: BoxDecoration(
+                      color: AppColors.successSurfaceOf(context),
+                      borderRadius: AppRadius.allPill,
                     ),
-                    _tableText(
-                      context,
-                      _money(item.finalSellPrice),
-                      align: TextAlign.right,
+                    child: Text(
+                      '${document.orderCodes.length} đơn • đã khóa',
+                      style: AppTextStyles.captionBold.copyWith(
+                        color: AppColors.successOf(context),
+                      ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.all(5),
-                      child: _TaxField(item: item, provider: provider),
-                    ),
-                  ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                compact
+                    ? 'Dữ liệu đã đối soát; mã hàng và số lượng đang khóa.'
+                    : 'Bảng Word 7 cột • thành tiền từng dòng lấy từ tổng dòng hệ thống bán hàng • phần tổng luôn khớp.',
+                style: AppTextStyles.bodyS.copyWith(
+                  color: AppColors.textSecondaryOf(context),
                 ),
+              ),
+              const SizedBox(height: 16),
+              if (compact)
+                _MobilePreview(document: document, provider: provider)
+              else
+                _DesktopPreview(document: document, provider: provider),
             ],
           ),
-        ],
-      ),
-    );
-  }
-
-  TableRow _desktopHeader(BuildContext context) {
-    return TableRow(
-      decoration: BoxDecoration(color: AppColors.primarySurfaceOf(context)),
-      children: const [
-        _TableHeader('SKU'),
-        _TableHeader('Tên hàng hóa'),
-        _TableHeader('SL'),
-        _TableHeader('ĐVT'),
-        _TableHeader('Giá đã VAT'),
-        _TableHeader('Thuế'),
-      ],
+        );
+      },
     );
   }
 }
 
-class _MobileEditor extends StatelessWidget {
+class _MobilePreview extends StatelessWidget {
   final ContractAppendixDocument document;
-  final ContractAppendixProvider provider;
+  final ContractAppendixProvider? provider;
 
-  const _MobileEditor({required this.document, required this.provider});
+  const _MobilePreview({required this.document, required this.provider});
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _SectionTitle(
-          title: 'Thông tin hàng hóa',
-          subtitle: 'Có thể sửa tên hàng và đơn vị tính.',
-          trailing: '${document.items.length} dòng',
-        ),
-        const SizedBox(height: 8),
         for (var index = 0; index < document.items.length; index++) ...[
-          if (index > 0) const SizedBox(height: 10),
-          _MobileItemCard(item: document.items[index], provider: provider),
+          if (index > 0) const SizedBox(height: 12),
+          _MobilePreviewLine(
+            key: ValueKey(
+              'contract-appendix-item-${document.items[index].sourceLineKey}',
+            ),
+            item: document.items[index],
+            provider: provider,
+          ),
         ],
+        const SizedBox(height: 16),
+        Divider(height: 1, color: AppColors.subtleBorderOf(context)),
+        const SizedBox(height: 12),
+        _TotalAfterVat(document: document),
+        const SizedBox(height: 8),
+        _AmountInWords(document: document),
       ],
     );
   }
 }
 
-class _MobileItemCard extends StatelessWidget {
+class _MobilePreviewLine extends StatelessWidget {
   final ContractAppendixItem item;
-  final ContractAppendixProvider provider;
+  final ContractAppendixProvider? provider;
 
-  const _MobileItemCard({required this.item, required this.provider});
+  const _MobilePreviewLine({
+    super.key,
+    required this.item,
+    required this.provider,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return AppSurfaceCard(
-      key: ValueKey('contract-appendix-item-${item.sourceLineKey}'),
+    return Container(
+      constraints: const BoxConstraints(minHeight: 92),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.neutral50Of(context),
+        borderRadius: AppRadius.allMd,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: AppColors.primarySurfaceOf(context),
-                foregroundColor: AppColors.primaryOf(context),
-                child: Text('${item.position}'),
-              ),
-              const SizedBox(width: 10),
               Expanded(
-                child: Text('SKU ${item.sku}', style: AppTextStyles.labelM),
-              ),
-              _TaxSourceChip(item: item),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _EditableValueField(
-            key: ValueKey('mobile-name-${item.sourceLineKey}'),
-            initialValue: item.productName,
-            maxLines: 3,
-            label: 'Tên hàng hóa',
-            onChanged: (value) =>
-                provider.updateProductName(item.sourceLineKey, value),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: _LockedValue(
-                  label: 'Số lượng',
-                  value: item.quantity.toString(),
+                child: Text(
+                  item.sku,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.labelS.copyWith(
+                    color: AppColors.textPrimaryOf(context),
+                  ),
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _EditableValueField(
-                  key: ValueKey('mobile-unit-${item.sourceLineKey}'),
+              const SizedBox(width: 8),
+              Text(
+                _moneyOrDash(item.lineAfterVat),
+                textAlign: TextAlign.right,
+                style: AppTextStyles.labelL.copyWith(
+                  color: AppColors.textPrimaryOf(context),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          _InlineTextEditor(
+            initialValue: item.productName,
+            label: 'Tên hàng hóa',
+            onChanged: provider == null
+                ? null
+                : (value) =>
+                      provider!.updateProductName(item.sourceLineKey, value),
+            textStyle: AppTextStyles.bodyS.copyWith(
+              color: AppColors.textPrimaryOf(context),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Text(
+                'SL ${item.quantity}  •  ',
+                style: AppTextStyles.bodyCompact.copyWith(
+                  color: AppColors.textSecondaryOf(context),
+                ),
+              ),
+              Flexible(
+                child: _InlineTextEditor(
                   initialValue: item.unit,
                   label: 'Đơn vị tính',
-                  onChanged: (value) =>
-                      provider.updateUnit(item.sourceLineKey, value),
+                  onChanged: provider == null
+                      ? null
+                      : (value) =>
+                            provider!.updateUnit(item.sourceLineKey, value),
+                  textStyle: AppTextStyles.bodyCompact.copyWith(
+                    color: AppColors.textSecondaryOf(context),
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          _LockedValue(
-            label: 'Giá đã VAT',
-            value: '${_money(item.finalSellPrice)} VNĐ',
-          ),
-          const SizedBox(height: 10),
-          _TaxField(item: item, provider: provider),
+          if (item.canEnterManualTax && provider != null) ...[
+            const SizedBox(height: 8),
+            _TaxField(item: item, provider: provider!),
+          ],
         ],
       ),
     );
   }
 }
 
-class _TaxField extends StatelessWidget {
-  final ContractAppendixItem item;
-  final ContractAppendixProvider provider;
+class _DesktopPreview extends StatelessWidget {
+  final ContractAppendixDocument document;
+  final ContractAppendixProvider? provider;
 
-  const _TaxField({required this.item, required this.provider});
+  const _DesktopPreview({required this.document, required this.provider});
 
   @override
   Widget build(BuildContext context) {
-    if (!item.canEnterManualTax) {
-      return _LockedValue(label: 'Thuế hệ thống', value: item.vatLabel);
-    }
-    return AppCombobox<int>.single(
-      key: ValueKey('tax-${item.sourceLineKey}-${item.vatRateBps}'),
-      value: item.vatRateBps,
-      label: item.taxSource == 'MANUAL' ? 'Thuế nhập tay' : 'Chọn thuế',
-      helperText: item.taxSource == 'MANUAL' ? 'Thuế nhập tay' : null,
-      hintText: 'Chọn mức thuế',
-      dense: true,
-      allowClear: false,
-      options: [
-        for (final rate in ContractAppendixProvider.manualVatRates)
-          AppComboboxOption(value: rate, label: '${rate ~/ 100}%'),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ContractAppendixPreviewTable(document: document, provider: provider),
+        if (document.items.any((item) => item.canEnterManualTax) &&
+            provider != null) ...[
+          const SizedBox(height: 12),
+          for (final item in document.items.where(
+            (item) => item.canEnterManualTax,
+          )) ...[
+            _TaxField(item: item, provider: provider!),
+            const SizedBox(height: 8),
+          ],
+        ],
+        const SizedBox(height: 16),
+        Divider(height: 1, color: AppColors.subtleBorderOf(context)),
+        const SizedBox(height: 12),
+        _TotalAfterVat(document: document),
+        const SizedBox(height: 8),
+        _AmountInWords(document: document),
       ],
-      onChanged: (value) =>
-          provider.updateManualVatRate(item.sourceLineKey, value),
     );
   }
 }
 
-class _TaxSourceChip extends StatelessWidget {
-  final ContractAppendixItem item;
+class ContractAppendixPreviewTable extends StatelessWidget {
+  final ContractAppendixDocument document;
+  final ContractAppendixProvider? provider;
 
-  const _TaxSourceChip({required this.item});
-
-  @override
-  Widget build(BuildContext context) {
-    final manual = item.taxSource == 'MANUAL';
-    final missing = item.isTaxMissing;
-    final color = missing
-        ? AppColors.warningOf(context)
-        : manual
-        ? AppColors.warningOf(context)
-        : AppColors.successOf(context);
-    final label = missing
-        ? 'Thiếu thuế'
-        : manual
-        ? 'Thuế nhập tay'
-        : 'Thuế hệ thống';
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: AppRadius.allPill,
-      ),
-      child: Text(
-        label,
-        style: AppTextStyles.captionBold.copyWith(color: color),
-      ),
-    );
-  }
-}
-
-class _LockedValue extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _LockedValue({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return AppReadOnlyField(value: value, label: label, maxLines: 2);
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final String? trailing;
-
-  const _SectionTitle({
-    required this.title,
-    required this.subtitle,
-    this.trailing,
+  const ContractAppendixPreviewTable({
+    super.key,
+    required this.document,
+    this.provider,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    const widths = <int, TableColumnWidth>{
+      0: FlexColumnWidth(0.65),
+      1: FlexColumnWidth(3.9),
+      2: FlexColumnWidth(1.35),
+      3: FlexColumnWidth(1.0),
+      4: FlexColumnWidth(0.7),
+      5: FlexColumnWidth(1.8),
+      6: FlexColumnWidth(2.0),
+    };
+    return Table(
+      key: const Key('contract-appendix-preview-table'),
+      columnWidths: widths,
+      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+      border: TableBorder.all(color: AppColors.borderOf(context)),
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: AppTextStyles.headingS),
-              const SizedBox(height: 2),
-              Text(
-                subtitle,
-                style: AppTextStyles.bodyS.copyWith(
-                  color: AppColors.textSecondaryOf(context),
-                ),
-              ),
-            ],
-          ),
+        TableRow(
+          decoration: BoxDecoration(color: AppColors.primarySurfaceOf(context)),
+          children: const [
+            _R2TableCell('STT', header: true, center: true),
+            _R2TableCell('Tên hàng', header: true),
+            _R2TableCell('Mã hàng', header: true, center: true),
+            _R2TableCell('ĐVT', header: true, center: true),
+            _R2TableCell('SL', header: true, center: true),
+            _R2TableCell('Đơn giá', header: true, center: true),
+            _R2TableCell('Thành tiền', header: true, center: true),
+          ],
         ),
-        if (trailing != null)
-          Text(
-            trailing!,
-            style: AppTextStyles.labelS.copyWith(
-              color: AppColors.primaryOf(context),
-            ),
+        for (final item in document.items)
+          TableRow(
+            decoration: BoxDecoration(color: AppColors.neutral50Of(context)),
+            children: [
+              _R2TableCell('${item.position}', center: true),
+              provider == null
+                  ? _R2TableCell(item.productName)
+                  : _R2InlineTableCell(
+                      initialValue: item.productName,
+                      label: 'Tên hàng hóa',
+                      onChanged: (value) => provider!.updateProductName(
+                        item.sourceLineKey,
+                        value,
+                      ),
+                    ),
+              _R2TableCell(item.sku, center: true),
+              provider == null
+                  ? _R2TableCell(item.unit, center: true)
+                  : _R2InlineTableCell(
+                      initialValue: item.unit,
+                      label: 'Đơn vị tính',
+                      center: true,
+                      onChanged: (value) =>
+                          provider!.updateUnit(item.sourceLineKey, value),
+                    ),
+              _R2TableCell('${item.quantity}', center: true),
+              _R2TableCell(_moneyOrDash(item.unitPriceBeforeVat), center: true),
+              _R2TableCell(_moneyOrDash(item.lineAfterVat), center: true),
+            ],
           ),
       ],
     );
   }
 }
 
-class _TableHeader extends StatelessWidget {
+class _R2TableCell extends StatelessWidget {
   final String text;
+  final bool header;
+  final bool center;
 
-  const _TableHeader(this.text);
+  const _R2TableCell(this.text, {this.header = false, this.center = false});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 11),
       child: Text(
         text,
-        textAlign: TextAlign.center,
-        style: AppTextStyles.labelS,
+        textAlign: center ? TextAlign.center : TextAlign.left,
+        maxLines: header ? 2 : 3,
+        overflow: TextOverflow.ellipsis,
+        style: (header ? AppTextStyles.captionBold : AppTextStyles.bodyCompact)
+            .copyWith(
+              color: header
+                  ? AppColors.primaryOf(context)
+                  : AppColors.textSecondaryOf(context),
+            ),
       ),
     );
   }
 }
 
-Widget _tableText(
-  BuildContext context,
-  String value, {
-  TextAlign align = TextAlign.left,
-}) {
-  return Padding(
-    padding: const EdgeInsets.all(6),
-    child: Text(
-      value,
-      textAlign: align,
-      style: AppTextStyles.bodyS.copyWith(
-        color: AppColors.textSecondaryOf(context),
-      ),
-    ),
-  );
-}
-
-Widget _tableEditor({
-  required Key key,
-  required String initialValue,
-  required String label,
-  required ValueChanged<String> onChanged,
-}) {
-  return Padding(
-    padding: const EdgeInsets.all(4),
-    child: _EditableValueField(
-      key: key,
-      initialValue: initialValue,
-      label: label,
-      onChanged: onChanged,
-      maxLines: label == 'Tên hàng hóa' ? 3 : 1,
-      dense: true,
-    ),
-  );
-}
-
-class _EditableValueField extends StatefulWidget {
+class _R2InlineTableCell extends StatelessWidget {
   final String initialValue;
   final String label;
+  final bool center;
   final ValueChanged<String> onChanged;
-  final int maxLines;
-  final bool dense;
 
-  const _EditableValueField({
-    super.key,
+  const _R2InlineTableCell({
     required this.initialValue,
     required this.label,
     required this.onChanged,
-    this.maxLines = 1,
-    this.dense = false,
+    this.center = false,
   });
 
   @override
-  State<_EditableValueField> createState() => _EditableValueFieldState();
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      child: _InlineTextEditor(
+        initialValue: initialValue,
+        label: label,
+        onChanged: onChanged,
+        textAlign: center ? TextAlign.center : TextAlign.left,
+        textStyle: AppTextStyles.bodyCompact.copyWith(
+          color: AppColors.textSecondaryOf(context),
+        ),
+      ),
+    );
+  }
 }
 
-class _EditableValueFieldState extends State<_EditableValueField> {
+class _InlineTextEditor extends StatefulWidget {
+  final String initialValue;
+  final String label;
+  final ValueChanged<String>? onChanged;
+  final TextAlign textAlign;
+  final TextStyle? textStyle;
+
+  const _InlineTextEditor({
+    required this.initialValue,
+    required this.label,
+    required this.onChanged,
+    this.textAlign = TextAlign.left,
+    this.textStyle,
+  });
+
+  @override
+  State<_InlineTextEditor> createState() => _InlineTextEditorState();
+}
+
+class _InlineTextEditorState extends State<_InlineTextEditor> {
   late final TextEditingController _controller;
 
   @override
@@ -792,7 +1425,7 @@ class _EditableValueFieldState extends State<_EditableValueField> {
   }
 
   @override
-  void didUpdateWidget(covariant _EditableValueField oldWidget) {
+  void didUpdateWidget(covariant _InlineTextEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.initialValue == oldWidget.initialValue ||
         _controller.text == widget.initialValue) {
@@ -811,213 +1444,96 @@ class _EditableValueFieldState extends State<_EditableValueField> {
 
   @override
   Widget build(BuildContext context) {
-    return AppTextInput(
-      controller: _controller,
+    final enabled = widget.onChanged != null;
+    return Semantics(
+      textField: enabled,
       label: widget.label,
-      onChanged: widget.onChanged,
-      maxLines: widget.maxLines,
-      minLines: 1,
-      dense: widget.dense,
+      child: AppTextInput(
+        controller: _controller,
+        enabled: enabled,
+        readOnly: !enabled,
+        maxLines: 1,
+        textAlign: widget.textAlign,
+        textStyle: widget.textStyle ?? AppTextStyles.bodyS,
+        onChanged: widget.onChanged,
+        label: widget.label,
+        showLabel: false,
+        borderless: true,
+      ),
     );
   }
 }
 
-class ContractAppendixPreviewCard extends StatelessWidget {
+class _TaxField extends StatelessWidget {
+  final ContractAppendixItem item;
+  final ContractAppendixProvider provider;
+
+  const _TaxField({required this.item, required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCombobox<int>.single(
+      key: ValueKey('tax-${item.sourceLineKey}-${item.vatRateBps}'),
+      value: item.vatRateBps,
+      label: item.taxSource == 'MANUAL' ? 'Thuế nhập tay' : 'Chọn thuế',
+      helperText: item.taxSource == 'MANUAL' ? 'Thuế nhập tay' : null,
+      hintText: 'Chọn mức thuế',
+      dense: true,
+      allowClear: false,
+      options: [
+        for (final rate in ContractAppendixProvider.manualVatRates)
+          AppComboboxOption(value: rate, label: '${rate ~/ 100}%'),
+      ],
+      onChanged: (value) =>
+          provider.updateManualVatRate(item.sourceLineKey, value),
+    );
+  }
+}
+
+class _TotalAfterVat extends StatelessWidget {
   final ContractAppendixDocument document;
 
-  const ContractAppendixPreviewCard({super.key, required this.document});
+  const _TotalAfterVat({required this.document});
 
   @override
   Widget build(BuildContext context) {
-    return AppSurfaceCard(
-      key: const Key('contract-appendix-preview-card'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _SectionTitle(
-            title: 'Xem trước bảng Word',
-            subtitle: 'Kéo ngang để xem đủ 7 cột.',
-            trailing: document.isFinalized ? 'Đã lưu' : 'Chưa lưu',
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: math
-                .min(520, 190 + (document.items.length * 64))
-                .toDouble(),
-            child: AppTwoAxisScrollView(
-              child: ContractAppendixPreviewTable(document: document),
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            'Tổng sau VAT',
+            style: AppTextStyles.bodyS.copyWith(
+              color: AppColors.textSecondaryOf(context),
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class ContractAppendixPreviewTable extends StatelessWidget {
-  final ContractAppendixDocument document;
-
-  const ContractAppendixPreviewTable({super.key, required this.document});
-
-  @override
-  Widget build(BuildContext context) {
-    const widths = <int, TableColumnWidth>{
-      0: FixedColumnWidth(56),
-      1: FixedColumnWidth(386),
-      2: FixedColumnWidth(58),
-      3: FixedColumnWidth(72),
-      4: FixedColumnWidth(160),
-      5: FixedColumnWidth(78),
-      6: FixedColumnWidth(150),
-    };
-    return SizedBox(
-      width: 960,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Table(
-            key: const Key('contract-appendix-preview-table'),
-            columnWidths: widths,
-            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-            border: TableBorder.all(color: AppColors.neutral900Of(context)),
-            children: [
-              TableRow(
-                decoration: BoxDecoration(
-                  color: AppColors.errorSurfaceOf(context),
-                ),
-                children: const [
-                  _PreviewCell('STT', header: true),
-                  _PreviewCell('Tên hàng hóa', header: true),
-                  _PreviewCell('SL', header: true),
-                  _PreviewCell('ĐVT', header: true),
-                  _PreviewCell('Đơn giá (VNĐ)\nChưa VAT', header: true),
-                  _PreviewCell('GTGT', header: true),
-                  _PreviewCell(
-                    'Thành tiền (VNĐ)\n(đã bao gồm VAT)',
-                    header: true,
-                  ),
-                ],
-              ),
-              for (final item in document.items)
-                TableRow(
-                  children: [
-                    _PreviewCell('${item.position}', center: true),
-                    _PreviewCell(item.productName),
-                    _PreviewCell('${item.quantity}', center: true),
-                    _PreviewCell(item.unit, center: true),
-                    _PreviewCell(
-                      _moneyOrDash(item.unitPriceBeforeVat),
-                      center: true,
-                    ),
-                    _PreviewCell(item.vatLabel, center: true),
-                    _PreviewCell(_moneyOrDash(item.lineAfterVat), center: true),
-                  ],
-                ),
-            ],
-          ),
-          _PreviewSummaryRow(
-            label: 'Tổng cộng',
-            value: _moneyOrDash(document.totalBeforeVat),
-          ),
-          _PreviewSummaryRow(
-            label: 'Thuế GTGT',
-            value: _moneyOrDash(document.totalVatAmount),
-          ),
-          _PreviewSummaryRow(
-            label: 'Tổng giá trị hợp đồng (đã bao gồm thuế GTGT)',
-            value: _moneyOrDash(document.totalAfterVat),
-            emphasized: true,
-          ),
-          const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              key: const Key('contract-appendix-amount-in-words'),
-              document.amountInWords == null
-                  ? 'Bằng chữ: Chưa đủ dữ liệu để tính.'
-                  : 'Bằng chữ: ${document.amountInWords}',
-              style: _wordPreviewTextStyle(bold: true),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PreviewCell extends StatelessWidget {
-  final String text;
-  final bool header;
-  final bool center;
-
-  const _PreviewCell(this.text, {this.header = false, this.center = false});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 9),
-      child: Text(
-        text,
-        textAlign: center ? TextAlign.center : TextAlign.left,
-        style: _wordPreviewTextStyle(bold: header),
-      ),
-    );
-  }
-}
-
-class _PreviewSummaryRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final bool emphasized;
-
-  const _PreviewSummaryRow({
-    required this.label,
-    required this.value,
-    this.emphasized = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final background = emphasized ? AppColors.errorSurfaceOf(context) : null;
-    return Container(
-      decoration: BoxDecoration(
-        color: background,
-        border: Border(
-          left: BorderSide(color: AppColors.neutral900Of(context)),
-          right: BorderSide(color: AppColors.neutral900Of(context)),
-          bottom: BorderSide(color: AppColors.neutral900Of(context)),
         ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 4,
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Text(
-                label,
-                textAlign: TextAlign.center,
-                style: _wordPreviewTextStyle(bold: true),
-              ),
-            ),
+        Text(
+          _moneyOrDash(document.totalAfterVat),
+          textAlign: TextAlign.right,
+          style: AppTextStyles.headingS.copyWith(
+            color: AppColors.primaryOf(context),
+            fontSize: 18,
           ),
-          Container(
-            width: 1,
-            height: 42,
-            color: AppColors.neutral900Of(context),
-          ),
-          Expanded(
-            flex: 3,
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Text(
-                value,
-                textAlign: TextAlign.center,
-                style: _wordPreviewTextStyle(bold: true),
-              ),
-            ),
-          ),
-        ],
+        ),
+      ],
+    );
+  }
+}
+
+class _AmountInWords extends StatelessWidget {
+  final ContractAppendixDocument document;
+
+  const _AmountInWords({required this.document});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      key: const Key('contract-appendix-amount-in-words'),
+      document.amountInWords == null
+          ? 'Bằng chữ: Chưa đủ dữ liệu để tính.'
+          : 'Bằng chữ: ${document.amountInWords}',
+      style: AppTextStyles.caption.copyWith(
+        color: AppColors.textSecondaryOf(context),
       ),
     );
   }
@@ -1038,26 +1554,49 @@ class _HistoryWorkspace extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        AppSurfaceCard(
-          child: Row(
-            key: const Key('contract-appendix-history-command-row'),
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: AppTextInput(
-                  controller: searchController,
-                  textInputAction: TextInputAction.search,
-                  onSubmitted: (_) => _search(context),
-                  label: 'Tìm theo mã đơn',
-                  icon: PhosphorIconsRegular.magnifyingGlass,
+    return AppSurfaceCard(
+      key: const Key('contract-appendix-history-surface'),
+      padding: const EdgeInsets.all(15),
+      radius: AppRadius.lg,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Lịch sử phụ lục',
+            style: AppTextStyles.headingM.copyWith(
+              color: AppColors.textPrimaryOf(context),
+              fontSize: 20,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Chỉ hiển thị bản đã lưu trong 30 ngày.',
+            style: AppTextStyles.bodyS.copyWith(
+              color: AppColors.textSecondaryOf(context),
+            ),
+          ),
+          const SizedBox(height: 16),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 600;
+              final input = AppTextInput(
+                key: const Key('contract-appendix-history-search-input'),
+                controller: searchController,
+                textInputAction: TextInputAction.search,
+                onSubmitted: (_) => _search(context),
+                label: 'Tìm theo mã đơn',
+                hintText: 'DH-240819-001',
+                suffixIcon: Icon(
+                  PhosphorIconsRegular.magnifyingGlass,
+                  size: 20,
+                  color: AppColors.textSecondaryOf(context),
                 ),
-              ),
-              const SizedBox(width: 10),
-              SizedBox(
-                width: MediaQuery.sizeOf(context).width < 600 ? 112 : 150,
+                fixedHeight: 48,
+                dense: true,
+              );
+              final button = SizedBox(
+                width: compact ? double.infinity : 132,
+                height: 48,
                 child: AppPrimaryButton(
                   onPressed: provider.isLoadingHistory
                       ? null
@@ -1065,40 +1604,48 @@ class _HistoryWorkspace extends StatelessWidget {
                   label: 'Tìm kiếm',
                   isLoading: provider.isLoadingHistory,
                   loadingLabel: 'Đang tìm',
+                  size: AppButtonSize.medium,
+                  height: 48,
                 ),
-              ),
-            ],
+              );
+              return compact
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [input, const SizedBox(height: 8), button],
+                    )
+                  : Row(
+                      children: [
+                        Expanded(child: input),
+                        const SizedBox(width: 12),
+                        button,
+                      ],
+                    );
+            },
           ),
-        ),
-        const SizedBox(height: 12),
-        if (provider.isLoadingHistory && provider.history.isEmpty)
-          const AppSurfaceCard(
-            child: AppStatePanel.loading(
+          const SizedBox(height: 16),
+          if (provider.isLoadingHistory && provider.history.isEmpty)
+            const _HistoryStateCard(
+              icon: PhosphorIconsRegular.spinnerGap,
               title: 'Đang tải lịch sử',
-              compact: true,
-            ),
-          )
-        else if (provider.history.isEmpty)
-          const AppSurfaceCard(
-            child: AppStatePanel.empty(
+              message: 'Đang lấy các phụ lục đã lưu.',
+            )
+          else if (provider.history.isEmpty)
+            const _HistoryStateCard(
               icon: PhosphorIconsRegular.clockCounterClockwise,
               title: 'Chưa có phụ lục trong 30 ngày',
               message: 'Các phụ lục đã lưu sẽ xuất hiện tại đây.',
-              compact: true,
-            ),
-          )
-        else ...[
-          for (var index = 0; index < provider.history.length; index++) ...[
-            if (index > 0) const SizedBox(height: 10),
-            _HistoryCard(
-              item: provider.history[index],
-              onOpen: () => openDetail(provider.history[index].id),
-              busy: provider.isLoadingHistoryDetail,
-            ),
-          ],
-          const SizedBox(height: 10),
-          AppSurfaceCard(
-            child: AppPaginationControls(
+            )
+          else ...[
+            for (var index = 0; index < provider.history.length; index++) ...[
+              if (index > 0) const SizedBox(height: 12),
+              _HistoryCard(
+                item: provider.history[index],
+                onOpen: () => openDetail(provider.history[index].id),
+                busy: provider.isLoadingHistoryDetail,
+              ),
+            ],
+            const SizedBox(height: 12),
+            AppPaginationControls(
               pageIndex: provider.historyPage,
               totalItems: provider.historyTotal,
               itemLabel: 'phụ lục',
@@ -1111,9 +1658,9 @@ class _HistoryWorkspace extends StatelessWidget {
               onRefresh: () => provider.loadHistory(page: provider.historyPage),
               isRefreshing: provider.isLoadingHistory,
             ),
-          ),
+          ],
         ],
-      ],
+      ),
     );
   }
 
@@ -1125,6 +1672,44 @@ class _HistoryWorkspace extends StatelessWidget {
     );
     if (!context.mounted || ok) return;
     showToast(provider.errorMessage ?? 'Chưa tải được lịch sử.', error: true);
+  }
+}
+
+class _HistoryStateCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String message;
+
+  const _HistoryStateCard({
+    required this.icon,
+    required this.title,
+    required this.message,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      decoration: BoxDecoration(
+        color: AppColors.neutral50Of(context),
+        borderRadius: AppRadius.allMd,
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 24, color: AppColors.textSecondaryOf(context)),
+          const SizedBox(height: 12),
+          Text(title, style: AppTextStyles.labelM),
+          const SizedBox(height: 4),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: AppTextStyles.bodyS.copyWith(
+              color: AppColors.textSecondaryOf(context),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -1143,63 +1728,63 @@ class _HistoryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final date = item.createdAt == null
         ? 'Không rõ thời gian'
-        : DateFormat('dd/MM/yyyy HH:mm').format(item.createdAt!.toLocal());
-    return AppSurfaceCard(
-      onTap: busy ? null : onOpen,
-      child: Row(
+        : DateFormat('dd/MM/yyyy').format(item.createdAt!.toLocal());
+    final codes = item.orderCodes.isNotEmpty
+        ? item.orderCodes.join(' · ')
+        : item.orderCode;
+    return Container(
+      constraints: const BoxConstraints(minHeight: 118),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.neutral50Of(context),
+        borderRadius: AppRadius.allMd,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: AppColors.primarySurfaceOf(context),
-              borderRadius: AppRadius.allMd,
-            ),
-            child: Icon(
-              PhosphorIconsRegular.fileText,
-              color: AppColors.primaryOf(context),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.orderCode,
-                  style: AppTextStyles.labelL,
-                  maxLines: 1,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                PhosphorIconsRegular.fileText,
+                size: 20,
+                color: AppColors.textSecondaryOf(context),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  codes,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  '$date · ${item.itemCount} sản phẩm',
-                  style: AppTextStyles.bodyS.copyWith(
-                    color: AppColors.textSecondaryOf(context),
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  '${_money(item.totalAfterVat)} VNĐ',
                   style: AppTextStyles.labelM.copyWith(
-                    color: AppColors.successOf(context),
+                    color: AppColors.textPrimaryOf(context),
                   ),
                 ),
-                if (item.manualTaxItemCount > 0)
-                  Text(
-                    '${item.manualTaxItemCount} dòng dùng thuế nhập tay',
-                    style: AppTextStyles.caption.copyWith(
-                      color: AppColors.warningOf(context),
-                    ),
-                  ),
-              ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            '${item.orderCodes.length} đơn hàng • $date • ${_money(item.totalAfterVat)}',
+            style: AppTextStyles.bodyS.copyWith(
+              color: AppColors.textSecondaryOf(context),
             ),
           ),
-          const SizedBox(width: 8),
-          IconButton(
-            tooltip: 'Xem phụ lục',
-            onPressed: busy ? null : onOpen,
-            icon: const Icon(PhosphorIconsRegular.caretRight),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: SizedBox(
+              width: 92,
+              height: 48,
+              child: AppSecondaryButton(
+                onPressed: busy ? null : onOpen,
+                label: 'Xem',
+                size: AppButtonSize.medium,
+                height: 48,
+                radius: AppRadius.md,
+                padding: EdgeInsets.zero,
+              ),
+            ),
           ),
         ],
       ),
@@ -1217,6 +1802,9 @@ class _HistoryDetailDialog extends StatelessWidget {
     final provider = context.watch<ContractAppendixProvider>();
     final document = provider.historyDetail!;
     final media = MediaQuery.sizeOf(context);
+    final codes = document.orderCodes.isNotEmpty
+        ? document.orderCodes.join(' · ')
+        : document.orderCode;
     return Dialog(
       insetPadding: const EdgeInsets.all(16),
       child: SizedBox(
@@ -1234,9 +1822,9 @@ class _HistoryDetailDialog extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Phụ lục ${document.orderCode}',
+                          'Phụ lục $codes',
                           style: AppTextStyles.headingS,
-                          maxLines: 1,
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
                         Text(
@@ -1260,7 +1848,7 @@ class _HistoryDetailDialog extends StatelessWidget {
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: AppTwoAxisScrollView(
+                child: SingleChildScrollView(
                   child: ContractAppendixPreviewTable(document: document),
                 ),
               ),
@@ -1283,7 +1871,7 @@ class _HistoryDetailDialog extends StatelessWidget {
                           ? null
                           : () => _copy(context, provider),
                       icon: PhosphorIconsRegular.copy,
-                      label: 'Sao chép bảng',
+                      label: 'Sao chép Word',
                       isLoading: provider.isCopying,
                     ),
                   ),
@@ -1316,11 +1904,15 @@ String _money(int value) => vietnameseMoneyNumberFormat.format(value);
 String _moneyOrDash(int? value) =>
     value == null ? '—' : vietnameseMoneyNumberFormat.format(value);
 
-TextStyle _wordPreviewTextStyle({bool bold = false}) =>
-    AppTextStyles.bodyL.copyWith(
-      fontFamily: 'Times New Roman',
-      fontFamilyFallback: const ['serif'],
-      fontSize: 16,
-      height: 1.25,
-      fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
-    );
+bool _isValidationError(String message) {
+  final normalized = message.toLowerCase();
+  return normalized.contains('đã có') ||
+      normalized.contains('tối đa') ||
+      normalized.contains('vui lòng nhập');
+}
+
+String _friendlyError(String message) {
+  final trimmed = message.trim();
+  if (trimmed.isEmpty) return 'Vui lòng kiểm tra danh sách và thử lại.';
+  return trimmed;
+}

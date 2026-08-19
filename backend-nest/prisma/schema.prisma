@@ -1911,20 +1911,22 @@ enum FifoLogType {
 // CONTRACT APPENDIX (Phụ lục hợp đồng - lịch sử cá nhân 30 ngày)
 // ============================================================
 model ContractAppendix {
-  id                   String                 @id @default(uuid())
+  id                   String                        @id @default(uuid())
   userId               String
-  user                 User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                 User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
   orderCode            String
+  orderCodes           String[]                      @default([])
   terminalCode         String
   totalBeforeVat       BigInt
   totalVatAmount       BigInt
   totalAfterVat        BigInt
   amountInWords        String
-  manualTaxItemCount   Int                    @default(0)
+  manualTaxItemCount   Int                           @default(0)
   sourceOrderFetchedAt DateTime
   quoteFingerprint     String
-  createdAt            DateTime               @default(now())
+  createdAt            DateTime                      @default(now())
   expiresAt            DateTime
+  sourceOrders         ContractAppendixSourceOrder[]
   items                ContractAppendixItem[]
 
   @@index([userId, createdAt])
@@ -1933,27 +1935,43 @@ model ContractAppendix {
   @@map("contract_appendices")
 }
 
-model ContractAppendixItem {
+model ContractAppendixSourceOrder {
   id                 String           @id @default(uuid())
   contractAppendixId String
   contractAppendix   ContractAppendix @relation(fields: [contractAppendixId], references: [id], onDelete: Cascade)
   position           Int
-  sourceLineKey      String
-  sku                String
-  sellerSku          String?
-  productName        String
-  quantity           Int
-  unit               String
-  finalSellPrice     BigInt
-  unitPriceBeforeVat BigInt
-  vatRateBps         Int
-  taxCode            String?
-  taxLabel           String?
-  taxSource          String
-  taxFetchedAt       DateTime?
-  lineBeforeVat      BigInt
-  lineVatAmount      BigInt
-  lineAfterVat       BigInt
+  orderCode          String
+  fetchedAt          DateTime
+
+  @@unique([contractAppendixId, position])
+  @@index([orderCode])
+  @@map("contract_appendix_source_orders")
+}
+
+model ContractAppendixItem {
+  id                   String           @id @default(uuid())
+  contractAppendixId   String
+  contractAppendix     ContractAppendix @relation(fields: [contractAppendixId], references: [id], onDelete: Cascade)
+  position             Int
+  sourceLineKey        String
+  sku                  String
+  sellerSku            String?
+  productName          String
+  quantity             Int
+  unit                 String
+  finalSellPrice       BigInt
+  erpRowTotal          BigInt?
+  sourceOrderCodes     String[]         @default([])
+  sourceLineIdentities String[]         @default([])
+  unitPriceBeforeVat   BigInt
+  vatRateBps           Int
+  taxCode              String?
+  taxLabel             String?
+  taxSource            String
+  taxFetchedAt         DateTime?
+  lineBeforeVat        BigInt
+  lineVatAmount        BigInt
+  lineAfterVat         BigInt
 
   @@unique([contractAppendixId, position])
   @@index([contractAppendixId])

@@ -18,6 +18,9 @@ class ContractAppendixItem {
   final int? lineBeforeVat;
   final int? lineVatAmount;
   final int? lineAfterVat;
+  final int? erpRowTotal;
+  final List<String> sourceOrderCodes;
+  final List<String> sourceLineIdentities;
 
   const ContractAppendixItem({
     required this.position,
@@ -37,9 +40,18 @@ class ContractAppendixItem {
     required this.lineBeforeVat,
     required this.lineVatAmount,
     required this.lineAfterVat,
+    this.erpRowTotal,
+    this.sourceOrderCodes = const [],
+    this.sourceLineIdentities = const [],
   });
 
-  factory ContractAppendixItem.fromJson(Map<String, dynamic> json) {
+  factory ContractAppendixItem.fromJson(
+    Map<String, dynamic> json, {
+    String? fallbackOrderCode,
+  }) {
+    final lineAfterVat = _int(json['lineAfterVat']);
+    final sourceOrderCodes = _stringList(json['sourceOrderCodes']);
+    final sourceLineIdentities = _stringList(json['sourceLineIdentities']);
     return ContractAppendixItem(
       position: _int(json['position']) ?? 0,
       sourceLineKey: _text(json['sourceLineKey']),
@@ -57,7 +69,12 @@ class ContractAppendixItem {
       unitPriceBeforeVat: _int(json['unitPriceBeforeVat']),
       lineBeforeVat: _int(json['lineBeforeVat']),
       lineVatAmount: _int(json['lineVatAmount']),
-      lineAfterVat: _int(json['lineAfterVat']),
+      lineAfterVat: lineAfterVat,
+      erpRowTotal: _int(json['erpRowTotal']) ?? lineAfterVat,
+      sourceOrderCodes: sourceOrderCodes.isNotEmpty
+          ? sourceOrderCodes
+          : [if (_optionalText(fallbackOrderCode) case final code?) code],
+      sourceLineIdentities: sourceLineIdentities,
     );
   }
 
@@ -120,6 +137,9 @@ class ContractAppendixItem {
       lineAfterVat: identical(lineAfterVat, _unset)
           ? this.lineAfterVat
           : lineAfterVat as int?,
+      erpRowTotal: erpRowTotal,
+      sourceOrderCodes: sourceOrderCodes,
+      sourceLineIdentities: sourceLineIdentities,
     );
   }
 
@@ -128,15 +148,39 @@ class ContractAppendixItem {
       'sourceLineKey': sourceLineKey,
       'productName': productName.trim(),
       'unit': unit.trim(),
+      if (sourceLineIdentities.isNotEmpty)
+        'sourceLineIdentities': sourceLineIdentities,
       if (taxSource == 'MANUAL' && vatRateBps != null)
         'manualVatRateBps': vatRateBps,
     };
   }
 }
 
+class ContractAppendixSourceOrder {
+  final int position;
+  final String orderCode;
+  final DateTime? fetchedAt;
+
+  const ContractAppendixSourceOrder({
+    required this.position,
+    required this.orderCode,
+    required this.fetchedAt,
+  });
+
+  factory ContractAppendixSourceOrder.fromJson(Map<String, dynamic> json) {
+    return ContractAppendixSourceOrder(
+      position: _int(json['position']) ?? 0,
+      orderCode: _text(json['orderCode']),
+      fetchedAt: _date(json['fetchedAt']),
+    );
+  }
+}
+
 class ContractAppendixDocument {
   final String? id;
   final String orderCode;
+  final List<String> orderCodes;
+  final List<ContractAppendixSourceOrder> sourceOrders;
   final String quoteVersion;
   final String terminalCode;
   final DateTime? sourceOrderFetchedAt;
@@ -154,6 +198,8 @@ class ContractAppendixDocument {
   const ContractAppendixDocument({
     required this.id,
     required this.orderCode,
+    this.orderCodes = const [],
+    this.sourceOrders = const [],
     required this.quoteVersion,
     required this.terminalCode,
     required this.sourceOrderFetchedAt,
@@ -170,12 +216,32 @@ class ContractAppendixDocument {
   });
 
   factory ContractAppendixDocument.fromJson(Map<String, dynamic> json) {
+    final orderCode = _text(json['orderCode']);
+    final parsedOrderCodes = _stringList(json['orderCodes']);
+    final orderCodes = parsedOrderCodes.isNotEmpty
+        ? parsedOrderCodes
+        : [if (orderCode.isNotEmpty) orderCode];
+    final parsedSourceOrders = _mapList(
+      json['sourceOrders'],
+    ).map(ContractAppendixSourceOrder.fromJson).toList(growable: false);
+    final sourceOrderFetchedAt = _date(json['sourceOrderFetchedAt']);
+    final sourceOrders = parsedSourceOrders.isNotEmpty
+        ? parsedSourceOrders
+        : [
+            if (orderCode.isNotEmpty)
+              ContractAppendixSourceOrder(
+                position: 0,
+                orderCode: orderCode,
+                fetchedAt: sourceOrderFetchedAt,
+              ),
+          ];
     final rows = json['items'] is List ? json['items'] as List : const [];
     final items = rows
         .whereType<Map>()
         .map(
           (row) => ContractAppendixItem.fromJson(
             row.map((key, value) => MapEntry(key.toString(), value)),
+            fallbackOrderCode: orderCode,
           ),
         )
         .toList(growable: false);
@@ -184,10 +250,12 @@ class ContractAppendixDocument {
         items.where((item) => item.isTaxMissing).length;
     return ContractAppendixDocument(
       id: _optionalText(json['id']),
-      orderCode: _text(json['orderCode']),
+      orderCode: orderCode,
+      orderCodes: orderCodes,
+      sourceOrders: sourceOrders,
       quoteVersion: _text(json['quoteVersion']),
       terminalCode: _text(json['terminalCode']),
-      sourceOrderFetchedAt: _date(json['sourceOrderFetchedAt']),
+      sourceOrderFetchedAt: sourceOrderFetchedAt,
       items: items,
       totalBeforeVat: _int(json['totalBeforeVat']),
       totalVatAmount: _int(json['totalVatAmount']),
@@ -217,6 +285,8 @@ class ContractAppendixDocument {
     return ContractAppendixDocument(
       id: id,
       orderCode: orderCode,
+      orderCodes: orderCodes,
+      sourceOrders: sourceOrders,
       quoteVersion: quoteVersion ?? this.quoteVersion,
       terminalCode: terminalCode,
       sourceOrderFetchedAt: sourceOrderFetchedAt,
@@ -248,6 +318,8 @@ class ContractAppendixDocument {
 class ContractAppendixHistoryItem {
   final String id;
   final String orderCode;
+  final List<String> orderCodes;
+  final List<ContractAppendixSourceOrder> sourceOrders;
   final int itemCount;
   final int totalBeforeVat;
   final int totalVatAmount;
@@ -260,6 +332,8 @@ class ContractAppendixHistoryItem {
   const ContractAppendixHistoryItem({
     required this.id,
     required this.orderCode,
+    this.orderCodes = const [],
+    this.sourceOrders = const [],
     required this.itemCount,
     required this.totalBeforeVat,
     required this.totalVatAmount,
@@ -271,9 +345,28 @@ class ContractAppendixHistoryItem {
   });
 
   factory ContractAppendixHistoryItem.fromJson(Map<String, dynamic> json) {
+    final orderCode = _text(json['orderCode']);
+    final parsedOrderCodes = _stringList(json['orderCodes']);
+    final orderCodes = parsedOrderCodes.isNotEmpty
+        ? parsedOrderCodes
+        : [if (orderCode.isNotEmpty) orderCode];
+    final parsedSourceOrders = _mapList(
+      json['sourceOrders'],
+    ).map(ContractAppendixSourceOrder.fromJson).toList(growable: false);
     return ContractAppendixHistoryItem(
       id: _text(json['id']),
-      orderCode: _text(json['orderCode']),
+      orderCode: orderCode,
+      orderCodes: orderCodes,
+      sourceOrders: parsedSourceOrders.isNotEmpty
+          ? parsedSourceOrders
+          : [
+              if (orderCode.isNotEmpty)
+                ContractAppendixSourceOrder(
+                  position: 0,
+                  orderCode: orderCode,
+                  fetchedAt: null,
+                ),
+            ],
       itemCount: _int(json['itemCount']) ?? 0,
       totalBeforeVat: _int(json['totalBeforeVat']) ?? 0,
       totalVatAmount: _int(json['totalVatAmount']) ?? 0,
@@ -340,4 +433,17 @@ String? _optionalText(Object? value) {
 DateTime? _date(Object? value) {
   final text = _text(value);
   return text.isEmpty ? null : DateTime.tryParse(text);
+}
+
+List<String> _stringList(Object? value) {
+  if (value is! List) return const [];
+  return value.map(_optionalText).whereType<String>().toList(growable: false);
+}
+
+List<Map<String, dynamic>> _mapList(Object? value) {
+  if (value is! List) return const [];
+  return value
+      .whereType<Map>()
+      .map((row) => row.map((key, value) => MapEntry(key.toString(), value)))
+      .toList(growable: false);
 }

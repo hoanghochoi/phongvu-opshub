@@ -1,7 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
+import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/contract_appendix/data/contract_appendix_clipboard.dart';
 import 'package:phongvu_opshub/features/contract_appendix/data/contract_appendix_repository.dart';
 import 'package:phongvu_opshub/features/contract_appendix/domain/contract_appendix.dart';
@@ -47,6 +51,108 @@ void main() {
       expect(document.items.single.lineAfterVat, 15570000);
       expect(document.items.single.isTaxMissing, isTrue);
       expect(document.canSave, isFalse);
+      expect(document.orderCodes, ['SO-1']);
+      expect(document.sourceOrders.single.orderCode, 'SO-1');
+      expect(document.items.single.erpRowTotal, 15570000);
+      expect(document.items.single.sourceOrderCodes, ['SO-1']);
+    });
+
+    test('parses plural order provenance and ERP row total', () {
+      final document = ContractAppendixDocument.fromJson({
+        'orderCode': 'SO-1',
+        'orderCodes': ['SO-1', 'SO-2'],
+        'sourceOrders': [
+          {
+            'position': 0,
+            'orderCode': 'SO-1',
+            'fetchedAt': '2026-08-19T01:00:00.000Z',
+          },
+          {
+            'position': 1,
+            'orderCode': 'SO-2',
+            'fetchedAt': '2026-08-19T01:00:01.000Z',
+          },
+        ],
+        'quoteVersion': 'quote-multi',
+        'terminalCode': '49180_PRICE_0001',
+        'items': [
+          {
+            'position': 1,
+            'sourceLineKey': 'multi-line',
+            'sku': 'SKU-1',
+            'productName': 'Sản phẩm',
+            'quantity': 2,
+            'unit': 'Cái',
+            'finalSellPrice': 250,
+            'vatRateBps': 0,
+            'taxSource': 'ERP_PPM',
+            'unitPriceBeforeVat': 250,
+            'lineBeforeVat': 500,
+            'lineVatAmount': -1,
+            'lineAfterVat': 499,
+            'erpRowTotal': 499,
+            'sourceOrderCodes': ['SO-1', 'SO-2'],
+            'sourceLineIdentities': ['SO-1:line-1', 'SO-2:line-1'],
+          },
+        ],
+        'totalBeforeVat': 500,
+        'totalVatAmount': -1,
+        'totalAfterVat': 499,
+        'amountInWords': 'Bốn trăm chín mươi chín đồng.',
+        'canSave': true,
+      });
+
+      expect(document.orderCodes, ['SO-1', 'SO-2']);
+      expect(document.sourceOrders.map((value) => value.position), [0, 1]);
+      expect(document.items.single.erpRowTotal, 499);
+      expect(document.items.single.sourceOrderCodes, ['SO-1', 'SO-2']);
+      expect(document.items.single.sourceLineIdentities, [
+        'SO-1:line-1',
+        'SO-2:line-1',
+      ]);
+    });
+  });
+
+  group('ContractAppendixRepository', () {
+    test('sends plural-only order codes for preview and save', () async {
+      final requests = <http.Request>[];
+      final client = ApiClient.test(
+        MockClient((request) async {
+          requests.add(request);
+          return http.Response(
+            jsonEncode({
+              'orderCode': 'SO-1',
+              'orderCodes': ['SO-1', 'SO-2'],
+              'quoteVersion': 'quote-1',
+              'terminalCode': '49180_PRICE_0001',
+              'items': const [],
+              'canSave': false,
+            }),
+            200,
+          );
+        }),
+      );
+      final repository = ContractAppendixRepository(client);
+
+      await repository.preview(orderCodes: const [' SO-1 ', 'SO-2']);
+      await repository.save(
+        orderCodes: const [' SO-1 ', 'SO-2'],
+        quoteVersion: 'quote-1',
+        overrides: const [],
+      );
+
+      expect(requests, hasLength(2));
+      for (final request in requests) {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['orderCodes'], ['SO-1', 'SO-2']);
+        expect(body.containsKey('orderCode'), isFalse);
+      }
+      expect(
+        (jsonDecode(requests.last.body)
+            as Map<String, dynamic>)['quoteVersion'],
+        'quote-1',
+      );
+      client.dispose();
     });
   });
 
@@ -86,10 +192,10 @@ void main() {
       expect(payload.html, contains('table-layout:fixed'));
       expect(payload.html, contains('mso-table-layout-alt:fixed'));
       expect(payload.html, contains('<colgroup>'));
-      for (final width in ['6%', '40%', '6%', '7%', '16%', '9%', '16%']) {
+      for (final width in ['6%', '34%', '14%', '7%', '6%', '17%', '16%']) {
         expect(payload.html, contains('<col width="$width"'));
       }
-      expect(payload.html, contains('<td width="40%"'));
+      expect(payload.html, contains('<td width="34%"'));
       expect(payload.html, isNot(contains('<thead>')));
       expect(payload.html, isNot(contains('</thead>')));
       expect(payload.html, contains('white-space:nowrap'));
@@ -129,6 +235,7 @@ void main() {
       expect(lines.first.split('\t'), hasLength(7));
       expect(lines[1].split('\t'), hasLength(7));
       expect(lines[1], contains('Laptop <Pro> & "Office" Dòng 2'));
+      expect(lines[1], contains('\t220909037\t'));
       expect(lines[1], contains('Cái chiếc'));
       expect(payload.plainText, contains('Thuế GTGT'));
       expect(payload.plainText, contains('\n\nBằng chữ:'));
@@ -152,7 +259,10 @@ void main() {
           payload.plainText,
           contains('Phần mềm Microsoft Win Pro 11 64-bit'),
         );
-        expect(payload.plainText, contains('\tBản\t5.190.000\t0%\t15.570.000'));
+        expect(
+          payload.plainText,
+          contains('\t220909037\tBản\t3\t5.190.000\t15.570.000'),
+        );
         expect(payload.plainText, contains('Tổng cộng\t\t\t\t\t\t15.570.000'));
         expect(
           payload.plainText,
@@ -165,6 +275,57 @@ void main() {
   });
 
   group('ContractAppendixProvider', () {
+    test(
+      'adds orders without API, deduplicates, fetches, locks and resets',
+      () async {
+        final dataSource = _FakeDataSource();
+        final provider = ContractAppendixProvider(
+          dataSource,
+          clipboardWriter: _FakeClipboardWriter(),
+        );
+
+        expect(provider.addOrderCode(' SO-1 '), isTrue);
+        expect(provider.addOrderCode('so-1'), isFalse);
+        expect(provider.addOrderCode('SO-2'), isTrue);
+        expect(provider.selectedOrderCodes, ['SO-1', 'SO-2']);
+        expect(dataSource.previewCalls, 0);
+
+        expect(await provider.fetchOrders(), isTrue);
+        expect(dataSource.previewCalls, 1);
+        expect(dataSource.lastPreviewOrderCodes, ['SO-1', 'SO-2']);
+        expect(provider.isOrderSelectionLocked, isTrue);
+        expect(provider.addOrderCode('SO-3'), isFalse);
+        expect(provider.removeOrderCode('SO-1'), isFalse);
+
+        expect(provider.resetOrderSelection(), isTrue);
+        expect(provider.selectedOrderCodes, isEmpty);
+        expect(provider.isOrderSelectionLocked, isFalse);
+        expect(provider.draft, isNull);
+        expect(provider.saved, isNull);
+      },
+    );
+
+    test(
+      'enforces ten orders and retains selection after atomic failure',
+      () async {
+        final dataSource = _FakeDataSource()
+          ..previewError = StateError('ERP lỗi');
+        final provider = ContractAppendixProvider(
+          dataSource,
+          clipboardWriter: _FakeClipboardWriter(),
+        );
+
+        for (var index = 1; index <= 10; index++) {
+          expect(provider.addOrderCode('SO-$index'), isTrue);
+        }
+        expect(provider.addOrderCode('SO-11'), isFalse);
+        expect(await provider.fetchOrders(), isFalse);
+        expect(provider.selectedOrderCodes, hasLength(10));
+        expect(provider.isOrderSelectionLocked, isFalse);
+        expect(provider.draft, isNull);
+      },
+    );
+
     test('dirty edit refreshes and saves before copy is enabled', () async {
       final dataSource = _FakeDataSource();
       final writer = _FakeClipboardWriter();
@@ -258,18 +419,24 @@ class _FakeDataSource implements ContractAppendixDataSource {
   int saveCalls = 0;
   int listCalls = 0;
   int detailCalls = 0;
+  Object? previewError;
+  List<String>? lastPreviewOrderCodes;
+  List<String>? lastSaveOrderCodes;
 
   @override
   Future<ContractAppendixDocument> preview({
-    required String orderCode,
+    required List<String> orderCodes,
     List<Map<String, dynamic>> overrides = const [],
   }) async {
     previewCalls++;
+    lastPreviewOrderCodes = List<String>.of(orderCodes);
+    if (previewError case final error?) throw error;
     final name = overrides.isEmpty
         ? 'Laptop ERP'
         : overrides.single['productName'] as String;
     final unit = overrides.isEmpty ? 'Bản' : overrides.single['unit'] as String;
     return _document(
+      orderCodes: orderCodes,
       quoteVersion: 'quote-$previewCalls',
       productName: name,
       unit: unit,
@@ -278,13 +445,15 @@ class _FakeDataSource implements ContractAppendixDataSource {
 
   @override
   Future<ContractAppendixDocument> save({
-    required String orderCode,
+    required List<String> orderCodes,
     required String quoteVersion,
     required List<Map<String, dynamic>> overrides,
   }) async {
     saveCalls++;
+    lastSaveOrderCodes = List<String>.of(orderCodes);
     return _document(
       saved: true,
+      orderCodes: orderCodes,
       quoteVersion: quoteVersion,
       productName: overrides.single['productName'] as String,
       unit: overrides.single['unit'] as String,
@@ -333,11 +502,21 @@ ContractAppendixDocument _document({
   String quoteVersion = 'quote-1',
   String productName = 'Phần mềm Microsoft Win Pro 11 64-bit',
   String unit = 'Bản',
+  List<String> orderCodes = const ['SO-1'],
 }) {
   final createdAt = saved ? DateTime.utc(2026, 7, 17, 8) : null;
   return ContractAppendixDocument(
     id: saved ? 'appendix-1' : null,
-    orderCode: 'SO-1',
+    orderCode: orderCodes.first,
+    orderCodes: orderCodes,
+    sourceOrders: [
+      for (final entry in orderCodes.indexed)
+        ContractAppendixSourceOrder(
+          position: entry.$1,
+          orderCode: entry.$2,
+          fetchedAt: DateTime.utc(2026, 7, 17, 7),
+        ),
+    ],
     quoteVersion: quoteVersion,
     terminalCode: '49180_PRICE_0001',
     sourceOrderFetchedAt: DateTime.utc(2026, 7, 17, 7),
@@ -360,6 +539,8 @@ ContractAppendixDocument _document({
         lineBeforeVat: 15570000,
         lineVatAmount: 0,
         lineAfterVat: 15570000,
+        erpRowTotal: 15570000,
+        sourceOrderCodes: orderCodes,
       ),
     ],
     totalBeforeVat: 15570000,
