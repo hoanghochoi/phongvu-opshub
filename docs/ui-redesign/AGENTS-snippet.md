@@ -61,7 +61,9 @@ Non-negotiable rules:
   review does not create a Git worktree unless it also changes repository
   documentation or assets. Feature PRs target `staging`.
 - Record implementation/proof in Linear before a forward status transition.
-  Staging merge/deploy or QA approval is not `Done`; production deployment is.
+  Staging merge/deploy or QA approval is not `Done` for this runtime/visual
+  redesign scope; production deployment is. The bounded documentation-only
+  lane in ADR 0031 does not apply to a redesign implementation.
 
 Authority is scoped, not a single override list:
 

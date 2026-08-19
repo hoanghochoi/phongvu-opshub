@@ -11,6 +11,22 @@
 - Không force push. `main` chỉ nhận đúng SHA của `origin/staging`; ngay sau
   promotion, hai remote ref phải cùng SHA.
 
+### Phân loại scope trước lifecycle
+
+Ghi rõ trong PR body và Linear proof comment nếu task dùng lane
+`documentation-only`. Lane này chỉ hợp lệ khi changed paths chỉ là tài liệu,
+ADR, plan/story, index, sanitized evidence hoặc repository guidance; không được
+đụng runtime source/test, dependency/lockfile, generated asset, deployment
+workflow/config, secret/environment input, permission, route, API/data
+contract hoặc production behavior. Nếu diff mixed, mơ hồ, hoặc tài liệu là
+production release/config input thì dùng lane runtime bình thường.
+
+`documentation-only` vẫn phải qua PR/review, CI, exact staging deploy, QA,
+Linear implementation/proof comment và lifecycle cleanup. `Done` ở lane này có
+nghĩa repository execution đã hoàn tất, không phải tài liệu đã được publish lên
+production host; không cần promotion `staging -> main` cho issue đó. Quyết định
+chi tiết nằm trong ADR 0031.
+
 Các câu `làm tiếp`, `release nhé`, `xử lý phần còn lại` không phải authorization
 để direct push. Ví dụ đủ rõ:
 
@@ -85,9 +101,12 @@ tiện”; release mà tiện quá thường là lúc rollback bắt đầu tậ
    hoặc `main`. Ruleset chỉ được require check `Release guard` sau khi check đã
    xuất hiện và pass ít nhất một lần trên GitHub.
 5. PR title: `[OPS-142] Fix date picker`; base: `staging`; body dùng
-   `Part of OPS-142`. Dùng `Fixes OPS-142` chỉ khi production release thực sự
-   dự kiến đóng issue.
-6. Feature PR dùng squash-and-merge. Merge vào `staging` chưa phải `Done`.
+   `Part of OPS-142`. Với task đủ điều kiện `documentation-only`, ghi rõ scope
+   đó và dùng `Fixes OPS-142` khi staging QA là completion gate; các task còn
+   lại dùng `Part of OPS-142` cho tới production release.
+6. Feature PR dùng squash-and-merge. Merge vào `staging` chưa phải `Done` cho
+   runtime/production-affecting work; qualifying documentation-only work vẫn
+   phải chờ exact staging deploy/QA rồi mới được `Done`.
 7. Sau khi PR merge, không mở task mới cho tới khi cleanup và sync staging
    thành công:
 
@@ -223,9 +242,15 @@ environment này, vì vậy token/secret chỉ xuất hiện sau approval.
 | Đại Ca ra lệnh promote | Releasing |
 | Production deploy đạt | Done |
 
-Không chuyển `Done` vì task branch đã push, PR đã merge, staging đã deploy, QA
-đã approve hoặc release PR đã mở. Nếu workspace chưa có các status trên, admin
-phải tạo chúng trước khi bật automation theo target branch.
+Đối với `documentation-only`, QA staging đạt chuyển thẳng sang `Done` sau khi
+comment proof được ghi và đọc lại. Bảng production ở trên vẫn áp dụng cho mọi
+runtime hoặc production-affecting task.
+
+Không chuyển `Done` chỉ vì task branch đã push, PR đã merge, staging đã deploy,
+QA đã approve hoặc release PR đã mở đối với runtime/production-affecting task.
+Chỉ qualifying `documentation-only` mới được dùng staging deploy/QA làm gate
+cuối. Nếu workspace chưa có các status trên, admin phải tạo chúng trước khi
+bật automation theo target branch.
 
 ### Issue tracking record
 

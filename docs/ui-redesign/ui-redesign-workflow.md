@@ -209,7 +209,10 @@ Proof tối thiểu cho UI code:
 - Body dùng `Part of OPS-123` khi chờ staging QA.
 - PR link Linear issue, approved Figma revision, screenshots và exact proof.
 - Feature PR squash-and-merge; merge staging chưa phải `Done`.
-- Linear `Done` chỉ sau production deployment thành công.
+- Với implementation redesign/runtime, Linear `Done` chỉ sau production
+  deployment thành công. Thay đổi documentation-only được phân loại theo ADR
+  0031 và có thể `Done` sau exact staging deploy/QA; không áp dụng ngoại lệ này
+  cho visual/runtime implementation.
 - Production promotion tuân thủ exact authorization và release playbook.
 
 ## 5. Rollout

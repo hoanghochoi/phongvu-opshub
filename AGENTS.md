@@ -111,9 +111,13 @@ before acting. Never claim done before verification.
   the local lifecycle command. Ignored files inside the task worktree also
   block cleanup by default; use `--allow-ignored` only after explicitly
   reviewing that those generated/local files may be deleted with the worktree.
-- Do not mark a Linear issue `Done` after a feature push, PR merge, staging
-  deploy, QA approval, or release approval alone. `Done` requires a successful
-  production deployment.
+- Do not mark a runtime or production-affecting Linear issue `Done` after a
+  feature push, PR merge, staging deploy, QA approval, or release approval
+  alone. A task may use the bounded `documentation-only` lane in
+  `docs/decisions/0031-documentation-only-completion-after-staging.md` only
+  when its changed paths, proof and review explicitly show no runtime,
+  dependency, deployment/configuration, asset, permission, or production
+  behavior change; exact staging deploy/QA then suffices for `Done`.
 - Follow `docs/runbooks/git-release-playbook.md` for direct staging pushes,
   production promotion, hotfixes, rollback, and GitHub/Linear configuration.
 
@@ -264,7 +268,9 @@ Non-negotiable rules:
   review does not create a Git worktree unless it also changes repository
   documentation or assets. Feature PRs target `staging`.
 - Record implementation/proof in Linear before a forward status transition.
-  Staging merge/deploy or QA approval is not `Done`; production deployment is.
+  Staging merge/deploy or QA approval is not `Done` for runtime or
+  production-affecting work; qualifying documentation-only work may transition
+  to `Done` after exact staging deploy/QA and proof read-back.
 
 Authority is scoped, not a single override list:
 

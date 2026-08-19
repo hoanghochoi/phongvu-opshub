@@ -28,5 +28,7 @@ with production closure evidence in
 [`docs/migrations/ops-64-production-closure.json`](../../migrations/ops-64-production-closure.json).
 
 Use `docs/templates/exec-plan.md` for new durable work. Move a plan only after
-its requested outcome and validation are recorded; do not infer production
-completion from a merge or staging deployment alone.
+its requested outcome and validation are recorded. For a task explicitly
+classified `documentation-only` under ADR 0031, exact staging deploy/QA proves
+repository execution completion; do not infer production publication from that
+proof. Runtime and production-affecting plans still require production release.
