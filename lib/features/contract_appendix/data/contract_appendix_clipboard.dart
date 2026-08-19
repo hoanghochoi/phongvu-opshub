@@ -70,10 +70,10 @@ ContractAppendixClipboardPayload buildContractAppendixClipboardPayload(
     ..writeln('<tbody><tr>')
     ..write(_htmlHeader('STT', width: _columnWidths[0]))
     ..write(_htmlHeader('Tên hàng hóa', width: _columnWidths[1]))
-    ..write(_htmlHeader('SL', width: _columnWidths[2]))
+    ..write(_htmlHeader('Mã hàng', width: _columnWidths[2]))
     ..write(_htmlHeader('ĐVT', width: _columnWidths[3]))
-    ..write(_htmlHeader('Đơn giá (VNĐ)<br>Chưa VAT', width: _columnWidths[4]))
-    ..write(_htmlHeader('GTGT', width: _columnWidths[5]))
+    ..write(_htmlHeader('SL', width: _columnWidths[4]))
+    ..write(_htmlHeader('Đơn giá (VNĐ)<br>Chưa VAT', width: _columnWidths[5]))
     ..write(
       _htmlHeader(
         'Thành tiền (VNĐ)<br>(đã bao gồm VAT)',
@@ -84,7 +84,8 @@ ContractAppendixClipboardPayload buildContractAppendixClipboardPayload(
 
   final tsv = StringBuffer()
     ..writeln(
-      'STT\tTên hàng hóa\tSL\tĐVT\tĐơn giá (VNĐ) - Chưa VAT\tGTGT\t'
+      'STT\tTên hàng hóa\tMã hàng\tĐVT\tSL\t'
+      'Đơn giá (VNĐ) - Chưa VAT\t'
       'Thành tiền (VNĐ) (đã bao gồm VAT)',
     );
 
@@ -104,7 +105,7 @@ ContractAppendixClipboardPayload buildContractAppendixClipboardPayload(
       ..write(_htmlCell(item.productName, width: _columnWidths[1]))
       ..write(
         _htmlCell(
-          item.quantity.toString(),
+          item.sku,
           width: _columnWidths[2],
           align: 'center',
           nowrap: true,
@@ -120,7 +121,7 @@ ContractAppendixClipboardPayload buildContractAppendixClipboardPayload(
       )
       ..write(
         _htmlCell(
-          unitBeforeVat,
+          item.quantity.toString(),
           width: _columnWidths[4],
           align: 'center',
           nowrap: true,
@@ -128,7 +129,7 @@ ContractAppendixClipboardPayload buildContractAppendixClipboardPayload(
       )
       ..write(
         _htmlCell(
-          item.vatLabel,
+          unitBeforeVat,
           width: _columnWidths[5],
           align: 'center',
           nowrap: true,
@@ -144,8 +145,8 @@ ContractAppendixClipboardPayload buildContractAppendixClipboardPayload(
       )
       ..writeln('</tr>');
     tsv.writeln(
-      '${item.position}\t${_tsv(item.productName)}\t${item.quantity}\t'
-      '${_tsv(item.unit)}\t$unitBeforeVat\t${item.vatLabel}\t$lineAfterVat',
+      '${item.position}\t${_tsv(item.productName)}\t${_tsv(item.sku)}\t'
+      '${_tsv(item.unit)}\t${item.quantity}\t$unitBeforeVat\t$lineAfterVat',
     );
   }
 
@@ -182,7 +183,10 @@ ContractAppendixClipboardPayload buildContractAppendixClipboardPayload(
   );
 }
 
-const _columnWidths = <String>['6%', '40%', '6%', '7%', '16%', '9%', '16%'];
+// R2 keeps one seven-column Word table and uses the SKU as the identifier
+// column. VAT remains part of the derived totals rather than a separate
+// visible column, so the line total stays the ERP-authoritative rowTotal.
+const _columnWidths = <String>['6%', '34%', '14%', '7%', '6%', '17%', '16%'];
 
 const _wordFontStyle =
     "font-family:'Times New Roman';mso-ascii-font-family:'Times New Roman';"

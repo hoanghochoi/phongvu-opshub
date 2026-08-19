@@ -14,6 +14,7 @@ describe('ContractAppendicesService', () => {
         quantity: 3,
         uomName: 'Bản',
         finalSellPrice: 5_190_000,
+        rowTotal: 15_570_000,
         sellPrice: 99,
       },
     ],
@@ -71,7 +72,7 @@ describe('ContractAppendicesService', () => {
       { orderCode: ' SO-220909037 ' },
     );
     expect(orderErp.lookupContractAppendixOrder).toHaveBeenCalledWith(
-      ' SO-220909037 ',
+      'SO-220909037',
     );
     expect(productErp.lookupTaxes).toHaveBeenCalledWith(['220909037']);
     expect(result.canSave).toBe(true);
@@ -88,6 +89,194 @@ describe('ContractAppendicesService', () => {
     expect(result.totalBeforeVat + result.totalVatAmount).toBe(
       result.totalAfterVat,
     );
+  });
+
+  it('uses shipment rowTotal instead of multiplying the gross price', async () => {
+    const { service, orderErp, productErp } = harness();
+    productErp.lookupTaxes.mockResolvedValue({
+      ...taxes,
+      items: [
+        {
+          ...taxes.items[0],
+          vatRateBps: 800,
+          taxCode: 'VAT8',
+          taxLabel: 'Thuế 8%',
+        },
+      ],
+    });
+    orderErp.lookupContractAppendixOrder.mockResolvedValue({
+      ...order,
+      items: [
+        {
+          ...order.items[0],
+          quantity: 2,
+          finalSellPrice: 250,
+          rowTotal: 499,
+        },
+      ],
+    });
+
+    const result = await service.preview(
+      { id: 'user-1' },
+      { orderCodes: ['SO-ROW-TOTAL'] },
+    );
+
+    expect(result.items[0]).toMatchObject({
+      finalSellPrice: 250,
+      quantity: 2,
+      lineAfterVat: 499,
+    });
+    expect(result.totalAfterVat).toBe(499);
+  });
+
+  it('looks up multiple orders atomically, keeps order, and groups compatible lines', async () => {
+    const { service, orderErp, productErp } = harness();
+    productErp.lookupTaxes.mockResolvedValue({
+      ...taxes,
+      items: [
+        {
+          ...taxes.items[0],
+          vatRateBps: 800,
+          taxCode: 'VAT8',
+          taxLabel: 'Thuế 8%',
+        },
+      ],
+    });
+    orderErp.lookupContractAppendixOrder.mockImplementation(
+      async (orderCode: string) => ({
+        ...order,
+        orderCode,
+        items: [
+          {
+            ...order.items[0],
+            sku: 'SKU-GROUP',
+            sellerSku: 'SKU-GROUP',
+            quantity: orderCode === 'SO-1' ? 2 : 3,
+            finalSellPrice: 250,
+            rowTotal: orderCode === 'SO-1' ? 499 : 750,
+            uomName: 'Cái',
+            name: orderCode === 'SO-1' ? 'Tên đầu tiên' : 'Tên khác',
+          },
+        ],
+      }),
+    );
+
+    const result = await service.preview(
+      { id: 'user-1' },
+      { orderCodes: ['so-1', 'SO-2'] },
+    );
+
+    expect(orderErp.lookupContractAppendixOrder.mock.calls.map(([code]) => code))
+      .toEqual(expect.arrayContaining(['SO-1', 'SO-2']));
+    expect(result.orderCodes).toEqual(['SO-1', 'SO-2']);
+    expect(result.sourceOrders.map((source: any) => source.orderCode)).toEqual([
+      'SO-1',
+      'SO-2',
+    ]);
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toMatchObject({
+      sku: 'SKU-GROUP',
+      quantity: 5,
+      erpRowTotal: 1_249,
+      lineAfterVat: 1_249,
+      sourceOrderCodes: ['SO-1', 'SO-2'],
+    });
+    expect(result.items[0].sourceLineIdentities).toHaveLength(2);
+    expect(productErp.lookupTaxes).toHaveBeenCalledWith(['SKU-GROUP']);
+  });
+
+  it('fails the whole preview with the first failed order and no partial table', async () => {
+    const { service, orderErp } = harness();
+    orderErp.lookupContractAppendixOrder.mockImplementation(async (code: string) => {
+      if (code === 'SO-2') throw new Error('ERP down');
+      return order;
+    });
+
+    await expect(
+      service.preview({ id: 'user-1' }, { orderCodes: ['SO-1', 'SO-2'] }),
+    ).rejects.toThrow('SO-2');
+  });
+
+  it('applies one grouped-line override to every constituent source identity', async () => {
+    const { service, orderErp, productErp } = harness();
+    productErp.lookupTaxes.mockResolvedValue({
+      ...taxes,
+      items: [
+        {
+          ...taxes.items[0],
+          sku: 'SKU-GROUP',
+          vatRateBps: 800,
+          taxCode: 'VAT8',
+          taxLabel: 'Thuế 8%',
+        },
+      ],
+    });
+    orderErp.lookupContractAppendixOrder.mockImplementation(
+      async (orderCode: string) => ({
+        ...order,
+        orderCode,
+        items: [
+          {
+            ...order.items[0],
+            sku: 'SKU-GROUP',
+            sellerSku: 'SKU-GROUP',
+            quantity: 1,
+            finalSellPrice: 250,
+            rowTotal: 250,
+            uomName: 'Cái',
+          },
+        ],
+      }),
+    );
+
+    const first = await service.preview(
+      { id: 'user-1' },
+      { orderCodes: ['SO-1', 'SO-2'] },
+    );
+    const grouped = first.items[0];
+    const refreshed = await service.preview(
+      { id: 'user-1' },
+      {
+        orderCodes: ['SO-1', 'SO-2'],
+        overrides: [
+          {
+            sourceLineKey: grouped.sourceLineKey,
+            sourceLineIdentities: grouped.sourceLineIdentities,
+            productName: 'Tên đã sửa',
+            unit: 'Bộ',
+          },
+        ],
+      },
+    );
+
+    expect(refreshed.items).toHaveLength(1);
+    expect(refreshed.items[0]).toMatchObject({
+      productName: 'Tên đã sửa',
+      unit: 'Bộ',
+      quantity: 2,
+      erpRowTotal: 500,
+    });
+  });
+
+  it('rejects duplicate, incompatible, and oversized order selections before ERP lookup', async () => {
+    const { service, orderErp } = harness();
+
+    await expect(
+      service.preview({ id: 'user-1' }, { orderCodes: ['so-1', 'SO-1'] }),
+    ).rejects.toThrow('bị trùng');
+    await expect(
+      service.preview(
+        { id: 'user-1' },
+        { orderCode: 'SO-1', orderCodes: ['SO-1', 'SO-2'] },
+      ),
+    ).rejects.toThrow('không khớp');
+    await expect(
+      service.preview(
+        { id: 'user-1' },
+        { orderCodes: Array.from({ length: 11 }, (_, index) => `SO-${index}`) },
+      ),
+    ).rejects.toThrow('tối đa 10');
+    expect(orderErp.lookupContractAppendixOrder).not.toHaveBeenCalled();
   });
 
   it('uses an explicit unit override but never invents a missing ERP unit', async () => {
@@ -124,7 +313,8 @@ describe('ContractAppendicesService', () => {
     );
     expect(unresolved.canSave).toBe(false);
     expect(unresolved.unresolvedTaxCount).toBe(1);
-    expect(unresolved.totalAfterVat).toBeNull();
+    expect(unresolved.totalAfterVat).toBe(15_570_000);
+    expect(unresolved.amountInWords).toBeTruthy();
 
     const manual = await service.preview(
       { id: 'user-1' },

@@ -15,7 +15,7 @@ void main() {
   setUp(() => AppLogger.instance.setUploadsEnabledForTesting(false));
   tearDown(() => AppLogger.instance.setUploadsEnabledForTesting(true));
 
-  testWidgets('390px keeps order input and primary action in one row', (
+  testWidgets('390px keeps order input and add action in one row', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -27,7 +27,7 @@ void main() {
       _ScreenDataSource(),
       clipboardWriter: _NoopClipboardWriter(),
     );
-    await provider.lookupOrder('SO-390');
+    expect(provider.addOrderCode('SO-390'), isTrue);
 
     await tester.pumpWidget(
       ChangeNotifierProvider.value(
@@ -46,27 +46,22 @@ void main() {
       find.byKey(const Key('contract-appendix-workspace-header')),
       findsOneWidget,
     );
-    expect(
-      find.text('Tạo bảng phụ lục từ đơn hàng và quản lý lịch sử gần đây.'),
-      findsOneWidget,
-    );
     expect(row, findsOneWidget);
     expect(input, findsOneWidget);
+    final addButton = find.byKey(
+      const Key('contract-appendix-add-order-button'),
+    );
+    expect(addButton, findsOneWidget);
     expect(button, findsOneWidget);
     expect(find.descendant(of: row, matching: input), findsOneWidget);
-    expect(find.descendant(of: row, matching: button), findsOneWidget);
+    expect(find.descendant(of: row, matching: addButton), findsOneWidget);
     expect(
-      (tester.getCenter(input).dy - tester.getCenter(button).dy).abs(),
+      (tester.getCenter(input).dy - tester.getCenter(addButton).dy).abs(),
       lessThan(8),
     );
+    expect(find.text('Lấy thông tin (1 đơn)'), findsOneWidget);
     expect(
-      find.byKey(const ValueKey('contract-appendix-item-1:220909037')),
-      findsOneWidget,
-    );
-    expect(find.text('Bản'), findsWidgets);
-    expect(find.text('8%'), findsWidgets);
-    expect(
-      find.byKey(const Key('app-two-axis-horizontal-scrollbar')),
+      find.text('Bảng sẽ xuất hiện sau khi lấy thông tin'),
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);
@@ -96,36 +91,79 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final editor = find.byKey(const Key('contract-appendix-desktop-editor'));
     final preview = find.byKey(const Key('contract-appendix-preview-card'));
     final table = find.byKey(const Key('contract-appendix-preview-table'));
     final amount = find.byKey(const Key('contract-appendix-amount-in-words'));
-    expect(editor, findsOneWidget);
     expect(preview, findsOneWidget);
-    expect(
-      tester.getTopLeft(preview).dy,
-      greaterThan(tester.getBottomLeft(editor).dy),
-    );
     expect(
       tester.getTopLeft(amount).dy,
       greaterThan(tester.getBottomLeft(table).dy),
     );
-    expect(
-      tester.getSize(editor).width,
-      closeTo(tester.getSize(preview).width, 1),
-    );
-    expect(tester.getSize(table).width, closeTo(960, 1));
-    expect(find.text('Thành tiền (VNĐ)\n(đã bao gồm VAT)'), findsOneWidget);
-    expect(
-      find.byWidgetPredicate(
-        (widget) =>
-            widget is Text &&
-            widget.data == '15.570.000' &&
-            widget.style?.fontWeight == FontWeight.w400,
-      ),
-      findsOneWidget,
-    );
+    expect(find.text('Mã hàng'), findsOneWidget);
+    expect(find.text('Thành tiền'), findsOneWidget);
+    expect(find.text('15.570.000'), findsWidgets);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('R2 geometry stays bounded at all approved viewports', (
+    tester,
+  ) async {
+    final viewports = <Size>[
+      const Size(390, 844),
+      const Size(768, 1024),
+      const Size(1024, 900),
+      const Size(1440, 900),
+    ];
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.devicePixelRatio = 1;
+
+    for (final viewport in viewports) {
+      tester.view.physicalSize = viewport;
+      final provider = ContractAppendixProvider(
+        _ScreenDataSource(),
+        clipboardWriter: _NoopClipboardWriter(),
+      );
+      await provider.lookupOrder('SO-R2');
+      await tester.pumpWidget(
+        ChangeNotifierProvider.value(
+          value: provider,
+          child: const MaterialApp(
+            home: Scaffold(body: ContractAppendixScreen()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final input = find.byKey(const Key('contract-appendix-order-input'));
+      final add = find.byKey(const Key('contract-appendix-add-order-button'));
+      final fetch = find.byKey(const Key('contract-appendix-fetch-button'));
+      expect(input, findsOneWidget);
+      expect(add, findsOneWidget);
+      expect(fetch, findsOneWidget);
+      if (viewport.width < 600) {
+        expect(
+          (tester.getCenter(input).dy - tester.getCenter(add).dy).abs(),
+          lessThan(8),
+        );
+        expect(
+          tester.getTopLeft(fetch).dy,
+          greaterThan(tester.getBottomLeft(input).dy),
+        );
+        expect(
+          find.byKey(const ValueKey('contract-appendix-item-1:220909037')),
+          findsOneWidget,
+        );
+      } else {
+        expect(
+          (tester.getCenter(input).dy - tester.getCenter(fetch).dy).abs(),
+          lessThan(8),
+        );
+        expect(find.text('Mã hàng'), findsOneWidget);
+        expect(find.text('Thành tiền'), findsOneWidget);
+      }
+      expect(tester.takeException(), isNull);
+    }
   });
 
   test('route and navigation fail closed without CONTRACT_APPENDIX', () {
@@ -171,12 +209,13 @@ class _NoopClipboardWriter implements ContractAppendixClipboardWriter {
 class _ScreenDataSource implements ContractAppendixDataSource {
   @override
   Future<ContractAppendixDocument> preview({
-    required String orderCode,
+    required List<String> orderCodes,
     List<Map<String, dynamic>> overrides = const [],
   }) async {
     return ContractAppendixDocument(
       id: null,
-      orderCode: orderCode,
+      orderCode: orderCodes.first,
+      orderCodes: orderCodes,
       quoteVersion: 'quote-layout',
       terminalCode: '49180_PRICE_0001',
       sourceOrderFetchedAt: DateTime.utc(2026, 7, 17),
@@ -215,7 +254,7 @@ class _ScreenDataSource implements ContractAppendixDataSource {
 
   @override
   Future<ContractAppendixDocument> save({
-    required String orderCode,
+    required List<String> orderCodes,
     required String quoteVersion,
     required List<Map<String, dynamic>> overrides,
   }) => throw UnimplementedError();

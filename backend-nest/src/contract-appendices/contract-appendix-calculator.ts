@@ -12,6 +12,9 @@ export type ContractAppendixCalculationInput = {
   quantity: number;
   unit: string;
   finalSellPrice: number;
+  erpRowTotal: number;
+  sourceOrderCodes: string[];
+  sourceLineIdentities: string[];
   vatRateBps: number;
   taxCode: string | null;
   taxLabel: string | null;
@@ -39,9 +42,19 @@ export type ContractAppendixCalculation = {
 };
 
 export function calculateContractAppendix(
-  orderCode: string,
+  orderCodesInput: string | string[],
   items: ContractAppendixCalculationInput[],
 ): ContractAppendixCalculation {
+  const orderCodes = Array.isArray(orderCodesInput)
+    ? orderCodesInput
+    : [orderCodesInput];
+  if (
+    orderCodes.length < 1 ||
+    orderCodes.length > 10 ||
+    orderCodes.some((code) => !String(code ?? '').trim())
+  ) {
+    throw new BadRequestException('Danh sách mã đơn hàng không hợp lệ.');
+  }
   if (items.length === 0) {
     throw new BadRequestException('Đơn hàng không có sản phẩm để tạo phụ lục.');
   }
@@ -58,7 +71,7 @@ export function calculateContractAppendix(
     const unitPriceBeforeVat = roundHalfUp(grossUnit * 10_000n, divisor);
     const quantity = BigInt(item.quantity);
     const lineBeforeVat = unitPriceBeforeVat * quantity;
-    const lineAfterVat = grossUnit * quantity;
+    const lineAfterVat = BigInt(item.erpRowTotal);
     const lineVatAmount = lineAfterVat - lineBeforeVat;
     if (lineVatAmount < 0n) {
       throw new BadRequestException('Dữ liệu thuế của sản phẩm không hợp lệ.');
@@ -83,12 +96,15 @@ export function calculateContractAppendix(
   const quoteFingerprint = createHash('sha256')
     .update(
       JSON.stringify({
-        orderCode,
+        orderCodes,
         items: calculatedItems.map((item) => ({
           sourceLineKey: item.sourceLineKey,
+          sourceLineIdentities: item.sourceLineIdentities,
+          sourceOrderCodes: item.sourceOrderCodes,
           sku: item.sku,
           quantity: item.quantity,
           finalSellPrice: item.finalSellPrice,
+          erpRowTotal: item.erpRowTotal,
           vatRateBps: item.vatRateBps,
           taxSource: item.taxSource,
           taxCode: item.taxCode,
@@ -138,13 +154,26 @@ function assertInput(item: ContractAppendixCalculationInput) {
   if (!item.sourceLineKey || !item.sku || !item.productName || !item.unit) {
     throw new BadRequestException('Thông tin sản phẩm chưa đầy đủ.');
   }
-  if (!Number.isInteger(item.quantity) || item.quantity <= 0) {
+  if (!Number.isSafeInteger(item.quantity) || item.quantity <= 0) {
     throw new BadRequestException('Số lượng sản phẩm không hợp lệ.');
   }
   if (!Number.isSafeInteger(item.finalSellPrice) || item.finalSellPrice < 0) {
     throw new BadRequestException(
       'ERP chưa trả finalSellPrice hợp lệ cho sản phẩm.',
     );
+  }
+  if (!Number.isSafeInteger(item.erpRowTotal) || item.erpRowTotal < 0) {
+    throw new BadRequestException(
+      'ERP chưa trả rowTotal hợp lệ cho sản phẩm.',
+    );
+  }
+  if (
+    !Array.isArray(item.sourceOrderCodes) ||
+    item.sourceOrderCodes.length === 0 ||
+    !Array.isArray(item.sourceLineIdentities) ||
+    item.sourceLineIdentities.length === 0
+  ) {
+    throw new BadRequestException('Nguồn đơn hàng của sản phẩm không hợp lệ.');
   }
   if (
     !Number.isInteger(item.vatRateBps) ||

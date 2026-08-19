@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
+  ArrayMinSize,
   IsArray,
   IsIn,
   IsInt,
@@ -23,6 +24,14 @@ export class ContractAppendixLineOverrideDto {
   sourceLineKey!: string;
 
   @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(200)
+  @IsString({ each: true })
+  @MinLength(1, { each: true })
+  @MaxLength(240, { each: true })
+  sourceLineIdentities?: string[];
+
+  @IsOptional()
   @IsString()
   @MinLength(1)
   @MaxLength(500)
@@ -41,10 +50,20 @@ export class ContractAppendixLineOverrideDto {
 }
 
 export class PreviewContractAppendixDto {
+  @IsOptional()
   @IsString()
   @MinLength(1)
   @MaxLength(80)
-  orderCode!: string;
+  orderCode?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(10)
+  @IsString({ each: true })
+  @MinLength(1, { each: true })
+  @MaxLength(80, { each: true })
+  orderCodes?: string[];
 
   @IsOptional()
   @IsArray()

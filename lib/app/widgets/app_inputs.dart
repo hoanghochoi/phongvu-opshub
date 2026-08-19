@@ -42,6 +42,7 @@ InputDecoration appInputDecoration({
   Widget? suffixIcon,
   double? fixedHeight,
   Color? borderColor,
+  bool borderless = false,
 }) {
   final scopedBorder = borderColor == null
       ? null
@@ -49,6 +50,7 @@ InputDecoration appInputDecoration({
           borderRadius: AppRadius.allMd,
           borderSide: BorderSide(color: borderColor),
         );
+  final resolvedBorder = borderless ? InputBorder.none : scopedBorder;
   return InputDecoration(
     labelText: label,
     labelStyle: visuallyHideLabel
@@ -71,17 +73,19 @@ InputDecoration appInputDecoration({
       width: AppInputMetrics.iconBoxSize,
       height: AppInputMetrics.iconBoxSize,
     ),
-    isDense: fixedHeight != null || dense,
-    isCollapsed: fixedHeight != null,
-    contentPadding: fixedHeight == null
+    isDense: fixedHeight != null || dense || borderless,
+    isCollapsed: fixedHeight != null || borderless,
+    contentPadding: borderless
+        ? EdgeInsets.zero
+        : fixedHeight == null
         ? AppInputMetrics.contentPadding
         : const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
     constraints: fixedHeight == null
         ? const BoxConstraints(minHeight: AppInputMetrics.height)
         : BoxConstraints.tightFor(height: fixedHeight),
-    border: scopedBorder,
-    enabledBorder: scopedBorder,
-    disabledBorder: scopedBorder,
+    border: resolvedBorder,
+    enabledBorder: resolvedBorder,
+    disabledBorder: resolvedBorder,
   );
 }
 
@@ -113,6 +117,9 @@ class AppTextInput extends StatelessWidget {
   final bool showLabel;
   final double? fixedHeight;
   final Color? borderColor;
+  final bool borderless;
+  final TextAlign textAlign;
+  final TextStyle? textStyle;
 
   const AppTextInput({
     super.key,
@@ -143,6 +150,9 @@ class AppTextInput extends StatelessWidget {
     this.showLabel = true,
     this.fixedHeight,
     this.borderColor,
+    this.borderless = false,
+    this.textAlign = TextAlign.start,
+    this.textStyle,
   });
 
   @override
@@ -166,9 +176,10 @@ class AppTextInput extends StatelessWidget {
       autofillHints: autofillHints,
       maxLines: maxLines,
       minLines: minLines,
+      textAlign: textAlign,
       textInputAction: textInputAction,
       contextMenuBuilder: appTextInputContextMenuBuilder(),
-      style: AppTextStyles.bodyM,
+      style: textStyle ?? AppTextStyles.bodyM,
       decoration: appInputDecoration(
         label: showLabel ? label : null,
         icon: icon,
@@ -180,6 +191,7 @@ class AppTextInput extends StatelessWidget {
         suffixIcon: suffixIcon,
         fixedHeight: fixedHeight,
         borderColor: borderColor,
+        borderless: borderless,
       ),
     );
     return SelectionContainer.disabled(

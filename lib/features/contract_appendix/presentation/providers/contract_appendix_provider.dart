@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../../../../core/logging/app_logger.dart';
@@ -9,6 +11,7 @@ import '../../domain/contract_appendix.dart';
 class ContractAppendixProvider extends ChangeNotifier {
   static const _logSource = 'ContractAppendix';
   static const _historyLimit = 20;
+  static const maxOrderCodes = 10;
   static const manualVatRates = <int>[0, 500, 800, 1000];
 
   final ContractAppendixDataSource _dataSource;
@@ -18,6 +21,8 @@ class ContractAppendixProvider extends ChangeNotifier {
   ContractAppendixDocument? _saved;
   ContractAppendixDocument? _historyDetail;
   List<ContractAppendixHistoryItem> _history = const [];
+  List<String> _selectedOrderCodes = const [];
+  bool _isOrderSelectionLocked = false;
   bool _isLookingUp = false;
   bool _isRefreshingPreview = false;
   bool _isSaving = false;
@@ -42,6 +47,10 @@ class ContractAppendixProvider extends ChangeNotifier {
   ContractAppendixDocument? get saved => _saved;
   ContractAppendixDocument? get historyDetail => _historyDetail;
   List<ContractAppendixHistoryItem> get history => List.unmodifiable(_history);
+  List<String> get selectedOrderCodes => List.unmodifiable(_selectedOrderCodes);
+  bool get isOrderSelectionLocked => _isOrderSelectionLocked;
+  bool get canFetchOrders =>
+      _selectedOrderCodes.isNotEmpty && !_isOrderSelectionLocked && !isBusy;
   bool get isLookingUp => _isLookingUp;
   bool get isRefreshingPreview => _isRefreshingPreview;
   bool get isSaving => _isSaving;
@@ -77,13 +86,105 @@ class ContractAppendixProvider extends ChangeNotifier {
     );
   }
 
-  Future<bool> lookupOrder(String orderCode) async {
+  bool addOrderCode(String orderCode) {
     final normalized = orderCode.trim();
     if (normalized.isEmpty) {
       _setError('Vui lòng nhập mã đơn hàng.');
       return false;
     }
-    if (_isLookingUp) return false;
+    if (_isOrderSelectionLocked) {
+      _setError('Hãy chọn lại đơn hàng trước khi thay đổi danh sách.');
+      return false;
+    }
+    if (isBusy) return false;
+    if (_selectedOrderCodes.any(
+      (value) => value.toLowerCase() == normalized.toLowerCase(),
+    )) {
+      _setError('Đơn hàng này đã có trong danh sách.');
+      unawaited(
+        AppLogger.instance.info(
+          _logSource,
+          'Contract appendix duplicate order rejected',
+          context: {'orderCount': _selectedOrderCodes.length},
+        ),
+      );
+      return false;
+    }
+    if (_selectedOrderCodes.length >= maxOrderCodes) {
+      _setError('Mỗi phụ lục chỉ được chọn tối đa 10 đơn hàng.');
+      unawaited(
+        AppLogger.instance.info(
+          _logSource,
+          'Contract appendix order limit reached',
+          context: {'orderCount': _selectedOrderCodes.length},
+        ),
+      );
+      return false;
+    }
+    _selectedOrderCodes = [..._selectedOrderCodes, normalized];
+    _clearMessages();
+    notifyListeners();
+    unawaited(
+      AppLogger.instance.info(
+        _logSource,
+        'Contract appendix order added',
+        context: {'orderCount': _selectedOrderCodes.length},
+      ),
+    );
+    return true;
+  }
+
+  bool removeOrderCode(String orderCode) {
+    if (_isOrderSelectionLocked) {
+      _setError('Hãy chọn lại đơn hàng trước khi thay đổi danh sách.');
+      return false;
+    }
+    if (isBusy) return false;
+    final normalized = orderCode.trim().toLowerCase();
+    final index = _selectedOrderCodes.indexWhere(
+      (value) => value.toLowerCase() == normalized,
+    );
+    if (index < 0) return false;
+    _selectedOrderCodes = [..._selectedOrderCodes]..removeAt(index);
+    _clearMessages();
+    notifyListeners();
+    unawaited(
+      AppLogger.instance.info(
+        _logSource,
+        'Contract appendix order removed',
+        context: {'orderCount': _selectedOrderCodes.length},
+      ),
+    );
+    return true;
+  }
+
+  bool resetOrderSelection() {
+    if (isBusy || _isCopying) return false;
+    final previousOrderCount = _selectedOrderCodes.length;
+    _selectedOrderCodes = const [];
+    _isOrderSelectionLocked = false;
+    _draft = null;
+    _saved = null;
+    _isDirty = false;
+    _clearMessages();
+    notifyListeners();
+    unawaited(
+      AppLogger.instance.info(
+        _logSource,
+        'Contract appendix order selection reset',
+        context: {'previousOrderCount': previousOrderCount},
+      ),
+    );
+    return true;
+  }
+
+  Future<bool> fetchOrders() async {
+    if (_selectedOrderCodes.isEmpty) {
+      _setError('Vui lòng thêm ít nhất một đơn hàng.');
+      return false;
+    }
+    if (_isOrderSelectionLocked || _isLookingUp) return false;
+    final orderCodes = List<String>.of(_selectedOrderCodes);
     final startedAt = DateTime.now();
     _isLookingUp = true;
     _clearMessages();
@@ -91,16 +192,20 @@ class ContractAppendixProvider extends ChangeNotifier {
     await AppLogger.instance.info(
       _logSource,
       'Contract appendix order lookup started',
-      context: {'orderCodeLength': normalized.length},
+      context: {'orderCount': orderCodes.length},
     );
     try {
-      final document = await _dataSource.preview(orderCode: normalized);
+      final document = await _dataSource.preview(orderCodes: orderCodes);
       _draft = document;
       _saved = null;
       _isDirty = false;
+      _selectedOrderCodes = document.orderCodes.isEmpty
+          ? orderCodes
+          : List<String>.of(document.orderCodes);
+      _isOrderSelectionLocked = true;
       _successMessage = document.unresolvedTaxCount > 0
           ? 'Đã lấy thông tin đơn. Vui lòng chọn thuế cho sản phẩm còn thiếu.'
-          : 'Đã lấy thông tin đơn hàng và tính bảng phụ lục.';
+          : 'Đã lấy thông tin ${_selectedOrderCodes.length} đơn hàng và tính bảng phụ lục.';
       await AppLogger.instance.info(
         _logSource,
         'Contract appendix order lookup succeeded',
@@ -118,7 +223,7 @@ class ContractAppendixProvider extends ChangeNotifier {
         error: error,
         stackTrace: stackTrace,
         context: {
-          'orderCodeLength': normalized.length,
+          'orderCount': orderCodes.length,
           'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
         },
       );
@@ -127,6 +232,22 @@ class ContractAppendixProvider extends ChangeNotifier {
       _isLookingUp = false;
       notifyListeners();
     }
+  }
+
+  /// Compatibility entry point for the existing single-order screen. New UI
+  /// flows add one or more codes first, then call [fetchOrders].
+  Future<bool> lookupOrder(String orderCode) async {
+    final normalized = orderCode.trim();
+    if (normalized.isEmpty) {
+      _setError('Vui lòng nhập mã đơn hàng.');
+      return false;
+    }
+    if (isBusy || _isCopying) return false;
+    if (_isOrderSelectionLocked || _selectedOrderCodes.isNotEmpty) {
+      if (!resetOrderSelection()) return false;
+    }
+    if (!addOrderCode(normalized)) return false;
+    return fetchOrders();
   }
 
   void updateProductName(String sourceLineKey, String value) {
@@ -185,13 +306,14 @@ class ContractAppendixProvider extends ChangeNotifier {
       _logSource,
       'Contract appendix preview refresh started',
       context: {
+        'orderCount': _requestOrderCodes(current).length,
         'itemCount': current.items.length,
         'manualTaxItemCount': current.manualTaxItemCount,
       },
     );
     try {
       final refreshed = await _dataSource.preview(
-        orderCode: current.orderCode,
+        orderCodes: _requestOrderCodes(current),
         overrides: current.buildOverrides(),
       );
       _draft = refreshed;
@@ -217,6 +339,7 @@ class ContractAppendixProvider extends ChangeNotifier {
         error: error,
         stackTrace: stackTrace,
         context: {
+          'orderCount': _requestOrderCodes(current).length,
           'itemCount': current.items.length,
           'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
         },
@@ -264,13 +387,14 @@ class ContractAppendixProvider extends ChangeNotifier {
       _logSource,
       'Contract appendix save started',
       context: {
+        'orderCount': _requestOrderCodes(current).length,
         'itemCount': current.items.length,
         'manualTaxItemCount': current.manualTaxItemCount,
       },
     );
     try {
       final result = await _dataSource.save(
-        orderCode: current.orderCode,
+        orderCodes: _requestOrderCodes(current),
         quoteVersion: current.quoteVersion,
         overrides: current.buildOverrides(),
       );
@@ -295,6 +419,7 @@ class ContractAppendixProvider extends ChangeNotifier {
         error: error,
         stackTrace: stackTrace,
         context: {
+          'orderCount': _requestOrderCodes(current).length,
           'itemCount': current.items.length,
           'manualTaxItemCount': current.manualTaxItemCount,
           'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
@@ -339,7 +464,11 @@ class ContractAppendixProvider extends ChangeNotifier {
       final startLogFuture = AppLogger.instance.info(
         _logSource,
         'Contract appendix copy started',
-        context: {'source': operation, 'itemCount': document.items.length},
+        context: {
+          'source': operation,
+          'orderCount': _requestOrderCodes(document).length,
+          'itemCount': document.items.length,
+        },
       );
       await writeFuture;
       await startLogFuture;
@@ -349,6 +478,7 @@ class ContractAppendixProvider extends ChangeNotifier {
         'Contract appendix copy succeeded',
         context: {
           'source': operation,
+          'orderCount': _requestOrderCodes(document).length,
           'itemCount': document.items.length,
           'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
         },
@@ -364,7 +494,11 @@ class ContractAppendixProvider extends ChangeNotifier {
         'Contract appendix copy failed',
         error: error,
         stackTrace: stackTrace,
-        context: {'source': operation, 'itemCount': document.items.length},
+        context: {
+          'source': operation,
+          'orderCount': _requestOrderCodes(document).length,
+          'itemCount': document.items.length,
+        },
       );
       return false;
     } finally {
@@ -512,8 +646,11 @@ class ContractAppendixProvider extends ChangeNotifier {
       items: items,
       totalBeforeVat: invalidateMoney ? null : document.totalBeforeVat,
       totalVatAmount: invalidateMoney ? null : document.totalVatAmount,
-      totalAfterVat: invalidateMoney ? null : document.totalAfterVat,
-      amountInWords: invalidateMoney ? null : document.amountInWords,
+      // ERP rowTotal is immutable and already gives the exact VAT-inclusive
+      // footer total. Recomputing the derived net/VAT fields after a manual
+      // tax edit must not erase that authoritative total or its wording.
+      totalAfterVat: document.totalAfterVat,
+      amountInWords: document.amountInWords,
       unresolvedTaxCount: unresolved,
       manualTaxItemCount: manual,
       canSave: invalidateMoney ? false : document.canSave,
@@ -542,6 +679,7 @@ class ContractAppendixProvider extends ChangeNotifier {
     final skuCount = document.items.map((item) => item.sku).toSet().length;
     return {
       'itemCount': document.items.length,
+      'orderCount': _requestOrderCodes(document).length,
       'skuCount': skuCount,
       'batchCount': (skuCount / 50).ceil(),
       'manualTaxItemCount': document.manualTaxItemCount,
@@ -549,6 +687,11 @@ class ContractAppendixProvider extends ChangeNotifier {
       'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
     };
   }
+
+  List<String> _requestOrderCodes(ContractAppendixDocument document) =>
+      document.orderCodes.isNotEmpty
+      ? document.orderCodes
+      : [document.orderCode];
 
   String _messageForError(Object error, {required String fallback}) {
     if (error is ApiException && error.message.trim().isNotEmpty) {

@@ -209,6 +209,7 @@ describe('SalesReportErpService', () => {
                       orderCaptureLineItemId: 'capture-1',
                       sellerSku: 'SKU-SHIPMENT',
                       finalSellPrice: 250,
+                      rowTotal: 499,
                     },
                   ],
                 },
@@ -233,9 +234,11 @@ describe('SalesReportErpService', () => {
     expect(salesReportOrder.items).toHaveLength(1);
     expect(salesReportOrder.erpGrandTotal).toBe(999);
     expect(salesReportOrder.items[0].finalSellPrice).toBe(100);
+    expect(salesReportOrder.items[0].rowTotal).toBe(180);
     expect(contractAppendixOrder.items).toHaveLength(1);
     expect(contractAppendixOrder.items[0]).toMatchObject({
       finalSellPrice: 250,
+      rowTotal: 499,
       quantity: 2,
     });
   });
@@ -265,13 +268,89 @@ describe('SalesReportErpService', () => {
         shipments: [
           {
             items: [
-              { sellerSku: 'SKU-1', finalSellPrice: 250 },
-              { sellerSku: 'SKU-1', finalSellPrice: 260 },
+              { sellerSku: 'SKU-1', finalSellPrice: 250, rowTotal: 250 },
+              { sellerSku: 'SKU-1', finalSellPrice: 260, rowTotal: 260 },
             ],
           },
         ],
       }),
     ).toThrow(ContractAppendixShipmentPriceException);
+  });
+
+  it.each([
+    ['missing', undefined],
+    ['negative', -1],
+    ['fractional', 499.5],
+    ['unsafe', Number.MAX_SAFE_INTEGER + 1],
+  ])('rejects %s shipment rowTotal instead of falling back', (_label, rowTotal) => {
+    const service = new SalesReportErpService();
+    expect(() =>
+      (service as any).resolveContractAppendixShipmentValues({
+        orderCaptureLineItems: [
+          {
+            orderCaptureLineItemId: 'capture-1',
+            sellerSku: 'SKU-1',
+            finalSellPrice: 100,
+            quantity: 2,
+          },
+        ],
+        shipments: [
+          {
+            items: [
+              {
+                orderCaptureLineItemId: 'capture-1',
+                sellerSku: 'SKU-1',
+                finalSellPrice: 250,
+                rowTotal,
+              },
+            ],
+          },
+        ],
+      }),
+    ).toThrow(ContractAppendixShipmentPriceException);
+  });
+
+  it('keeps fractional Contract Appendix quantities invalid instead of truncating them', async () => {
+    const service = new SalesReportErpService();
+    jest.spyOn(service as any, 'normalizeItems').mockResolvedValue([
+      {
+        sku: 'SKU-1',
+        sellerSku: 'SKU-1',
+        name: 'Sản phẩm',
+        quantity: 2,
+        uomName: 'Cái',
+        finalSellPrice: 100,
+        rowTotal: 200,
+        raw: {},
+      },
+    ]);
+
+    const result = await (service as any).normalizeContractAppendixItems(
+      {
+        orderCaptureLineItems: [
+          {
+            orderCaptureLineItemId: 'capture-1',
+            sellerSku: 'SKU-1',
+            quantity: 2.5,
+          },
+        ],
+        shipments: [
+          {
+            items: [
+              {
+                orderCaptureLineItemId: 'capture-1',
+                sellerSku: 'SKU-1',
+                finalSellPrice: 100,
+                rowTotal: 250,
+              },
+            ],
+          },
+        ],
+      },
+      'access-token',
+    );
+
+    expect(result[0].quantity).toBeNull();
   });
 
   it('retries only unresolved Listing SKUs and merges non-empty categories', async () => {
