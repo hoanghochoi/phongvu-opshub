@@ -16,10 +16,14 @@ Weak proof, and Multi-domain.
 - Direct pushes require an explicit current-task command naming the action and
   protected target; authorization never waives technical gates.
 - Production receives only the exact, CI-green, QA-approved
-  `origin/staging` SHA through a non-force fast-forward.
+  `origin/staging` SHA through a non-force fast-forward for runtime or
+  production-affecting work. Qualifying `documentation-only` work is complete
+  after exact staging deploy/QA under ADR 0031.
 - A successful promotion leaves fetched `origin/main` and `origin/staging` at
   the same SHA and triggers the existing production deployment workflow.
-- Linear reaches `Done` only after production deployment succeeds.
+- Linear reaches `Done` only after production deployment succeeds for runtime or
+  production-affecting work; a qualifying `documentation-only` issue reaches
+  `Done` after staging deploy/QA and proof read-back.
 - After a feature PR merges into `staging`, the canonical local `staging`
   worktree must be synchronized to the live `origin/staging` head before a new
   task starts. The merged task's clean worktree and local squash-merged branch

@@ -48,6 +48,14 @@ assert_no_control_plane_state() {
   [[ ! -e "$fixture/.harness" ]]
 }
 
+# Documentation-only completion is an explicit, bounded lane. Its presence in
+# both the workflow entrypoint and release playbook prevents a future edit from
+# silently restoring the old one-size-fits-all production gate or weakening the
+# runtime gate.
+grep -Fq 'documentation-only' "$root/docs/WORKFLOW.md"
+grep -Fq 'documentation-only' "$root/docs/runbooks/git-release-playbook.md"
+grep -Fq 'production-affecting tasks remain protected' "$root/docs/decisions/0031-documentation-only-completion-after-staging.md"
+
 # Read-only task: inspect the product rule and existing visible behavior. The
 # complete fixture fingerprint must remain unchanged.
 before_read=$(fingerprint)

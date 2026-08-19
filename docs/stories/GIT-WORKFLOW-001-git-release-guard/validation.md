@@ -11,6 +11,7 @@
 | Task lifecycle | OPS-18 fixture proves guarded staging sync, exact start SHA, merged-task cleanup, stale remote rollback, dirty/diverged/unmerged/protected blocks. |
 | Platform | Parse every workflow YAML; inspect pinned actions and least-privilege App token inputs; keep an always-on `Release guard` check for PRs into `staging` or `main`. |
 | Release | Preserve existing `staging` and `main` push consumers; GitHub CI pass/fail verifier; affected-runtime guard and final fingerprint. |
+| Completion classification | ADR 0031 contract proves the explicit `documentation-only` lane requires a docs/evidence-only scope, exact staging deploy/QA and Linear proof read-back; runtime or production-affecting work retains the production gate. |
 
 ## Evidence
 
@@ -39,6 +40,9 @@
 - `Release guard` PR integration: existing 9/9 passed with the lifecycle suite
   wired into `.github/workflows/release-guard-pr.yml`.
 - All 8 workflow YAML files parsed and `git diff --check` passed.
+- ADR 0031 and the repository workflow/runbook/agent guidance were checked for
+  the same `documentation-only` classification and the unchanged
+  runtime/production-affecting production gate.
 - Canonical staging proof: the dirty gate first rejected the 10 legacy Harness
   artifacts, then a post-quarantine `start` dry-run passed with local, fetched,
   and live `origin/staging` equal at `0cc43097`; `harness.db` was unchanged.

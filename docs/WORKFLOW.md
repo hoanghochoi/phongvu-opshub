@@ -87,7 +87,9 @@ run focused and repository proof, inspect/commit/push, open a PR to `staging`,
 and wait for CI/review. After squash merge, run the guarded lifecycle
 `finish` dry-run and `--execute`. This does not authorize direct pushes,
 production promotion, skipped review/security/affected-consumer gates, or a
-Linear `Done` status before production deployment.
+  Linear `Done` status before production deployment for runtime or
+  production-affecting work. A qualifying `documentation-only` task follows
+  ADR 0031 and may reach `Done` after exact staging deploy/QA.
 
 ### Bounded Change
 
