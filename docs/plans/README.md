@@ -35,11 +35,12 @@ or validation requirements. Keep local implementation choices in the plan.
 
 - The current tree is indexed by `docs/plans/active/README.md` and classified
   by `docs/migrations/ops-71-plan-disposition.json`.
-- `OPS-64-upstream-harness-repository-cleanup.md` remains the active master
-  initiative until Phase 10 release proof and production promotion are
-  complete. The upstream updater defect is an explicit owner-approved
-  exception recorded in its final-release reconciliation; it is not silently
-  treated as a pass.
+- The OPS-64 master plan is complete and retained at
+  `docs/plans/completed/OPS-64-upstream-harness-repository-cleanup.md`.
+  Production promotion/deployment and independent smoke proof are recorded in
+  `docs/migrations/ops-64-production-closure.json`. The upstream updater defect
+  remains an explicit owner-approved exception; it is not silently treated as
+  a pass.
 
 ## Completed Plans
 
