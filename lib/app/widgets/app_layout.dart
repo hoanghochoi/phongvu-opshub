@@ -58,6 +58,7 @@ class AppLayoutTokens {
   static const double mobileActionHeight = 48;
   static const double compactActionHeight = 44;
   static const double iconTouchTarget = 48;
+  static const double checkboxTouchTarget = 48;
   static const double listItemTouchTarget = 56;
   static const EdgeInsets homeWidePagePadding = EdgeInsets.fromLTRB(
     32,

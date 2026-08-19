@@ -8,6 +8,7 @@ import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_controls.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../core/logging/app_logger.dart';
@@ -27,6 +28,18 @@ class _EmailCheckScreenState extends State<EmailCheckScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _rememberPassword = false;
+  bool _rememberedLoginLoading = true;
+  bool _rememberedLoginActionLoading = false;
+  String? _rememberedLoginError;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_loadRememberedLogin());
+    });
+  }
 
   @override
   void dispose() {
@@ -49,10 +62,15 @@ class _EmailCheckScreenState extends State<EmailCheckScreen> {
               emailController: _emailController,
               passwordController: _passwordController,
               obscurePassword: _obscurePassword,
+              rememberPassword: _rememberPassword,
+              rememberPasswordLoading:
+                  _rememberedLoginLoading || _rememberedLoginActionLoading,
+              rememberPasswordError: _rememberedLoginError,
               isLoading: authProvider.isLoading,
               onTogglePassword: () {
                 setState(() => _obscurePassword = !_obscurePassword);
               },
+              onRememberPasswordChanged: _handleRememberPasswordChanged,
               onSubmit: () => _handleLogin(context),
               onForgotPassword: () => context.push('/forgot-password'),
               onRegister: () => context.push('/register'),
@@ -62,6 +80,72 @@ class _EmailCheckScreenState extends State<EmailCheckScreen> {
         );
       },
     );
+  }
+
+  Future<void> _loadRememberedLogin() async {
+    final authProvider = context.read<AuthProvider>();
+    try {
+      final remembered = await authProvider.readRememberedLogin();
+      if (!mounted) return;
+      final hasUserInput =
+          _emailController.text.isNotEmpty ||
+          _passwordController.text.isNotEmpty;
+      if (remembered != null && !hasUserInput) {
+        _emailController.text = remembered.email;
+        _passwordController.text = remembered.password;
+        _rememberPassword = true;
+      }
+      setState(() => _rememberedLoginLoading = false);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _rememberedLoginLoading = false;
+        _rememberPassword = false;
+        _rememberedLoginError =
+            'Không đọc được mật khẩu đã lưu. Bạn vẫn có thể đăng nhập bình thường.';
+      });
+    }
+  }
+
+  Future<void> _handleRememberPasswordChanged(bool value) async {
+    if (value) {
+      setState(() {
+        _rememberPassword = true;
+        _rememberedLoginError = null;
+      });
+      unawaited(
+        AppLogger.instance.info(
+          'Auth',
+          'Remembered credential preference enabled',
+          context: {'source': 'login'},
+        ),
+      );
+      return;
+    }
+
+    setState(() => _rememberedLoginActionLoading = true);
+    final cleared = await context.read<AuthProvider>().clearRememberedLogin();
+    if (!mounted) return;
+    setState(() {
+      _rememberedLoginActionLoading = false;
+      if (cleared) {
+        _rememberPassword = false;
+        _rememberedLoginError = null;
+      } else {
+        _rememberPassword = true;
+        _rememberedLoginError =
+            'Chưa xóa được mật khẩu đã lưu. Hãy thử lại khi thiết bị sẵn sàng.';
+      }
+    });
+    if (!cleared) {
+      AppToast.show(
+        context,
+        SnackBar(
+          content: Text(_rememberedLoginError!),
+          backgroundColor: AppColors.errorOf(context),
+        ),
+      );
+    }
   }
 
   Future<void> _openHelp(BuildContext context) async {
@@ -87,6 +171,27 @@ class _EmailCheckScreenState extends State<EmailCheckScreen> {
     if (!context.mounted) return;
 
     if (success) {
+      if (_rememberPassword) {
+        final saved = await authProvider.saveRememberedLogin(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        );
+        if (!saved && context.mounted) {
+          setState(() {
+            _rememberPassword = false;
+            _rememberedLoginError =
+                'Đăng nhập thành công nhưng chưa lưu được mật khẩu. Bạn có thể thử lại sau.';
+          });
+          AppToast.show(
+            context,
+            SnackBar(
+              content: Text(_rememberedLoginError!),
+              backgroundColor: AppColors.warningOf(context),
+            ),
+          );
+        }
+      }
+      if (!context.mounted) return;
       final route = authProvider.user?.needsOrganizationAssignment == true
           ? '/assignment-pending'
           : '/home';
@@ -126,8 +231,12 @@ class LoginForm extends StatelessWidget {
     required this.emailController,
     required this.passwordController,
     required this.obscurePassword,
+    required this.rememberPassword,
+    required this.rememberPasswordLoading,
+    required this.rememberPasswordError,
     required this.isLoading,
     required this.onTogglePassword,
+    required this.onRememberPasswordChanged,
     required this.onSubmit,
     required this.onForgotPassword,
     required this.onRegister,
@@ -138,8 +247,12 @@ class LoginForm extends StatelessWidget {
   final TextEditingController emailController;
   final TextEditingController passwordController;
   final bool obscurePassword;
+  final bool rememberPassword;
+  final bool rememberPasswordLoading;
+  final String? rememberPasswordError;
   final bool isLoading;
   final VoidCallback onTogglePassword;
+  final ValueChanged<bool> onRememberPasswordChanged;
   final VoidCallback onSubmit;
   final VoidCallback onForgotPassword;
   final VoidCallback onRegister;
@@ -200,6 +313,28 @@ class LoginForm extends StatelessWidget {
                   return null;
                 },
               ),
+              AppCheckbox(
+                value: rememberPassword,
+                label: 'Nhớ mật khẩu',
+                tooltip: 'Tự điền thông tin đăng nhập lần sau',
+                onChanged: isLoading || rememberPasswordLoading
+                    ? null
+                    : onRememberPasswordChanged,
+              ),
+              if (rememberPasswordError != null) ...[
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      rememberPasswordError!,
+                      style: AppTextStyles.bodyS.copyWith(
+                        color: AppColors.warningOf(context),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: AppLayoutTokens.formSectionGap),
               AppPrimaryButton(
                 onPressed: isLoading ? null : onSubmit,

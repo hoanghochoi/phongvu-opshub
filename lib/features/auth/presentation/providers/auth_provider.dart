@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/data/shared_preferences_query_persistence.dart';
 import '../../domain/entities/store_branch.dart';
 import '../../domain/entities/user.dart';
+import '../../data/auth_credential_store.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
@@ -83,6 +84,7 @@ class AuthProvider extends ChangeNotifier {
   static String _secureKey(String key) => AppStorageKeys.secure(key);
 
   final AuthRepository _repository;
+  final AuthCredentialStore _credentialStore;
 
   User? _user;
   bool _isLoading = false;
@@ -105,7 +107,8 @@ class AuthProvider extends ChangeNotifier {
   bool _hasUsableAccessSnapshot = false;
   Future<void> _sessionStorageTail = Future<void>.value();
 
-  AuthProvider(this._repository) {
+  AuthProvider(this._repository, {AuthCredentialStore? credentialStore})
+    : _credentialStore = credentialStore ?? AuthCredentialStore() {
     ApiClient().setAuthFailureHandler(_handleRemoteAuthFailure);
     _loadSavedSession();
   }
@@ -142,6 +145,113 @@ class AuthProvider extends ChangeNotifier {
       AuthAccessSyncState.failed =>
         'Chưa đồng bộ được quyền truy cập. Vui lòng thử lại.',
       _ => null,
+    };
+  }
+
+  /// Reads the opt-in login credential without touching the authenticated
+  /// session snapshot or any SharedPreferences value.
+  Future<RememberedLogin?> readRememberedLogin() async {
+    final stopwatch = Stopwatch()..start();
+    try {
+      final remembered = await _credentialStore.read();
+      await AppLogger.instance.info(
+        'Auth',
+        'Remembered credential read requested',
+        context: _credentialLogContext(
+          stopwatch,
+          status: remembered == null ? 'empty' : 'loaded',
+          email: remembered?.email,
+          passwordLength: remembered?.password.length,
+        ),
+      );
+      return remembered;
+    } catch (error, stackTrace) {
+      await AppLogger.instance.error(
+        'Auth',
+        'Remembered credential read unavailable',
+        error: error,
+        stackTrace: stackTrace,
+        context: _credentialLogContext(stopwatch, status: 'failed'),
+      );
+      rethrow;
+    }
+  }
+
+  /// Saves a credential only after the caller has confirmed a successful
+  /// password login and the user opted in. A storage failure is fail-closed
+  /// and does not turn a successful login into a failed login.
+  Future<bool> saveRememberedLogin({
+    required String email,
+    required String password,
+  }) async {
+    final stopwatch = Stopwatch()..start();
+    try {
+      await _credentialStore.save(email: email, password: password);
+      await AppLogger.instance.info(
+        'Auth',
+        'Remembered credential save requested',
+        context: _credentialLogContext(
+          stopwatch,
+          status: 'saved',
+          email: email,
+          passwordLength: password.length,
+        ),
+      );
+      return true;
+    } catch (error, stackTrace) {
+      await AppLogger.instance.error(
+        'Auth',
+        'Remembered credential save unavailable',
+        error: error,
+        stackTrace: stackTrace,
+        context: _credentialLogContext(
+          stopwatch,
+          status: 'failed',
+          email: email,
+          passwordLength: password.length,
+        ),
+      );
+      return false;
+    }
+  }
+
+  /// Clears the opt-in credential immediately when the user turns the
+  /// preference off, or when a password is changed/reset.
+  Future<bool> clearRememberedLogin() async {
+    final stopwatch = Stopwatch()..start();
+    try {
+      await _credentialStore.clear();
+      await AppLogger.instance.info(
+        'Auth',
+        'Remembered credential clear requested',
+        context: _credentialLogContext(stopwatch, status: 'cleared'),
+      );
+      return true;
+    } catch (error, stackTrace) {
+      await AppLogger.instance.error(
+        'Auth',
+        'Remembered credential clear unavailable',
+        error: error,
+        stackTrace: stackTrace,
+        context: _credentialLogContext(stopwatch, status: 'failed'),
+      );
+      return false;
+    }
+  }
+
+  Map<String, Object?> _credentialLogContext(
+    Stopwatch stopwatch, {
+    required String status,
+    String? email,
+    int? passwordLength,
+  }) {
+    return {
+      'status': status,
+      'durationMs': stopwatch.elapsedMilliseconds,
+      'platform': kIsWeb ? 'web' : defaultTargetPlatform.name,
+      'environment': AppStorageKeys.environment,
+      'accountRef': _credentialEmailSummary(email),
+      if (passwordLength != null) 'credentialLength': passwordLength,
     };
   }
 
@@ -1631,10 +1741,14 @@ class AuthProvider extends ChangeNotifier {
         resetToken: resetToken,
         newPassword: newPassword,
       );
+      final credentialCleared = await clearRememberedLogin();
       await AppLogger.instance.info(
         'Auth',
         'Forgotten password reset succeeded',
-        context: {'email': email},
+        context: {
+          'email': email,
+          'rememberedCredentialCleared': credentialCleared,
+        },
       );
       _isLoading = false;
       notifyListeners();
@@ -1690,10 +1804,15 @@ class AuthProvider extends ChangeNotifier {
         notifyListeners();
         return false;
       }
+      final credentialCleared = await clearRememberedLogin();
       await AppLogger.instance.info(
         'Auth',
         'Password change succeeded',
-        context: {'email': user.email, 'role': user.role},
+        context: {
+          'email': user.email,
+          'role': user.role,
+          'rememberedCredentialCleared': credentialCleared,
+        },
       );
       _isLoading = false;
       notifyListeners();
@@ -1905,4 +2024,13 @@ class AuthProvider extends ChangeNotifier {
     if (_user == null) return;
     await retryAccessSync();
   }
+}
+
+String _credentialEmailSummary(String? email) {
+  final normalized = email?.trim() ?? '';
+  final at = normalized.indexOf('@');
+  if (at <= 0 || at == normalized.length - 1) return 'unknown';
+  final local = normalized.substring(0, at);
+  final domain = normalized.substring(at + 1).toLowerCase();
+  return '${local.substring(0, 1)}***@$domain';
 }
