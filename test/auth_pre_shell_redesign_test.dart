@@ -376,6 +376,50 @@ void main() {
     expect(router.routeInformationProvider.value.uri.path, '/home');
   });
 
+  testWidgets(
+    'remembered login is saved before an auth redirect disposes the login screen',
+    (WidgetTester tester) async {
+      final provider = _RedirectingLoginAuthProvider();
+      var showingLogin = true;
+      late VoidCallback unmountLogin;
+      await tester.pumpWidget(
+        ChangeNotifierProvider<AuthProvider>.value(
+          value: provider,
+          child: MaterialApp(
+            home: StatefulBuilder(
+              builder: (context, setState) {
+                unmountLogin = () => setState(() => showingLogin = false);
+                return showingLogin
+                    ? const EmailCheckScreen()
+                    : const Text('home');
+              },
+            ),
+          ),
+        ),
+      );
+      provider.onLoginStarted = unmountLogin;
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byType(TextFormField).at(0),
+        'staff@phongvu.vn',
+      );
+      await tester.enterText(find.byType(TextFormField).at(1), 'Password 1!');
+      await tester.tap(find.text('Nhớ mật khẩu'));
+      await tester.tap(find.text('Đăng nhập').last);
+      await tester.pump();
+
+      expect(find.text('home'), findsOneWidget);
+      expect(provider.savedEmail, isNull);
+
+      provider.releaseLogin.complete();
+      await tester.pumpAndSettle();
+
+      expect(provider.savedEmail, 'staff@phongvu.vn');
+      expect(provider.savedPassword, 'Password 1!');
+    },
+  );
+
   testWidgets('registration keeps its last input above the mobile keyboard', (
     WidgetTester tester,
   ) async {
@@ -514,6 +558,36 @@ class _SuccessfulLoginAuthProvider extends _IdleAuthProvider {
 
   @override
   Future<bool> login({required String email, required String password}) async {
+    return true;
+  }
+
+  @override
+  Future<bool> saveRememberedLogin({
+    required String email,
+    required String password,
+  }) async {
+    savedEmail = email;
+    savedPassword = password;
+    return true;
+  }
+}
+
+class _RedirectingLoginAuthProvider extends _IdleAuthProvider {
+  final releaseLogin = Completer<void>();
+  VoidCallback? onLoginStarted;
+  String? savedEmail;
+  String? savedPassword;
+
+  @override
+  bool get isInitialized => true;
+
+  @override
+  Future<RememberedLogin?> readRememberedLogin() async => null;
+
+  @override
+  Future<bool> login({required String email, required String password}) async {
+    onLoginStarted?.call();
+    await releaseLogin.future;
     return true;
   }
 

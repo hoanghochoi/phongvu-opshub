@@ -61,6 +61,42 @@ void main() {
     },
   );
 
+  test('logout keeps the opted-in credential outside the session clear', () async {
+    final storage = _RememberedCredentialStorage();
+    final store = AuthCredentialStore(storage: storage);
+    final repository = _FakeAuthRepository(
+      loginResult: (_refreshedUser, 'login-token'),
+      bootstrapResult: _supportBootstrapResult,
+    );
+    final provider = AuthProvider(repository, credentialStore: store);
+    await _waitForInitialization(provider);
+
+    expect(
+      await provider.login(
+        email: _refreshedUser.email,
+        password: 'Password1!',
+      ),
+      isTrue,
+    );
+    await store.save(
+      email: _refreshedUser.email,
+      password: 'Password1!',
+    );
+
+    await provider.logout();
+
+    expect(provider.isAuthenticated, isFalse);
+    expect(repository.logoutCount, 1);
+    expect(
+      await store.read(),
+      RememberedLogin(
+        email: _refreshedUser.email,
+        password: 'Password1!',
+      ),
+    );
+    provider.dispose();
+  });
+
   test(
     'login failure leaves an existing remembered credential unchanged',
     () async {
