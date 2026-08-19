@@ -1,0 +1,64 @@
+{
+  "formatVersion": 1,
+  "issue": "OPS-64",
+  "sourceRevision": "ae9263eb414c534cbe5df5238b9005cdf1534d67",
+  "previousMainRevision": "784e7f88e5647b5a25ff24528bb829b30d7052db",
+  "capturedAtUtc": "2026-08-19T00:08:14Z",
+  "promotion": {
+    "sourceRef": "origin/staging",
+    "targetRef": "origin/main",
+    "fastForward": true,
+    "refsEqualAfterPromotion": true,
+    "guard": "scripts/promote-production.mjs",
+    "explicitOwnerAuthorization": true,
+    "workflowRun": "32167093288",
+    "deployJob": "95813222724",
+    "conclusion": "success",
+    "completedAtUtc": "2026-08-19T00:08:14Z",
+    "checks": [
+      "Android release build/sign/upload",
+      "Windows release build/sign/upload",
+      "production web build/publication",
+      "backend publication",
+      "public health and version metadata",
+      "final production checkpoint"
+    ]
+  },
+  "smoke": {
+    "capturedIndependently": true,
+    "baseUrl": "https://opshub.hoanghochoi.com",
+    "http200Endpoints": [
+      "/",
+      "/health",
+      "/api/health",
+      "/api/app-version?platform=android",
+      "/api/app-version?platform=windows",
+      "/download",
+      "/help"
+    ],
+    "releaseNotes": "GitHub ae9263e",
+    "android": {
+      "latestVersion": "2026.08.18.162",
+      "latestBuild": 100162,
+      "packageSha256": "fd630a2eb7758efe40f3d7d7720eaf022db80de11520f1b7470185db6a0e03d3"
+    },
+    "windows": {
+      "latestVersion": "2026.08.18.162",
+      "latestBuild": 100162,
+      "packageSha256": "e3a2d46ab66fddcb6a73fdeede236126ee83119b5e56843cdc558a61fd7ef2ef"
+    }
+  },
+  "upstreamException": {
+    "releasePin": "harness-v0.1.8",
+    "updateInvocation": false,
+    "forkOrPatch": false,
+    "decision": "defer-and-do-not-pursue-in-this-initiative"
+  },
+  "scope": {
+    "repositoryRuntimeChanged": false,
+    "productionDeployment": true,
+    "harnessDbChanged": false,
+    "archiveChanged": false
+  },
+  "rollback": "Revert the exact released SHA through staging, redeploy and re-verify health/version; do not rewrite main."
+}

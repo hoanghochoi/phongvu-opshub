@@ -98,7 +98,9 @@ export function validateEvidence(evidence, root = process.cwd()) {
     assert(evidence.scope?.[field] === false, `scope.${field} must remain false`);
   }
   assert(typeof evidence.rollback === "string" && evidence.rollback.includes("squash revert"), "rollback is missing");
-  assert(existsSync(path.resolve(root, "docs/plans/active/OPS-64-upstream-harness-repository-cleanup.md")), "master plan is missing");
+  const masterPlanActive = existsSync(path.resolve(root, "docs/plans/active/OPS-64-upstream-harness-repository-cleanup.md"));
+  const masterPlanCompleted = existsSync(path.resolve(root, "docs/plans/completed/OPS-64-upstream-harness-repository-cleanup.md"));
+  assert(masterPlanActive || masterPlanCompleted, "master plan is missing");
   assertNoLocalIdentity(evidence);
   return { status: "passed", issue: evidence.issue, phase10: evidence.phase10.status };
 }

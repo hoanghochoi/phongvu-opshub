@@ -4,17 +4,21 @@ Date: 2026-08-13
 
 ## Status
 
-Active — Phase 10 release proof is complete and production promotion is
-explicitly pending. The current reconciliation checkpoint is OPS-75, created
-through the guarded lifecycle from exact live
-`origin/staging@62fc701b5e917f168fb95ee3da4b7769e7eb2a55` after the post-merge
-release reconciliation.
-This release slice preserves all merged staging work and sanitized migration
-evidence. The upstream updater defect is an explicit owner-approved exception:
-the consumer remains pinned to `harness-v0.1.8`, with no fork or local patch and
-no updater invocation in the release workflow. The product/release ladder and
-staging deploy passed; `origin/main`
-remains `784e7f88e5647b5a25ff24528bb829b30d7052db` until an explicit promotion.
+Completed — Phase 0–10 execution, exact-SHA production promotion and production
+deployment are complete. The final release source is
+`origin/staging@ae9263eb414c534cbe5df5238b9005cdf1534d67`; after promotion,
+`origin/main` and `origin/staging` are equal at that SHA. Production workflow
+`32167093288` and deploy job `95813222724` completed successfully, including
+web/backend publication, Android and Windows artifact publication, public
+health/version verification and final checkpoint cleanup.
+The independent production smoke is recorded in
+`docs/migrations/ops-64-production-closure.json`: `/`, `/health`,
+`/api/health`, both platform version endpoints, `/download` and `/help` all
+returned HTTP 200, with release notes `GitHub ae9263e` and build `100162`.
+This closure preserves all merged staging work and sanitized migration
+evidence. The upstream updater defect remains an explicit owner-approved
+exception: the consumer stays pinned to `harness-v0.1.8`, with no fork or local
+patch and no updater invocation in the release workflow.
 OPS-198 PR #333 is squash-merged at
 `44382ae79c81aa40607ce60317b9148fe01d7ad4` and staging deploy
 `32143135811` passed; OPS-75 PR #334 is squash-merged at
@@ -22,7 +26,9 @@ OPS-198 PR #333 is squash-merged at
 `32152280116` passed. The post-merge reconciliation is now bound to
 `62fc701b5e917f168fb95ee3da4b7769e7eb2a55`; staging deploy `32158377597`
 passed all exact-SHA build, publication, direct-origin and health/version gates.
-The final Phase 10 artifact is `docs/migrations/ops-75-final-release-proof.json`.
+The historical staging Phase 10 artifact remains
+`docs/migrations/ops-75-final-release-proof.json`; the production closure
+artifact is `docs/migrations/ops-64-production-closure.json`.
 OPS-200 PR #325 is squash-merged at `071b7a20afd69bbd9ceeb506fc10e3de6b531424`
 and staging deploy `32113834922` passes prepare, Android, Windows, web/backend
 publication, direct-origin routes, health/version and final checkpoint. Its
@@ -46,8 +52,8 @@ terminal `revise`/`do-not-promote` decision with OPS-199 as a separate measurabl
 follow-up; the upstream part of OPS-75 is explicitly deferred by owner as a
 release exception, while its product/release proof is complete; and
 OPS-76/OPS-77/OPS-79 remain long-term backlog bundles outside the Phase 0–10
-  checklist. OPS-64 remains `In Progress` until the explicit production
-  promotion and deployment are recorded. The post-merge evidence repair
+  checklist. OPS-64 is now execution-complete after the explicit production
+  promotion and deployment recorded in the closure artifact. The post-merge evidence repair
   normalized checkout-EOL-sensitive digests without migration execution. The
   upstream exception is not a claim
   that its updater defect was fixed.
@@ -4029,6 +4035,27 @@ the current checkpoint above is the sole active execution authority.
   `784e7f88e5647b5a25ff24528bb829b30d7052db`. The upstream updater exception
   remains unchanged: pin `harness-v0.1.8`, no updater invocation, no fork and no
   local patch. Production promotion is still a separate explicit owner gate.
+
+## Final production closure (OPS-64)
+
+The historical checkpoints above describe their state at the time they were
+created. They are superseded by the final closure recorded in
+`docs/migrations/ops-64-production-closure.json`:
+
+- Production promotion pushed the exact `origin/staging` SHA
+  `ae9263eb414c534cbe5df5238b9005cdf1534d67` to `origin/main` by guarded
+  fast-forward; both remote refs were verified equal afterward.
+- Production workflow `32167093288`, deploy job `95813222724`, completed with
+  success. Android and Windows artifacts, web/backend publication, public
+  health/version verification and final release checkpoint all passed.
+- Independent smoke checks returned HTTP 200 for `/`, `/health`, `/api/health`,
+  both platform version endpoints, `/download` and `/help`. The released
+  version is `2026.08.18.162`, build `100162`, with release notes `GitHub
+  ae9263e`.
+- The initiative is execution-complete. OPS-72 remains the terminal
+  `revise`/`do-not-promote` workflow decision, OPS-75's updater scope remains
+  deferred-by-owner, and OPS-76/OPS-77/OPS-79 remain separate backlog work;
+  none of those decisions reopens this initiative.
 - Required proof before publication is the updated OPS-75 evidence, this
   checkpoint, `node scripts/verify-ops75-final-release-proof.mjs`, the exact
   full verifier with `stale=false`, docs/link/secret/mojibake scans and

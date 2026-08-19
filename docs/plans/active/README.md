@@ -5,129 +5,27 @@ directory. The machine-readable classification for this tree is
 [`docs/migrations/ops-71-plan-disposition.json`](../../migrations/ops-71-plan-disposition.json);
 validate it with `node scripts/verify-plan-disposition.mjs`.
 
-Current active/release-pending authority:
+Current active/release-pending plans are:
 
-- OPS-33, OPS-34, OPS-39 (hostname handoff and H2H runtime), OPS-40, OPS-42,
-  OPS-43, OPS-45, OPS-52, OPS-60, OPS-62 and OPS-80 retain their own execution plans because
-  testing, infrastructure, UAT, authenticated QA or release gates remain open.
-- The OPS-39 H2H plan is canonical for runtime/API behavior; the shorter
-  hostname plan owns only the external DNS, TLS and tunnel handoff.
-- [`OPS-44-redesign-foundation-runtime.md`](OPS-44-redesign-foundation-runtime.md)
-  is the release-pending handoff; the long execution journal is retained under
-  `docs/plans/completed/`.
-- [`OPS-53-redesign-chrome-audit-consolidation.md`](OPS-53-redesign-chrome-audit-consolidation.md)
-  is the only current OPS-53 execution summary. Its nine fragments are history.
-- [`OPS-64-upstream-harness-repository-cleanup.md`](OPS-64-upstream-harness-repository-cleanup.md)
-  remains the active OPS-64 master plan; OPS-75 is the current final-release
-  reconciliation with an owner-approved upstream exception. OPS-198 is the
-  preceding residual-gate reconciliation. OPS-200 is the
-  merged OPS-78 authority contract,
-  OPS-201 is the merged opt-in blue/green topology harness slice, OPS-204
-  is the merged offline migration/Home preflight and OPS-206 is the merged
-  offline candidate-health/Home-parity preflight. The
-  machine-readable residual ownership is recorded in
-  [`ops-198-residual-gate-reconciliation.json`](../../migrations/ops-198-residual-gate-reconciliation.json)
-  and [`ops-202-master-plan-reconciliation.json`](../../migrations/ops-202-master-plan-reconciliation.json)
-  and [`ops-203-master-plan-reconciliation.json`](../../migrations/ops-203-master-plan-reconciliation.json)
-  and [`ops-205-master-plan-reconciliation.json`](../../migrations/ops-205-master-plan-reconciliation.json)
-  and [`ops-207-master-plan-reconciliation.json`](../../migrations/ops-207-master-plan-reconciliation.json)
-  and [`ops-75-final-release-proof.json`](../../migrations/ops-75-final-release-proof.json);
-  OPS-75 records the latest exact-SHA checkpoint and release exception. The prior
-  production release is `784e7f88`, live `origin/staging` is now `62fc701b`,
-  and no new production promotion has been performed. The current child may
-  proceed only through the release ladder and explicit promotion gate. The OPS-200
-  task worktree,
-  local branch and remote branch are cleaned. The execution-canary ledger is
-  complete at 5/5 but remains `promotionEligible=false`; the selected
-  Harness/docs/verification-runner lane is observational, and Flutter, NestJS
-  and Go dependency-heavy profiles remain fail-closed/deferred. OPS-72 stays
-  `revise`/`do-not-promote`: the comparable v2 cohort measured 8.77% timing
-  reduction against the 25% target, TTAF has no failure sample and rerun
-  reduction is unmeasurable. The final decision is recorded in
-  `docs/migrations/ops-72-final-decision.json`; the affected matrix remains
-  observational.
-  No profile is suppressed and no product failure is retried to green. The
-  Harness status/doctor audit passes, while the upstream updater dry-run
-  remains blocked by its conflict-exit-code defect; this is an explicit owner
-  exception and not a release prerequisite. The current checklist is
-  `81/81` (100%): Phase 9 runtime waves and Phase 10 release evidence are
-  complete; only explicit production promotion remains. OPS-72/OPS-190 retain the
-  `revise`/`do-not-promote` decision and OPS-199 owns the measurable follow-up;
-  OPS-75's upstream updater sub-scope is deferred-by-owner while its release
-  proof is complete at staging deploy `32158377597`; OPS-200 has completed the OPS-78 authority
-  contract and OPS-201 owns the merged opt-in topology harness. User/Auth authority, dependency-ready
-  proof and authenticated Chrome QA now pass on the exact staging release;
-  Payment Monitor children OPS-85..OPS-88 have exact-SHA smoke proof and are
-  `Ready for Release`, as are OPS-126, OPS-176 and OPS-196. The previous
-  production deployment passed on exact SHA `784e7f88` with workflow
-  `32099976438`; current remote `main` is intentionally behind live
-  `staging` until the final release decision. OPS-75 is the latest
-  last-reconciled checkpoint after OPS-198; its post-merge proof normalized a
-  sanitized migration digest drift without executing migration. OPS-198 is the preceding
-  residual-gate reconciliation and OPS-207 is the preceding
-  candidate-health/Home-parity preflight, OPS-205 is the prior reconciliation
-  after OPS-204; OPS-204 is the preceding
-  staging-deployed offline migration/Home preflight and OPS-203 is the
-  preceding checkpoint after OPS-201; OPS-202 is the preceding
-  residual-gate reconciliation; OPS-196 is the earlier production
-  reconciliation;
-  OPS-194 is the preceding production reconciliation;
-  OPS-186 is the preceding reconciliation after PR #311 at `2d00c1be`;
-  OPS-185 is the preceding reconciliation through PR #310 at `8c6c9ecc`;
-  OPS-184 is the preceding reconciliation
-  through PR #309 at `c2d0af35`; OPS-183 is the preceding execution-canary
-  reconciliation through PR #308 at `c0ced63a`; OPS-182 is the preceding
-  authority guard through PR #307 at `7c7e2240`; OPS-181 is the preceding
-  execution-canary slice through PR #306 at `dfe09618`; OPS-180 is the
-  preceding progress slice through PR #305 at `d2be1f44`; OPS-179 is the
-  preceding reconciliation through PR #304 at `e4968c3f`; OPS-178 is the
-  preceding execution-canary lane through PR #303 at `14224af1`. OPS-177 is the
-  preceding reconciliation, squash-merged through PR #302 at `df20b4e7` and
-  staging-deployed by `31998307023`; OPS-175 is squash-merged through PR #301
-  at `2e5dc7b2` and staging-deployed by `31997427099`; OPS-176 is squash-
-  merged through PR #300 at `c2ec9c31`, staging-deployed by `31996291315`,
-  with focused toolchain proof, guarded lifecycle cleanup and deployment gates
-  passed. Its later full Flutter run remains unverified after stopping at 521
-  tests. OPS-174 is the preceding reconciliation after the OPS-75 installer
-  fallback slice. OPS-75 is
-  squash-merged through PR #298 at `75abf3d9`, staging-deployed by
-  `31991597879`, with guarded lifecycle cleanup and `Ready for QA` proof. The
-  installer fallback is verified, while the upstream updater exit-code blocker
-  remains explicit. OPS-173 is the preceding Phase 9 ownership audit after
-  the OPS-172 reconciliation and OPS-171 ERP cache-page extraction. OPS-171 is
-  squash-merged through PR #295 at `1809b49f`, staging-deployed by
-  `31986109215`, with guarded lifecycle cleanup and `Ready for QA` proof.
-  OPS-168 MAP persistence and OPS-169 ERP cache-page characterization remain
-  the preceding checkpoints. Their Flutter/Go affected-consumer proof, like
-  OPS-171's, remains explicitly fail-closed and unverified under the approved
-  local dependency deferral; no profile was suppressed and no product failure
-  was retried to green. The Phase 9 ownership audit records two explicit
-  User/Auth security follow-ups with no current owner: atomic assignment
-  transaction hardening and generic admin-policy scope authorization. The next
-  bounded action is final consolidation and release-evidence rehearsal; OPS-72
-  remains revise/do-not-promote, while the upstream updater blocker,
-  dependency/affected-consumer proof closure and the remaining Phase 10
-  production gates stay open. OPS-170 is the preceding reconciliation
-  after OPS-168/OPS-169;
-  OPS-167 is the preceding reconciliation after OPS-166; OPS-165
-  is the preceding reconciliation after OPS-164; OPS-163 is the preceding
-  reconciliation after OPS-162; OPS-161 is the preceding reconciliation after
-  OPS-160; OPS-159 is the preceding reconciliation after OPS-158. OPS-157 is
-  the earlier plan reconciliation at `98d48f5e`,
-  staging-deployed by `31962662658`, with guarded lifecycle cleanup and
-  `Ready for QA` proof. OPS-156 is the preceding completed Phase 9F UserService access/scope runtime
-  checkpoint at merge `6849ddb0`, staging deploy `31961307152`, with guarded
-  lifecycle cleanup and `Ready for QA` proof. OPS-155 is the preceding
-  protected-credential runtime slice, and OPS-154 is
-  the preceding completed Phase 9C runtime checkpoint after its PR merge,
-  staging deployment and guarded lifecycle cleanup. OPS-153 reconciled the plan
-  after the finance-metrics extraction merged, staging-deployed and passed
-  guarded lifecycle cleanup. OPS-152 is the preceding completed runtime
-  checkpoint; OPS-151 is the legacy sales-metrics checkpoint, OPS-150 the
-  main-KPI checkpoint, OPS-149 the sales-progress checkpoint and OPS-148 the
-  comparison checkpoint;
-  Phase 8 has an evidence-backed no-deletion disposition; Phase 9/10 and
-  production-pending work stay active until their release gates pass.
+- `OPS-33-sales-price-contract.md`
+- `OPS-34-design-system-cleanup.md`
+- `OPS-39-bankapis-hostnames.md`
+- `OPS-39-bidv-h2h-api.md`
+- `OPS-40-support-chat-phase-1.md`
+- `OPS-42-api-only-staging-ingress.md`
+- `OPS-43-local-preset-speaker.md`
+- `OPS-44-redesign-foundation-runtime.md`
+- `OPS-45-staging-public-verification.md`
+- `ops-52-purchased-promotion-kpis.md`
+- `OPS-53-redesign-chrome-audit-consolidation.md`
+- `OPS-60-home-period-comparison-import.md`
+- `OPS-62-home-import-card-order-hotfix.md`
+- `OPS-80-home-summary-cache-coverage.md`
+
+The OPS-64 master plan is no longer active. It is retained as
+[`../completed/OPS-64-upstream-harness-repository-cleanup.md`](../completed/OPS-64-upstream-harness-repository-cleanup.md)
+with production closure evidence in
+[`docs/migrations/ops-64-production-closure.json`](../../migrations/ops-64-production-closure.json).
 
 Use `docs/templates/exec-plan.md` for new durable work. Move a plan only after
 its requested outcome and validation are recorded; do not infer production
