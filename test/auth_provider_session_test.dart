@@ -7,6 +7,7 @@ import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/core/network/api_exception.dart';
 import 'package:phongvu_opshub/core/storage/app_storage_keys.dart';
+import 'package:phongvu_opshub/features/auth/data/auth_credential_store.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/store_branch.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
@@ -27,6 +28,129 @@ void main() {
     AppLogger.instance.setUploadsEnabledForTesting(true);
   });
 
+  test(
+    'remembered credential operations stay outside session preferences',
+    () async {
+      final storage = _RememberedCredentialStorage();
+      final provider = AuthProvider(
+        AuthRepository(ApiClient()),
+        credentialStore: AuthCredentialStore(storage: storage),
+      );
+
+      expect(await provider.readRememberedLogin(), isNull);
+      expect(
+        await provider.saveRememberedLogin(
+          email: 'staff@phongvu.vn',
+          password: 'Password 1!',
+        ),
+        isTrue,
+      );
+      expect(
+        await provider.readRememberedLogin(),
+        const RememberedLogin(
+          email: 'staff@phongvu.vn',
+          password: 'Password 1!',
+        ),
+      );
+      expect(await provider.clearRememberedLogin(), isTrue);
+      expect(await provider.readRememberedLogin(), isNull);
+      expect(
+        storage.values.keys,
+        isNot(contains(AppStorageKeys.shared('user_email'))),
+      );
+    },
+  );
+
+  test(
+    'login failure leaves an existing remembered credential unchanged',
+    () async {
+      final storage = _RememberedCredentialStorage();
+      final store = AuthCredentialStore(storage: storage);
+      await store.save(email: 'old@phongvu.vn', password: 'Old password!');
+      final provider = AuthProvider(
+        _FakeAuthRepository(
+          loginError: ApiException('Sai thông tin đăng nhập'),
+        ),
+        credentialStore: store,
+      );
+
+      expect(
+        await provider.login(
+          email: 'new@phongvu.vn',
+          password: 'New password!',
+        ),
+        isFalse,
+      );
+      expect(
+        await store.read(),
+        const RememberedLogin(
+          email: 'old@phongvu.vn',
+          password: 'Old password!',
+        ),
+      );
+    },
+  );
+
+  test(
+    'successful password change and reset clear remembered credentials',
+    () async {
+      final changeStorage = _RememberedCredentialStorage();
+      final changeStore = AuthCredentialStore(storage: changeStorage);
+      await changeStore.save(
+        email: 'staff@phongvu.vn',
+        password: 'Old password!',
+      );
+      final changeRepository = _FakeAuthRepository(
+        loginResult: (_refreshedUser, 'login-token'),
+        bootstrapResult: _supportBootstrapResult,
+        changePasswordResult: (_refreshedUser, 'changed-token'),
+      );
+      final changeProvider = AuthProvider(
+        changeRepository,
+        credentialStore: changeStore,
+      );
+      expect(
+        await changeProvider.login(
+          email: 'staff@phongvu.vn',
+          password: 'Old password!',
+        ),
+        isTrue,
+      );
+      await changeStore.save(
+        email: 'staff@phongvu.vn',
+        password: 'Old password!',
+      );
+      expect(
+        await changeProvider.changePassword(
+          currentPassword: 'Old password!',
+          newPassword: 'New password!',
+        ),
+        isTrue,
+      );
+      expect(await changeStore.read(), isNull);
+
+      final resetStorage = _RememberedCredentialStorage();
+      final resetStore = AuthCredentialStore(storage: resetStorage);
+      await resetStore.save(
+        email: 'staff@phongvu.vn',
+        password: 'Old password!',
+      );
+      final resetProvider = AuthProvider(
+        _FakeAuthRepository(),
+        credentialStore: resetStore,
+      );
+      expect(
+        await resetProvider.resetForgottenPassword(
+          email: 'staff@phongvu.vn',
+          resetToken: 'reset-token',
+          newPassword: 'New password!',
+        ),
+        isTrue,
+      );
+      expect(await resetStore.read(), isNull);
+    },
+  );
+
   test('fresh login hydrates Support Chat before the shell is ready', () async {
     final repository = _FakeAuthRepository(
       loginResult: (_sparseCredentialUser, 'login-token'),
@@ -36,10 +160,7 @@ void main() {
     await _waitForInitialization(provider);
 
     expect(
-      await provider.login(
-        email: _refreshedUser.email,
-        password: 'Password1!',
-      ),
+      await provider.login(email: _refreshedUser.email, password: 'Password1!'),
       isTrue,
     );
     expect(repository.bootstrapCount, 1);
@@ -50,77 +171,83 @@ void main() {
     provider.dispose();
   });
 
-  test('bootstrap outage keeps the accepted login retryable and fail-closed', () async {
-    final repository = _FakeAuthRepository(
-      loginResult: (_refreshedUser, 'login-token'),
-      bootstrapError: ApiException('Hệ thống đang bận.', 503),
-    );
-    final provider = AuthProvider(repository);
-    await _waitForInitialization(provider);
+  test(
+    'bootstrap outage keeps the accepted login retryable and fail-closed',
+    () async {
+      final repository = _FakeAuthRepository(
+        loginResult: (_refreshedUser, 'login-token'),
+        bootstrapError: ApiException('Hệ thống đang bận.', 503),
+      );
+      final provider = AuthProvider(repository);
+      await _waitForInitialization(provider);
 
-    expect(
-      await provider.login(
-        email: _refreshedUser.email,
-        password: 'Password1!',
-      ),
-      isTrue,
-    );
-    expect(provider.isAuthenticated, isTrue);
-    expect(provider.hasUsableAccessSnapshot, isFalse);
-    expect(provider.supportChatEnabled, isFalse);
-    expect(provider.accessSyncState, AuthAccessSyncState.failed);
-    provider.dispose();
-  });
+      expect(
+        await provider.login(
+          email: _refreshedUser.email,
+          password: 'Password1!',
+        ),
+        isTrue,
+      );
+      expect(provider.isAuthenticated, isTrue);
+      expect(provider.hasUsableAccessSnapshot, isFalse);
+      expect(provider.supportChatEnabled, isFalse);
+      expect(provider.accessSyncState, AuthAccessSyncState.failed);
+      provider.dispose();
+    },
+  );
 
-  test('registration and password change hydrate the same bootstrap contract', () async {
-    final registrationRepository = _FakeAuthRepository(
-      registerResult: (_refreshedUser, 'registration-token'),
-      bootstrapResult: _supportBootstrapResult,
-    );
-    final registrationProvider = AuthProvider(registrationRepository);
-    await _waitForInitialization(registrationProvider);
+  test(
+    'registration and password change hydrate the same bootstrap contract',
+    () async {
+      final registrationRepository = _FakeAuthRepository(
+        registerResult: (_refreshedUser, 'registration-token'),
+        bootstrapResult: _supportBootstrapResult,
+      );
+      final registrationProvider = AuthProvider(registrationRepository);
+      await _waitForInitialization(registrationProvider);
 
-    expect(
-      await registrationProvider.register(
-        firstName: 'Staging',
-        email: _refreshedUser.email,
-        password: 'Password1!',
-        verificationCode: '123456',
-      ),
-      isTrue,
-    );
-    expect(registrationProvider.supportChatEnabled, isTrue);
-    expect(registrationRepository.bootstrapCount, 1);
-    registrationProvider.dispose();
+      expect(
+        await registrationProvider.register(
+          firstName: 'Staging',
+          email: _refreshedUser.email,
+          password: 'Password1!',
+          verificationCode: '123456',
+        ),
+        isTrue,
+      );
+      expect(registrationProvider.supportChatEnabled, isTrue);
+      expect(registrationRepository.bootstrapCount, 1);
+      registrationProvider.dispose();
 
-    ApiClient().setAuthToken(null);
-    SharedPreferences.setMockInitialValues({});
-    FlutterSecureStorage.setMockInitialValues({});
-    final passwordRepository = _FakeAuthRepository(
-      loginResult: (_refreshedUser, 'login-token'),
-      changePasswordResult: (_refreshedUser, 'changed-token'),
-      bootstrapResults: [_supportBootstrapResult, _supportBootstrapResult],
-    );
-    final passwordProvider = AuthProvider(passwordRepository);
-    await _waitForInitialization(passwordProvider);
-    expect(
-      await passwordProvider.login(
-        email: _refreshedUser.email,
-        password: 'Password1!',
-      ),
-      isTrue,
-    );
-    expect(
-      await passwordProvider.changePassword(
-        currentPassword: 'Password1!',
-        newPassword: 'Password2!',
-      ),
-      isTrue,
-    );
-    expect(passwordRepository.bootstrapCount, 2);
-    expect(passwordProvider.supportChatEnabled, isTrue);
-    passwordProvider.dispose();
-  });
+      ApiClient().setAuthToken(null);
+      SharedPreferences.setMockInitialValues({});
+      FlutterSecureStorage.setMockInitialValues({});
+      final passwordRepository = _FakeAuthRepository(
+        loginResult: (_refreshedUser, 'login-token'),
+        changePasswordResult: (_refreshedUser, 'changed-token'),
+        bootstrapResults: [_supportBootstrapResult, _supportBootstrapResult],
+      );
+      final passwordProvider = AuthProvider(passwordRepository);
+      await _waitForInitialization(passwordProvider);
+      expect(
+        await passwordProvider.login(
+          email: _refreshedUser.email,
+          password: 'Password1!',
+        ),
+        isTrue,
+      );
+      expect(
+        await passwordProvider.changePassword(
+          currentPassword: 'Password1!',
+          newPassword: 'Password2!',
+        ),
+        isTrue,
+      );
+      expect(passwordRepository.bootstrapCount, 2);
+      expect(passwordProvider.supportChatEnabled, isTrue);
+      passwordProvider.dispose();
+    },
+  );
 
   test('hydrates cached access before bootstrap refresh completes', () async {
     final bootstrap = Completer<AuthBootstrapResult>();
@@ -770,6 +897,7 @@ final _supportBootstrapResult = AuthBootstrapResult.data(
 
 class _FakeAuthRepository extends AuthRepository {
   final (User, String?)? loginResult;
+  final Object? loginError;
   final (User, String?)? registerResult;
   final (User, String?)? changePasswordResult;
   AuthBootstrapResult? bootstrapResult;
@@ -787,6 +915,7 @@ class _FakeAuthRepository extends AuthRepository {
 
   _FakeAuthRepository({
     this.loginResult,
+    this.loginError,
     this.registerResult,
     this.changePasswordResult,
     this.bootstrapResult,
@@ -801,6 +930,7 @@ class _FakeAuthRepository extends AuthRepository {
     required String email,
     required String password,
   }) async {
+    if (loginError != null) throw loginError!;
     return loginResult ?? (throw StateError('login result not configured'));
   }
 
@@ -825,6 +955,11 @@ class _FakeAuthRepository extends AuthRepository {
         (throw StateError('change-password result not configured'));
   }
 
+  @override
+  Future<void> resetForgottenPassword({
+    required String resetToken,
+    required String newPassword,
+  }) async {}
 
   @override
   Future<AuthBootstrapResult> getBootstrap({
@@ -862,5 +997,22 @@ class _FakeAuthRepository extends AuthRepository {
   @override
   Future<void> logout() async {
     logoutCount += 1;
+  }
+}
+
+class _RememberedCredentialStorage implements AuthSecureStorage {
+  final Map<String, String> values = {};
+
+  @override
+  Future<String?> read({required String key}) async => values[key];
+
+  @override
+  Future<void> write({required String key, required String value}) async {
+    values[key] = value;
+  }
+
+  @override
+  Future<void> delete({required String key}) async {
+    values.remove(key);
   }
 }

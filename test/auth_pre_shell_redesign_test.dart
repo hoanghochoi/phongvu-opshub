@@ -1,11 +1,18 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'helpers/legacy_widget_finders.dart';
+import 'package:phongvu_opshub/app/widgets/app_controls.dart';
 import 'package:phongvu_opshub/app/widgets/app_layout.dart';
 import 'package:phongvu_opshub/app/widgets/app_logo.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
+import 'package:phongvu_opshub/core/storage/app_storage_keys.dart';
+import 'package:phongvu_opshub/features/auth/data/auth_credential_store.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
 import 'package:phongvu_opshub/features/auth/presentation/providers/auth_provider.dart';
 import 'package:phongvu_opshub/features/auth/presentation/screens/assignment_pending_screen.dart';
@@ -36,6 +43,7 @@ void main() {
     expect(find.byType(AuthScreenShell), findsOneWidget);
     expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.text('Đăng nhập'), findsWidgets);
+    expect(find.text('Nhớ mật khẩu'), findsOneWidget);
     expect(find.text('Kết nối nguồn lực. Đồng bộ vận hành.'), findsOneWidget);
     expect(find.text('Dùng tài khoản nội bộ để tiếp tục.'), findsOneWidget);
     expect(find.text('Hướng dẫn'), findsOneWidget);
@@ -173,6 +181,201 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('remember password checkbox exposes its label and touch target', (
+    WidgetTester tester,
+  ) async {
+    await _pumpAuthScreen(tester, const EmailCheckScreen());
+
+    final checkbox = find.byType(AppCheckbox);
+    expect(checkbox, findsOneWidget);
+    expect(find.bySemanticsLabel('Nhớ mật khẩu'), findsOneWidget);
+    expect(tester.getSize(checkbox).height, greaterThanOrEqualTo(48));
+    expect(find.text('Tự điền thông tin đăng nhập lần sau'), findsNothing);
+  });
+
+  testWidgets('remembered credentials prefill empty fields and check the box', (
+    WidgetTester tester,
+  ) async {
+    final key = AppStorageKeys.secure(AuthCredentialStore.storageKey);
+    FlutterSecureStorage.setMockInitialValues({
+      key: jsonEncode({
+        'version': AuthCredentialStore.schemaVersion,
+        'email': 'staff@phongvu.vn',
+        'password': 'Password 1!',
+      }),
+    });
+
+    await _pumpAuthScreen(tester, const EmailCheckScreen());
+
+    final fields = find.byType(TextFormField);
+    expect(
+      tester.widget<TextFormField>(fields.at(0)).controller!.text,
+      'staff@phongvu.vn',
+    );
+    expect(
+      tester.widget<TextFormField>(fields.at(1)).controller!.text,
+      'Password 1!',
+    );
+    expect(tester.widget<AppCheckbox>(find.byType(AppCheckbox)).value, isTrue);
+  });
+
+  testWidgets(
+    'prefill never overwrites input entered while storage is loading',
+    (WidgetTester tester) async {
+      final remembered = Completer<RememberedLogin?>();
+      final provider = _DelayedRememberedAuthProvider(remembered.future);
+      await _pumpAuthScreen(
+        tester,
+        const EmailCheckScreen(),
+        authProvider: provider,
+      );
+      await tester.enterText(
+        find.byType(TextFormField).at(0),
+        'typed@phongvu.vn',
+      );
+      await tester.enterText(find.byType(TextFormField).at(1), 'Typed 1!');
+
+      remembered.complete(
+        const RememberedLogin(
+          email: 'stored@phongvu.vn',
+          password: 'Stored 1!',
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<TextFormField>(find.byType(TextFormField).at(0))
+            .controller!
+            .text,
+        'typed@phongvu.vn',
+      );
+      expect(
+        tester
+            .widget<TextFormField>(find.byType(TextFormField).at(1))
+            .controller!
+            .text,
+        'Typed 1!',
+      );
+      expect(
+        tester.widget<AppCheckbox>(find.byType(AppCheckbox)).value,
+        isFalse,
+      );
+    },
+  );
+
+  testWidgets('turning remember password off clears the secure value', (
+    WidgetTester tester,
+  ) async {
+    final key = AppStorageKeys.secure(AuthCredentialStore.storageKey);
+    FlutterSecureStorage.setMockInitialValues({
+      key: jsonEncode({
+        'version': AuthCredentialStore.schemaVersion,
+        'email': 'staff@phongvu.vn',
+        'password': 'Password 1!',
+      }),
+    });
+    await _pumpAuthScreen(tester, const EmailCheckScreen());
+
+    await tester.tap(find.text('Nhớ mật khẩu'));
+    await tester.pumpAndSettle();
+
+    expect(await const FlutterSecureStorage().read(key: key), isNull);
+    expect(tester.widget<AppCheckbox>(find.byType(AppCheckbox)).value, isFalse);
+  });
+
+  testWidgets('clear failure keeps the preference checked and offers a retry', (
+    WidgetTester tester,
+  ) async {
+    await _pumpAuthScreen(
+      tester,
+      const EmailCheckScreen(),
+      authProvider: _FailingClearAuthProvider(),
+    );
+    await tester.tap(find.text('Nhớ mật khẩu'));
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<AppCheckbox>(find.byType(AppCheckbox)).value, isTrue);
+    expect(
+      find.text(
+        'Chưa xóa được mật khẩu đã lưu. Hãy thử lại khi thiết bị sẵn sàng.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('checkbox is disabled while the login form is submitting', (
+    WidgetTester tester,
+  ) async {
+    await _pumpAuthScreen(
+      tester,
+      const EmailCheckScreen(),
+      authProvider: _LoadingAuthProvider(),
+      settle: false,
+    );
+
+    expect(
+      tester.widget<AppCheckbox>(find.byType(AppCheckbox)).onChanged,
+      isNull,
+    );
+  });
+
+  testWidgets(
+    'secure-storage read failure stays fail-closed with Vietnamese copy',
+    (WidgetTester tester) async {
+      await _pumpAuthScreen(
+        tester,
+        const EmailCheckScreen(),
+        authProvider: _FailingRememberedAuthProvider(),
+      );
+
+      expect(
+        find.text(
+          'Không đọc được mật khẩu đã lưu. Bạn vẫn có thể đăng nhập bình thường.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        tester.widget<AppCheckbox>(find.byType(AppCheckbox)).value,
+        isFalse,
+      );
+    },
+  );
+
+  testWidgets('successful login saves the entered pair only when checked', (
+    WidgetTester tester,
+  ) async {
+    final provider = _SuccessfulLoginAuthProvider();
+    final router = GoRouter(
+      initialLocation: '/login',
+      routes: [
+        GoRoute(path: '/login', builder: (_, _) => const EmailCheckScreen()),
+        GoRoute(path: '/home', builder: (_, _) => const Text('home')),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: provider,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'staff@phongvu.vn',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'Password 1!');
+    await tester.tap(find.text('Nhớ mật khẩu'));
+    await tester.tap(find.text('Đăng nhập').last);
+    await tester.pumpAndSettle();
+
+    expect(provider.savedEmail, 'staff@phongvu.vn');
+    expect(provider.savedPassword, 'Password 1!');
+    expect(router.routeInformationProvider.value.uri.path, '/home');
+  });
+
   testWidgets('registration keeps its last input above the mobile keyboard', (
     WidgetTester tester,
   ) async {
@@ -203,14 +406,23 @@ void main() {
   });
 }
 
-Future<void> _pumpAuthScreen(WidgetTester tester, Widget screen) async {
+Future<void> _pumpAuthScreen(
+  WidgetTester tester,
+  Widget screen, {
+  AuthProvider? authProvider,
+  bool settle = true,
+}) async {
   await tester.pumpWidget(
     ChangeNotifierProvider<AuthProvider>(
-      create: (_) => _IdleAuthProvider(),
+      create: (_) => authProvider ?? _IdleAuthProvider(),
       child: MaterialApp(home: screen),
     ),
   );
-  await tester.pumpAndSettle();
+  if (settle) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
 }
 
 Future<void> _expectLoginViewport(
@@ -257,4 +469,61 @@ class _IdleAuthProvider extends AuthProvider {
 
   @override
   bool get isLoading => false;
+}
+
+class _DelayedRememberedAuthProvider extends _IdleAuthProvider {
+  _DelayedRememberedAuthProvider(this._result);
+
+  final Future<RememberedLogin?> _result;
+
+  @override
+  Future<RememberedLogin?> readRememberedLogin() => _result;
+}
+
+class _LoadingAuthProvider extends _IdleAuthProvider {
+  @override
+  bool get isLoading => true;
+}
+
+class _FailingRememberedAuthProvider extends _IdleAuthProvider {
+  @override
+  Future<RememberedLogin?> readRememberedLogin() async {
+    throw StateError('secure storage unavailable');
+  }
+}
+
+class _FailingClearAuthProvider extends _IdleAuthProvider {
+  @override
+  Future<RememberedLogin?> readRememberedLogin() async {
+    return const RememberedLogin(
+      email: 'stored@phongvu.vn',
+      password: 'Stored 1!',
+    );
+  }
+
+  @override
+  Future<bool> clearRememberedLogin() async => false;
+}
+
+class _SuccessfulLoginAuthProvider extends _IdleAuthProvider {
+  String? savedEmail;
+  String? savedPassword;
+
+  @override
+  Future<RememberedLogin?> readRememberedLogin() async => null;
+
+  @override
+  Future<bool> login({required String email, required String password}) async {
+    return true;
+  }
+
+  @override
+  Future<bool> saveRememberedLogin({
+    required String email,
+    required String password,
+  }) async {
+    savedEmail = email;
+    savedPassword = password;
+    return true;
+  }
 }

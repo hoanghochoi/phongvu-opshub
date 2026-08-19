@@ -39,6 +39,21 @@ Only authorized Phong Vũ and ACareTek staff should access OpsHub workflows.
   domain.
 - Backend configuration includes `JWT_SECRET`.
 - Persistent login on the client stores JWTs in secure storage.
+- The public `/login` form offers an explicit `Nhớ mật khẩu` preference. When
+  enabled, a successful login may store the submitted email/password pair in
+  the environment-scoped platform secure storage only. This credential is a
+  prefill convenience, never a session, token, API payload, or auto-login
+  trigger; it is not written to `SharedPreferences` or normal logs.
+- The login screen reads the remembered pair asynchronously and only prefills
+  fields that are still empty. Turning the preference off deletes the pair
+  immediately. A failed login never replaces the prior pair. A successful
+  login with the preference enabled replaces it with the new pair; a secure
+  storage failure leaves login successful but disables the preference and shows
+  an actionable Vietnamese warning.
+- Logout clears the authenticated session but intentionally keeps the
+  remembered pair while the user preference remains enabled. A successful
+  self-service password change or forgot-password reset deletes the old pair;
+  the new password is never stored automatically.
 - A saved user snapshot without its matching secure token (or a token without a
   user snapshot) is incomplete and must be discarded; it must never hydrate an
   authenticated shell or permission menu.

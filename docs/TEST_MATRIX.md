@@ -3,6 +3,22 @@
 This file maps product behavior to proof. Existing flows are marked
 `existing_unverified` until fresh validation evidence is attached.
 
+- `OPS-208` / `AUTH-005` (2026-08-19): the `/login` `Nhớ mật khẩu` preference
+  stores only an opt-in email/password pair in environment-scoped
+  `flutter_secure_storage`; it never enters `SharedPreferences`, logs,
+  API/backend contracts, session JWT restore, auto-login, or single-platform
+  session behavior. Focused local proof passes: credential store 5/5;
+  auth-pre-shell redesign 15/15 (all existing 390/460/768/1024/1440 layouts,
+  semantics and 48dp target, prefill/no-overwrite, clear, disabled and storage
+  failure); auth provider/session 20/20 (failed-login preservation,
+  password-change/reset clear, session restore/logout consumers); legacy login
+  widget tests 2/2. Flutter analyze, Web/Windows/staging-APK debug builds and
+  the affected-consumer wrapper pass. A serial full Flutter run reached 879
+  passed and 3 intentional skips with one unrelated timing failure in
+  `sales_report_hub_test.dart`; that file passes in isolation 45/45. Staging
+  deploy, authenticated Chrome comparison and physical Android/iOS
+  secure-storage proof remain required before release completion.
+
 OPS-44 live visual-smoke target (2026-08-03): 45 declared route phases are
 covered across wide `1440x900`, compact `390x844`, medium `768x1024` and
 expanded `1024x900` viewports (180 route/viewport checks). Older 88-check
