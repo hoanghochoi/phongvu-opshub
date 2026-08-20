@@ -190,6 +190,15 @@ void main() {
         tester.getSize(chip).width,
         lessThan(tester.getSize(summary).width - 8),
       );
+      final codeText = find.descendant(
+        of: chip,
+        matching: find.text(codes[index]),
+      );
+      expect(codeText, findsOneWidget);
+      expect(
+        tester.widget<Text>(codeText).overflow,
+        isNot(TextOverflow.ellipsis),
+      );
     }
     expect(
       tester.getTopLeft(chips[0]).dy,
