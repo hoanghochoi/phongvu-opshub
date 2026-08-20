@@ -39,6 +39,7 @@ assert.notEqual(legacyStart, -1, 'Legacy bridge site is missing');
 const legacySite = caddy.slice(legacyStart);
 assert.match(legacySite, /path \/api \/api\/\*/);
 assert.match(legacySite, /handle @legacy_api/);
+assert.match(legacySite, /uri strip_prefix \/api/);
 assert.match(legacySite, /handle \/ws\*/);
 assert.match(legacySite, /redir https:\/\/\{\$OPSHUB_DOMAIN\}\{uri\} 308/);
 assert.equal(caddy.includes('BIDV_H2H_DOMAIN'), false);

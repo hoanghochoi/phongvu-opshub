@@ -292,6 +292,9 @@ http://{$OPSHUB_LEGACY_DOMAIN} {
   # catch-all.
   @legacy_api path /api /api/*
   handle @legacy_api {
+    # Preserve the existing legacy contract: NestJS receives the route without
+    # the public /api compatibility prefix.
+    uri strip_prefix /api
     reverse_proxy {
       dynamic a api 3000 {
         refresh 5s
