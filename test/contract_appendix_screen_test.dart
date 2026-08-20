@@ -211,6 +211,44 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('wide keeps the order summary below the command card', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final provider = ContractAppendixProvider(
+      _ScreenDataSource(),
+      clipboardWriter: _NoopClipboardWriter(),
+    );
+    expect(provider.addOrderCode('SO-STABLE'), isTrue);
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: provider,
+        child: const MaterialApp(
+          home: Scaffold(body: ContractAppendixScreen()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final command = find.byKey(
+      const Key('contract-appendix-order-command-row'),
+    );
+    final summary = find.byKey(
+      const Key('contract-appendix-order-summary-card'),
+    );
+    expect(summary, findsOneWidget);
+    expect(
+      tester.getTopLeft(summary).dy,
+      greaterThan(tester.getBottomLeft(command).dy),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('desktop keeps editor and Word preview in one wide column', (
     tester,
   ) async {
