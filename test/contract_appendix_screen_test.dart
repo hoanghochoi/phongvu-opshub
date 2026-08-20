@@ -60,9 +60,61 @@ void main() {
       lessThan(8),
     );
     expect(find.text('Lấy thông tin (1 đơn)'), findsOneWidget);
+    expect(find.text('Tạo phụ lục hợp đồng'), findsNothing);
+    expect(find.text('Đơn đã chọn  1/10'), findsNothing);
     expect(
       find.text('Bảng sẽ xuất hiện sau khi lấy thông tin'),
       findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('selected orders are managed from the summary card', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final provider = ContractAppendixProvider(
+      _ScreenDataSource(),
+      clipboardWriter: _NoopClipboardWriter(),
+    );
+    expect(provider.addOrderCode('SO-SUMMARY'), isTrue);
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: provider,
+        child: const MaterialApp(
+          home: Scaffold(body: ContractAppendixScreen()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('contract-appendix-order-summary-card')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('contract-appendix-order-summary-SO-SUMMARY')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('contract-appendix-order-chip-SO-SUMMARY')),
+      findsNothing,
+    );
+    final remove = find.byTooltip('Xóa SO-SUMMARY');
+    expect(remove, findsOneWidget);
+
+    await tester.tap(remove);
+    await tester.pumpAndSettle();
+
+    expect(provider.selectedOrderCodes, isEmpty);
+    expect(
+      find.byKey(const Key('contract-appendix-order-summary-card')),
+      findsNothing,
     );
     expect(tester.takeException(), isNull);
   });
@@ -143,6 +195,7 @@ void main() {
       find.bySemanticsLabel('Đơn vị tính: Bản (đang khóa)'),
       findsOneWidget,
     );
+    expect(find.byTooltip('Xóa SO-LOCKED'), findsNothing);
     final name = find.text(longName);
     expect(name, findsOneWidget);
     expect(tester.getSize(name).height, greaterThan(20));

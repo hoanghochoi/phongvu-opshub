@@ -405,7 +405,18 @@ class _OrderCommandArea extends StatelessWidget {
           onFetch: onFetch,
           onReset: onReset,
         );
-        if (!wide) return command;
+        if (!wide) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              command,
+              if (provider.selectedOrderCodes.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _OrderSummaryCard(provider: provider),
+              ],
+            ],
+          );
+        }
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -521,14 +532,6 @@ class _OrderCommandCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Tạo phụ lục hợp đồng',
-            style: AppTextStyles.headingM.copyWith(
-              color: AppColors.textPrimaryOf(context),
-              fontSize: compact ? 20 : 22,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
             compact
                 ? 'Thêm tối đa 10 đơn hàng trước khi lấy thông tin.'
                 : 'Thêm tối đa 10 đơn hàng theo đúng thứ tự bạn nhập trước khi bấm lấy thông tin.',
@@ -560,20 +563,6 @@ class _OrderCommandCard extends StatelessWidget {
               ],
             ),
           const SizedBox(height: 16),
-          Text(
-            'Đơn đã chọn  ${selected.length}/${ContractAppendixProvider.maxOrderCodes}',
-            style: AppTextStyles.labelS.copyWith(
-              color: AppColors.textSecondaryOf(context),
-            ),
-          ),
-          if (selected.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            _OrderChipWrap(
-              orderCodes: selected,
-              locked: locked || busy,
-              onRemove: provider.removeOrderCode,
-            ),
-          ],
         ],
       ),
     );
@@ -588,7 +577,9 @@ class _OrderSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final locked = provider.isOrderSelectionLocked;
+    final canRemove = !locked && !provider.isBusy;
     return AppSurfaceCard(
+      key: const Key('contract-appendix-order-summary-card'),
       padding: const EdgeInsets.all(19),
       radius: AppRadius.lg,
       child: Column(
@@ -633,7 +624,11 @@ class _OrderSummaryCard extends StatelessWidget {
             Column(
               children: [
                 for (final code in provider.selectedOrderCodes) ...[
-                  _LockedOrderPill(code: code),
+                  _LockedOrderPill(
+                    code: code,
+                    canRemove: canRemove,
+                    onRemove: () => provider.removeOrderCode(code),
+                  ),
                   const SizedBox(height: 8),
                 ],
               ],
@@ -644,80 +639,42 @@ class _OrderSummaryCard extends StatelessWidget {
   }
 }
 
-class _OrderChipWrap extends StatelessWidget {
-  final List<String> orderCodes;
-  final bool locked;
-  final bool Function(String) onRemove;
-
-  const _OrderChipWrap({
-    required this.orderCodes,
-    required this.locked,
-    required this.onRemove,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final code in orderCodes)
-          _OrderChip(
-            key: ValueKey('contract-appendix-order-chip-$code'),
-            code: code,
-            locked: locked,
-            onRemove: () => onRemove(code),
-          ),
-      ],
-    );
-  }
-}
-
-class _OrderChip extends StatelessWidget {
+class _LockedOrderPill extends StatelessWidget {
   final String code;
-  final bool locked;
-  final VoidCallback onRemove;
+  final bool canRemove;
+  final VoidCallback? onRemove;
 
-  const _OrderChip({
-    super.key,
+  const _LockedOrderPill({
     required this.code,
-    required this.locked,
+    required this.canRemove,
     required this.onRemove,
   });
 
   @override
   Widget build(BuildContext context) {
-    final selected = !locked;
     return Container(
-      constraints: const BoxConstraints(minHeight: 32, minWidth: 104),
-      padding: const EdgeInsets.only(left: 11, right: 4),
+      key: ValueKey('contract-appendix-order-summary-$code'),
+      width: double.infinity,
+      height: 32,
+      padding: EdgeInsets.only(left: 11, right: canRemove ? 2 : 11),
       decoration: BoxDecoration(
-        color: selected
-            ? AppColors.primarySurfaceOf(context)
-            : AppColors.neutral100Of(context),
-        border: Border.all(
-          color: selected
-              ? AppColors.primaryOf(context)
-              : AppColors.borderOf(context),
-        ),
+        color: AppColors.neutral100Of(context),
+        border: Border.all(color: AppColors.borderOf(context)),
         borderRadius: AppRadius.allPill,
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Flexible(
+          Expanded(
             child: Text(
               code,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppTextStyles.labelS.copyWith(
-                color: selected
-                    ? AppColors.primaryOf(context)
-                    : AppColors.textSecondaryOf(context),
+                color: AppColors.textSecondaryOf(context),
               ),
             ),
           ),
-          if (!locked)
+          if (canRemove)
             SizedBox(
               width: 28,
               height: 32,
@@ -733,35 +690,6 @@ class _OrderChip extends StatelessWidget {
               ),
             ),
         ],
-      ),
-    );
-  }
-}
-
-class _LockedOrderPill extends StatelessWidget {
-  final String code;
-
-  const _LockedOrderPill({required this.code});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      height: 32,
-      padding: const EdgeInsets.symmetric(horizontal: 11),
-      alignment: Alignment.centerLeft,
-      decoration: BoxDecoration(
-        color: AppColors.neutral100Of(context),
-        border: Border.all(color: AppColors.borderOf(context)),
-        borderRadius: AppRadius.allPill,
-      ),
-      child: Text(
-        code,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: AppTextStyles.labelS.copyWith(
-          color: AppColors.textSecondaryOf(context),
-        ),
       ),
     );
   }

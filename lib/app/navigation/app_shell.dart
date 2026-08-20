@@ -1522,6 +1522,7 @@ class _ShellTopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final header = _shellHeaderFor(location, activeDestination);
+    final showDescription = header.description.isNotEmpty;
     final foundationTabletTopBar =
         MediaQuery.sizeOf(context).width < AppLayoutTokens.desktopBreakpoint;
     return Container(
@@ -1545,15 +1546,17 @@ class _ShellTopBar extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _ShellTitleText(title: header.title),
-                      const SizedBox(height: 2),
-                      Text(
-                        header.description,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTextStyles.bodyS.copyWith(
-                          color: AppColors.textMutedOf(context),
+                      if (showDescription) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          header.description,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.bodyS.copyWith(
+                            color: AppColors.textMutedOf(context),
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),
@@ -1587,15 +1590,17 @@ class _ShellTopBar extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _ShellTitleText(title: header.title),
-                          const SizedBox(height: 2),
-                          Text(
-                            header.description,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTextStyles.bodyS.copyWith(
-                              color: AppColors.textMutedOf(context),
+                          if (showDescription) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              header.description,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTextStyles.bodyS.copyWith(
+                                color: AppColors.textMutedOf(context),
+                              ),
                             ),
-                          ),
+                          ],
                         ],
                       ),
               ),
@@ -1652,6 +1657,8 @@ class _ShellTitleText extends StatelessWidget {
         title: 'Quản lý kết nối API',
         description: 'Cấu hình BIDV và quản lý khóa OpenPGP',
       );
+    case '/contract-appendix':
+      return (title: activeDestination.label, description: '');
     default:
       return (
         title: activeDestination.label,
