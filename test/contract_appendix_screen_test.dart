@@ -119,6 +119,89 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('selected order chips fit their codes and wrap on desktop', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final provider = ContractAppendixProvider(
+      _ScreenDataSource(),
+      clipboardWriter: _NoopClipboardWriter(),
+    );
+    for (final code in const [
+      '26082030161170',
+      '26081933596930',
+      '26081934200750',
+      '26082039574650',
+      '26082039574651',
+      '26082039574652',
+      '26082039574653',
+      '26082039574654',
+      '26082039574655',
+      '26082039574656',
+    ]) {
+      expect(provider.addOrderCode(code), isTrue);
+    }
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: provider,
+        child: const MaterialApp(
+          home: Scaffold(body: ContractAppendixScreen()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final summary = find.byKey(
+      const Key('contract-appendix-order-summary-card'),
+    );
+    const codes = [
+      '26082030161170',
+      '26081933596930',
+      '26081934200750',
+      '26082039574650',
+      '26082039574651',
+      '26082039574652',
+      '26082039574653',
+      '26082039574654',
+      '26082039574655',
+      '26082039574656',
+    ];
+    final chips = [
+      for (final code in codes)
+        find.byKey(ValueKey('contract-appendix-order-summary-$code')),
+    ];
+    expect(summary, findsOneWidget);
+    final command = find.byKey(
+      const Key('contract-appendix-order-command-row'),
+    );
+    expect(
+      tester.getTopLeft(summary).dy,
+      greaterThan(tester.getBottomLeft(command).dy),
+    );
+    for (var index = 0; index < chips.length; index++) {
+      final chip = chips[index];
+      expect(chip, findsOneWidget);
+      expect(
+        tester.getSize(chip).width,
+        lessThan(tester.getSize(summary).width - 8),
+      );
+    }
+    expect(
+      tester.getTopLeft(chips[0]).dy,
+      closeTo(tester.getTopLeft(chips[1]).dy, 0.1),
+    );
+    expect(
+      tester.getTopLeft(chips[5]).dy,
+      greaterThan(tester.getTopLeft(chips[0]).dy),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('desktop keeps editor and Word preview in one wide column', (
     tester,
   ) async {

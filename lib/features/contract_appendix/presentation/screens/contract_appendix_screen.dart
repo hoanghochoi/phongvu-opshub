@@ -405,7 +405,8 @@ class _OrderCommandArea extends StatelessWidget {
           onFetch: onFetch,
           onReset: onReset,
         );
-        if (!wide) {
+        final useFullWidthSummary = provider.selectedOrderCodes.length >= 3;
+        if (!wide || useFullWidthSummary) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -621,16 +622,16 @@ class _OrderSummaryCard extends StatelessWidget {
               ),
             )
           else
-            Column(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
-                for (final code in provider.selectedOrderCodes) ...[
+                for (final code in provider.selectedOrderCodes)
                   _LockedOrderPill(
                     code: code,
                     canRemove: canRemove,
                     onRemove: () => provider.removeOrderCode(code),
                   ),
-                  const SizedBox(height: 8),
-                ],
               ],
             ),
         ],
@@ -652,45 +653,63 @@ class _LockedOrderPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      key: ValueKey('contract-appendix-order-summary-$code'),
-      width: double.infinity,
-      height: 32,
-      padding: EdgeInsets.only(left: 11, right: canRemove ? 2 : 11),
-      decoration: BoxDecoration(
-        color: AppColors.neutral100Of(context),
-        border: Border.all(color: AppColors.borderOf(context)),
-        borderRadius: AppRadius.allPill,
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              code,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.labelS.copyWith(
-                color: AppColors.textSecondaryOf(context),
-              ),
-            ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final textMaxWidth = math
+            .max(0.0, constraints.maxWidth - (canRemove ? 41 : 24))
+            .toDouble();
+        final textStyle = AppTextStyles.labelS.copyWith(
+          color: AppColors.textSecondaryOf(context),
+        );
+        final textPainter = TextPainter(
+          text: TextSpan(text: code, style: textStyle),
+          maxLines: 1,
+          textDirection: Directionality.of(context),
+        )..layout(maxWidth: double.infinity);
+        final textWidth = math.min(textPainter.width, textMaxWidth);
+        return Container(
+          key: ValueKey('contract-appendix-order-summary-$code'),
+          height: 32,
+          padding: EdgeInsets.only(left: 11, right: canRemove ? 2 : 11),
+          decoration: BoxDecoration(
+            color: AppColors.neutral100Of(context),
+            border: Border.all(color: AppColors.borderOf(context)),
+            borderRadius: AppRadius.allPill,
           ),
-          if (canRemove)
-            SizedBox(
-              width: 28,
-              height: 32,
-              child: IconButton(
-                tooltip: 'Xóa $code',
-                padding: EdgeInsets.zero,
-                onPressed: onRemove,
-                icon: Icon(
-                  PhosphorIconsRegular.x,
-                  size: 18,
-                  color: AppColors.primaryOf(context),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: textMaxWidth),
+                child: SizedBox(
+                  width: textWidth,
+                  child: Text(
+                    code,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textStyle,
+                  ),
                 ),
               ),
-            ),
-        ],
-      ),
+              if (canRemove)
+                SizedBox(
+                  width: 28,
+                  height: 32,
+                  child: IconButton(
+                    tooltip: 'Xóa $code',
+                    padding: EdgeInsets.zero,
+                    onPressed: onRemove,
+                    icon: Icon(
+                      PhosphorIconsRegular.x,
+                      size: 18,
+                      color: AppColors.primaryOf(context),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
