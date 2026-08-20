@@ -103,6 +103,33 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('contract appendix shell omits its redundant description', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: _FakeAuthProvider(_shellUser),
+        child: const MaterialApp(
+          home: AppShell(
+            location: '/contract-appendix',
+            child: _RouteMarker(label: 'contract-appendix-route-marker'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Tạo bảng hàng hóa hợp đồng'), findsNothing);
+    expect(find.byKey(const ValueKey('tablet-shell-topbar')), findsOneWidget);
+    expect(find.text('contract-appendix-route-marker'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('tablet route content receives the shell content width', (
     tester,
   ) async {
