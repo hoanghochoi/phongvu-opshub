@@ -653,63 +653,47 @@ class _LockedOrderPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final textMaxWidth = math
-            .max(0.0, constraints.maxWidth - (canRemove ? 41 : 24))
-            .toDouble();
-        final textStyle = AppTextStyles.labelS.copyWith(
-          color: AppColors.textSecondaryOf(context),
-        );
-        final textPainter = TextPainter(
-          text: TextSpan(text: code, style: textStyle),
-          maxLines: 1,
-          textDirection: Directionality.of(context),
-        )..layout(maxWidth: double.infinity);
-        final textWidth = math.min(textPainter.width, textMaxWidth);
-        return Container(
-          key: ValueKey('contract-appendix-order-summary-$code'),
-          height: 32,
-          padding: EdgeInsets.only(left: 11, right: canRemove ? 2 : 11),
-          decoration: BoxDecoration(
-            color: AppColors.neutral100Of(context),
-            border: Border.all(color: AppColors.borderOf(context)),
-            borderRadius: AppRadius.allPill,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: textMaxWidth),
-                child: SizedBox(
-                  width: textWidth,
-                  child: Text(
-                    code,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: textStyle,
+    final textStyle = AppTextStyles.labelS.copyWith(
+      color: AppColors.textSecondaryOf(context),
+    );
+    return IntrinsicWidth(
+      child: Container(
+        key: ValueKey('contract-appendix-order-summary-$code'),
+        height: 32,
+        padding: EdgeInsets.only(left: 11, right: canRemove ? 2 : 11),
+        decoration: BoxDecoration(
+          color: AppColors.neutral100Of(context),
+          border: Border.all(color: AppColors.borderOf(context)),
+          borderRadius: AppRadius.allPill,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              code,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.visible,
+              style: textStyle,
+            ),
+            if (canRemove)
+              SizedBox(
+                width: 28,
+                height: 32,
+                child: IconButton(
+                  tooltip: 'Xóa $code',
+                  padding: EdgeInsets.zero,
+                  onPressed: onRemove,
+                  icon: Icon(
+                    PhosphorIconsRegular.x,
+                    size: 18,
+                    color: AppColors.primaryOf(context),
                   ),
                 ),
               ),
-              if (canRemove)
-                SizedBox(
-                  width: 28,
-                  height: 32,
-                  child: IconButton(
-                    tooltip: 'Xóa $code',
-                    padding: EdgeInsets.zero,
-                    onPressed: onRemove,
-                    icon: Icon(
-                      PhosphorIconsRegular.x,
-                      size: 18,
-                      color: AppColors.primaryOf(context),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        );
-      },
+          ],
+        ),
+      ),
     );
   }
 }
