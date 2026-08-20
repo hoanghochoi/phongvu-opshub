@@ -54,24 +54,28 @@ từ tổng shipment `rowTotal` và kết thúc bằng `đồng chẵn.`.
    và thông báo mã đơn cần sửa; không hiển thị bảng một phần. Sau khi thành công,
    tập đơn bị khóa; `Chọn lại đơn hàng` phải xác nhận trước khi reset preview.
 4. App hiển thị SKU, số lượng và giá ERP ở trạng thái khóa; đơn vị tính khởi tạo
-   từ `uomName`, tên hàng và đơn vị tính vẫn được sửa. Không mặc định cứng đơn vị
+   từ `uomName`; tên hàng và đơn vị tính hiển thị dạng chỉ đọc, khóa theo dữ liệu
+   ERP. Tên hàng tự xuống dòng khi thiếu chiều rộng. Không mặc định cứng đơn vị
    tính khi ERP thiếu dữ liệu. Thuế nhập tay chỉ xuất hiện ở dòng chưa có thuế ERP.
 5. Editor và preview luôn xếp thành một cột để giữ đủ chiều rộng; desktop dùng
-   bảng inline editor, mobile dùng item card. Preview và Word dùng đúng bảy
-   cột `STT / Tên hàng hóa / Mã hàng / ĐVT / SL / Đơn giá / Thành tiền`; cột
-   cuối là `Thành tiền (VNĐ) (đã bao gồm VAT)` và hiển thị `lineAfterVat`.
+   bảng Word preview, mobile dùng item card. Preview Word dùng đúng sáu cột
+   `STT / Tên hàng hóa / ĐVT / SL / Đơn giá / Thành tiền`; không hiển thị SKU/Mã
+   hàng. Cột cuối là `Thành tiền (VNĐ) (đã bao gồm VAT)` và hiển thị
+   `lineAfterVat`. Preview phải có cùng ba dòng tổng và `Bằng chữ` như payload
+   clipboard.
 6. Preview và `Lưu phụ lục` đều buộc backend refetch live thuế, so
    `quoteVersion`, tính lại và lưu
    snapshot bất biến. Nếu nguồn đổi, user phải xem lại preview.
 7. `Sao chép bảng` chỉ dùng snapshot đã lưu, ghi HTML và plain-text TSV vào
    clipboard; không gọi API trong clipboard handler. HTML Word đặt Times New
    Roman 12pt trực tiếp trên từng text run, header, các cột định danh và cột
-   tiền căn giữa, tên hàng căn trái. Payload là HTML fragment thuần để
-   `super_clipboard` tự tạo đúng CF_HTML trên Windows; không lồng thêm
-   `html/body` hoặc fragment marker. Bảy cột được khóa theo tỷ lệ
-    `6/34/14/7/6/17/16`; hàng đầu vẫn là `tbody/tr/td`, không dùng `thead`/`th`,
-   nên không bị đánh dấu lặp tiêu đề khi qua trang. Preview desktop dùng bề
-   rộng 960px; `Bằng chữ` là đoạn riêng nằm ngoài bảng.
+   tiền căn giữa, tên hàng căn trái. Web dùng native `navigator.clipboard.write`
+   với `ClipboardItem` gồm `text/html` và `text/plain`; Windows/native tiếp tục
+   dùng `super_clipboard`. Payload là HTML fragment thuần, không lồng thêm
+   `html/body` hoặc fragment marker. Sáu cột được khóa theo tỷ lệ
+   `6/48/8/8/15/15`; hàng đầu vẫn là `tbody/tr/td`, không dùng `thead`/`th`,
+   nên không bị đánh dấu lặp tiêu đề khi qua trang. Preview desktop có ba dòng
+   tổng và `Bằng chữ` trong cùng bề mặt Word preview.
 
 ## History and Access
 

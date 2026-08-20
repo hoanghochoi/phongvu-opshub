@@ -157,7 +157,7 @@ void main() {
   });
 
   group('Contract appendix clipboard payload', () {
-    test('builds escaped 7-column HTML and TSV with totals', () {
+    test('builds escaped 6-column HTML and TSV with totals', () {
       final payload = buildContractAppendixClipboardPayload(
         _document(
           saved: true,
@@ -168,7 +168,7 @@ void main() {
 
       expect(
         RegExp('<td width="').allMatches(payload.html).length,
-        greaterThanOrEqualTo(14),
+        greaterThanOrEqualTo(12),
       );
       expect(payload.html, contains('Thành tiền (VNĐ)<br>(đã bao gồm VAT)'));
       expect(payload.plainText, contains('Thành tiền (VNĐ) (đã bao gồm VAT)'));
@@ -192,13 +192,16 @@ void main() {
       expect(payload.html, contains('table-layout:fixed'));
       expect(payload.html, contains('mso-table-layout-alt:fixed'));
       expect(payload.html, contains('<colgroup>'));
-      for (final width in ['6%', '34%', '14%', '7%', '6%', '17%', '16%']) {
+      for (final width in ['6%', '48%', '8%', '8%', '15%', '15%']) {
         expect(payload.html, contains('<col width="$width"'));
       }
-      expect(payload.html, contains('<td width="34%"'));
+      expect(payload.html, contains('<td width="48%"'));
+      expect(payload.html, isNot(contains('Mã hàng')));
       expect(payload.html, isNot(contains('<thead>')));
       expect(payload.html, isNot(contains('</thead>')));
       expect(payload.html, contains('white-space:nowrap'));
+      expect(payload.html, contains('word-wrap:break-word'));
+      expect(payload.html, contains('overflow-wrap:break-word'));
       expect(payload.html, isNot(contains('<th')));
       expect(payload.html, contains('align="center" valign="middle"'));
       expect(payload.html, contains('dir="ltr"'));
@@ -232,10 +235,10 @@ void main() {
       );
 
       final lines = payload.plainText.split('\n');
-      expect(lines.first.split('\t'), hasLength(7));
-      expect(lines[1].split('\t'), hasLength(7));
+      expect(lines.first.split('\t'), hasLength(6));
+      expect(lines[1].split('\t'), hasLength(6));
       expect(lines[1], contains('Laptop <Pro> & "Office" Dòng 2'));
-      expect(lines[1], contains('\t220909037\t'));
+      expect(lines[1], isNot(contains('220909037')));
       expect(lines[1], contains('Cái chiếc'));
       expect(payload.plainText, contains('Thuế GTGT'));
       expect(payload.plainText, contains('\n\nBằng chữ:'));
@@ -249,7 +252,7 @@ void main() {
     });
 
     test(
-      'copies the reported 0% SKU with ERP unit and gross quantity total',
+      'copies the reported 0% item with ERP unit and gross quantity total',
       () {
         final payload = buildContractAppendixClipboardPayload(
           _document(saved: true),
@@ -261,13 +264,16 @@ void main() {
         );
         expect(
           payload.plainText,
-          contains('\t220909037\tBản\t3\t5.190.000\t15.570.000'),
+          contains(
+            '\tPhần mềm Microsoft Win Pro 11 64-bit\tBản\t3\t'
+            '5.190.000\t15.570.000',
+          ),
         );
-        expect(payload.plainText, contains('Tổng cộng\t\t\t\t\t\t15.570.000'));
+        expect(payload.plainText, contains('Tổng cộng\t\t\t\t\t15.570.000'));
         expect(
           payload.plainText,
           contains(
-            'Tổng giá trị hợp đồng (đã bao gồm thuế GTGT)\t\t\t\t\t\t15.570.000',
+            'Tổng giá trị hợp đồng (đã bao gồm thuế GTGT)\t\t\t\t\t15.570.000',
           ),
         );
       },
@@ -326,7 +332,7 @@ void main() {
       },
     );
 
-    test('dirty edit refreshes and saves before copy is enabled', () async {
+    test('ERP name and unit remain locked before copy is enabled', () async {
       final dataSource = _FakeDataSource();
       final writer = _FakeClipboardWriter();
       final provider = ContractAppendixProvider(
@@ -338,18 +344,18 @@ void main() {
       expect(provider.canCopy, isFalse);
 
       provider.updateProductName('1:220909037', 'Tên hợp đồng');
-      expect(provider.isDirty, isTrue);
+      provider.updateUnit('1:220909037', 'Bộ');
+      expect(provider.isDirty, isFalse);
+      expect(provider.draft?.items.single.productName, 'Laptop ERP');
+      expect(provider.draft?.items.single.unit, 'Bản');
       expect(provider.canCopy, isFalse);
 
       expect(await provider.saveCurrent(), isTrue);
-      expect(dataSource.previewCalls, 2);
+      expect(dataSource.previewCalls, 1);
       expect(dataSource.saveCalls, 1);
-      expect(provider.saved?.items.single.productName, 'Tên hợp đồng');
+      expect(provider.saved?.items.single.productName, 'Laptop ERP');
+      expect(provider.saved?.items.single.unit, 'Bản');
       expect(provider.canCopy, isTrue);
-
-      provider.updateUnit('1:220909037', 'Bộ');
-      expect(provider.isDirty, isTrue);
-      expect(provider.canCopy, isFalse);
     });
 
     test(

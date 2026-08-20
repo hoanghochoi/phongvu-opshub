@@ -616,7 +616,7 @@ class _OrderSummaryCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            '${provider.selectedOrderCodes.length}/${ContractAppendixProvider.maxOrderCodes} đơn • giữ nguyên thứ tự thêm • ${locked ? 'không gọi hệ thống khi sao chép Word.' : 'chưa lấy thông tin.'}',
+            '${provider.selectedOrderCodes.length}/${ContractAppendixProvider.maxOrderCodes} đơn • ${locked ? 'đã khóa.' : 'chưa lấy thông tin.'}',
             style: AppTextStyles.bodyS.copyWith(
               color: AppColors.textSecondaryOf(context),
             ),
@@ -1090,8 +1090,8 @@ class ContractAppendixPreviewCard extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 compact
-                    ? 'Dữ liệu đã đối soát; mã hàng và số lượng đang khóa.'
-                    : 'Bảng Word 7 cột • thành tiền từng dòng lấy từ tổng dòng hệ thống bán hàng • phần tổng luôn khớp.',
+                    ? 'Dữ liệu đã đối soát; tên hàng, ĐVT và số lượng đang khóa.'
+                    : 'Bảng Word 6 cột • thành tiền từng dòng lấy từ tổng dòng hệ thống bán hàng • phần tổng luôn khớp.',
                 style: AppTextStyles.bodyS.copyWith(
                   color: AppColors.textSecondaryOf(context),
                 ),
@@ -1164,14 +1164,15 @@ class _MobilePreviewLine extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Text(
-                  item.sku,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.labelS.copyWith(
+                child: _LockedPreviewValue(
+                  value: item.productName,
+                  label: 'Tên hàng hóa',
+                  textStyle: AppTextStyles.bodyS.copyWith(
                     color: AppColors.textPrimaryOf(context),
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
@@ -1185,20 +1186,7 @@ class _MobilePreviewLine extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          _InlineTextEditor(
-            initialValue: item.productName,
-            label: 'Tên hàng hóa',
-            onChanged: provider == null
-                ? null
-                : (value) =>
-                      provider!.updateProductName(item.sourceLineKey, value),
-            textStyle: AppTextStyles.bodyS.copyWith(
-              color: AppColors.textPrimaryOf(context),
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Row(
             children: [
               Text(
@@ -1208,13 +1196,9 @@ class _MobilePreviewLine extends StatelessWidget {
                 ),
               ),
               Flexible(
-                child: _InlineTextEditor(
-                  initialValue: item.unit,
+                child: _LockedPreviewValue(
+                  value: item.unit,
                   label: 'Đơn vị tính',
-                  onChanged: provider == null
-                      ? null
-                      : (value) =>
-                            provider!.updateUnit(item.sourceLineKey, value),
                   textStyle: AppTextStyles.bodyCompact.copyWith(
                     color: AppColors.textSecondaryOf(context),
                   ),
@@ -1254,12 +1238,6 @@ class _DesktopPreview extends StatelessWidget {
             const SizedBox(height: 8),
           ],
         ],
-        const SizedBox(height: 16),
-        Divider(height: 1, color: AppColors.subtleBorderOf(context)),
-        const SizedBox(height: 12),
-        _TotalAfterVat(document: document),
-        const SizedBox(height: 8),
-        _AmountInWords(document: document),
       ],
     );
   }
@@ -1279,61 +1257,65 @@ class ContractAppendixPreviewTable extends StatelessWidget {
   Widget build(BuildContext context) {
     const widths = <int, TableColumnWidth>{
       0: FlexColumnWidth(0.65),
-      1: FlexColumnWidth(3.9),
-      2: FlexColumnWidth(1.35),
-      3: FlexColumnWidth(1.0),
-      4: FlexColumnWidth(0.7),
-      5: FlexColumnWidth(1.8),
-      6: FlexColumnWidth(2.0),
+      1: FlexColumnWidth(4.6),
+      2: FlexColumnWidth(0.9),
+      3: FlexColumnWidth(0.7),
+      4: FlexColumnWidth(1.8),
+      5: FlexColumnWidth(2.0),
     };
-    return Table(
+    return Column(
       key: const Key('contract-appendix-preview-table'),
-      columnWidths: widths,
-      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-      border: TableBorder.all(color: AppColors.borderOf(context)),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        TableRow(
-          decoration: BoxDecoration(color: AppColors.primarySurfaceOf(context)),
-          children: const [
-            _R2TableCell('STT', header: true, center: true),
-            _R2TableCell('Tên hàng', header: true),
-            _R2TableCell('Mã hàng', header: true, center: true),
-            _R2TableCell('ĐVT', header: true, center: true),
-            _R2TableCell('SL', header: true, center: true),
-            _R2TableCell('Đơn giá', header: true, center: true),
-            _R2TableCell('Thành tiền', header: true, center: true),
+        Table(
+          columnWidths: widths,
+          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+          border: TableBorder.all(color: AppColors.borderOf(context)),
+          children: [
+            TableRow(
+              decoration: BoxDecoration(
+                color: AppColors.primarySurfaceOf(context),
+              ),
+              children: const [
+                _R2TableCell('STT', header: true, center: true),
+                _R2TableCell('Tên hàng', header: true, wrap: true),
+                _R2TableCell('ĐVT', header: true, center: true),
+                _R2TableCell('SL', header: true, center: true),
+                _R2TableCell('Đơn giá', header: true, center: true),
+                _R2TableCell('Thành tiền', header: true, center: true),
+              ],
+            ),
+            for (final item in document.items)
+              TableRow(
+                decoration: BoxDecoration(
+                  color: AppColors.neutral50Of(context),
+                ),
+                children: [
+                  _R2TableCell('${item.position}', center: true),
+                  _R2TableCell(
+                    item.productName,
+                    wrap: true,
+                    locked: true,
+                    lockLabel: 'Tên hàng hóa',
+                  ),
+                  _R2TableCell(
+                    item.unit,
+                    center: true,
+                    locked: true,
+                    lockLabel: 'Đơn vị tính',
+                  ),
+                  _R2TableCell('${item.quantity}', center: true),
+                  _R2TableCell(
+                    _moneyOrDash(item.unitPriceBeforeVat),
+                    center: true,
+                  ),
+                  _R2TableCell(_moneyOrDash(item.lineAfterVat), center: true),
+                ],
+              ),
           ],
         ),
-        for (final item in document.items)
-          TableRow(
-            decoration: BoxDecoration(color: AppColors.neutral50Of(context)),
-            children: [
-              _R2TableCell('${item.position}', center: true),
-              provider == null
-                  ? _R2TableCell(item.productName)
-                  : _R2InlineTableCell(
-                      initialValue: item.productName,
-                      label: 'Tên hàng hóa',
-                      onChanged: (value) => provider!.updateProductName(
-                        item.sourceLineKey,
-                        value,
-                      ),
-                    ),
-              _R2TableCell(item.sku, center: true),
-              provider == null
-                  ? _R2TableCell(item.unit, center: true)
-                  : _R2InlineTableCell(
-                      initialValue: item.unit,
-                      label: 'Đơn vị tính',
-                      center: true,
-                      onChanged: (value) =>
-                          provider!.updateUnit(item.sourceLineKey, value),
-                    ),
-              _R2TableCell('${item.quantity}', center: true),
-              _R2TableCell(_moneyOrDash(item.unitPriceBeforeVat), center: true),
-              _R2TableCell(_moneyOrDash(item.lineAfterVat), center: true),
-            ],
-          ),
+        const SizedBox(height: 8),
+        _WordPreviewSummary(document: document),
       ],
     );
   }
@@ -1343,122 +1325,195 @@ class _R2TableCell extends StatelessWidget {
   final String text;
   final bool header;
   final bool center;
+  final bool wrap;
+  final bool locked;
+  final String? lockLabel;
 
-  const _R2TableCell(this.text, {this.header = false, this.center = false});
+  const _R2TableCell(
+    this.text, {
+    this.header = false,
+    this.center = false,
+    this.wrap = false,
+    this.locked = false,
+    this.lockLabel,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 11),
-      child: Text(
-        text,
-        textAlign: center ? TextAlign.center : TextAlign.left,
-        maxLines: header ? 2 : 3,
-        overflow: TextOverflow.ellipsis,
-        style: (header ? AppTextStyles.captionBold : AppTextStyles.bodyCompact)
+    final textStyle =
+        (header ? AppTextStyles.captionBold : AppTextStyles.bodyCompact)
             .copyWith(
               color: header
                   ? AppColors.primaryOf(context)
                   : AppColors.textSecondaryOf(context),
+            );
+    final textWidget = Text(
+      text,
+      textAlign: center ? TextAlign.center : TextAlign.left,
+      softWrap: wrap,
+      textWidthBasis: TextWidthBasis.parent,
+      maxLines: wrap ? null : (header ? 2 : 3),
+      overflow: wrap ? TextOverflow.visible : TextOverflow.ellipsis,
+      style: textStyle,
+    );
+    final content = locked
+        ? Semantics(
+            label: '${lockLabel ?? text}: $text (đang khóa)',
+            readOnly: true,
+            excludeSemantics: true,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: center
+                  ? MainAxisAlignment.center
+                  : MainAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Icon(
+                    PhosphorIconsRegular.lockSimple,
+                    size: 13,
+                    color: AppColors.textSecondaryOf(context),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Expanded(child: textWidget),
+              ],
             ),
-      ),
-    );
-  }
-}
-
-class _R2InlineTableCell extends StatelessWidget {
-  final String initialValue;
-  final String label;
-  final bool center;
-  final ValueChanged<String> onChanged;
-
-  const _R2InlineTableCell({
-    required this.initialValue,
-    required this.label,
-    required this.onChanged,
-    this.center = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+          )
+        : textWidget;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      child: _InlineTextEditor(
-        initialValue: initialValue,
-        label: label,
-        onChanged: onChanged,
-        textAlign: center ? TextAlign.center : TextAlign.left,
-        textStyle: AppTextStyles.bodyCompact.copyWith(
-          color: AppColors.textSecondaryOf(context),
-        ),
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 11),
+      child: content,
     );
   }
 }
 
-class _InlineTextEditor extends StatefulWidget {
-  final String initialValue;
+class _LockedPreviewValue extends StatelessWidget {
+  final String value;
   final String label;
-  final ValueChanged<String>? onChanged;
-  final TextAlign textAlign;
   final TextStyle? textStyle;
 
-  const _InlineTextEditor({
-    required this.initialValue,
+  const _LockedPreviewValue({
+    required this.value,
     required this.label,
-    required this.onChanged,
-    this.textAlign = TextAlign.left,
     this.textStyle,
   });
 
   @override
-  State<_InlineTextEditor> createState() => _InlineTextEditorState();
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: '$label: $value (đang khóa)',
+      readOnly: true,
+      excludeSemantics: true,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(
+              PhosphorIconsRegular.lockSimple,
+              size: 14,
+              color: AppColors.textSecondaryOf(context),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              value,
+              softWrap: true,
+              style: textStyle ?? AppTextStyles.bodyS,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-class _InlineTextEditorState extends State<_InlineTextEditor> {
-  late final TextEditingController _controller;
+class _WordPreviewSummary extends StatelessWidget {
+  final ContractAppendixDocument document;
 
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController(text: widget.initialValue);
-  }
-
-  @override
-  void didUpdateWidget(covariant _InlineTextEditor oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.initialValue == oldWidget.initialValue ||
-        _controller.text == widget.initialValue) {
-      return;
-    }
-    _controller
-      ..text = widget.initialValue
-      ..selection = TextSelection.collapsed(offset: widget.initialValue.length);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+  const _WordPreviewSummary({required this.document});
 
   @override
   Widget build(BuildContext context) {
-    final enabled = widget.onChanged != null;
-    return Semantics(
-      textField: enabled,
-      label: widget.label,
-      child: AppTextInput(
-        controller: _controller,
-        enabled: enabled,
-        readOnly: !enabled,
-        maxLines: 1,
-        textAlign: widget.textAlign,
-        textStyle: widget.textStyle ?? AppTextStyles.bodyS,
-        onChanged: widget.onChanged,
-        label: widget.label,
-        showLabel: false,
-        borderless: true,
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.borderOf(context)),
+      ),
+      child: Column(
+        children: [
+          _WordPreviewSummaryRow(
+            label: 'Tổng cộng',
+            value: _moneyOrDash(document.totalBeforeVat),
+          ),
+          _WordPreviewSummaryRow(
+            label: 'Thuế GTGT',
+            value: _moneyOrDash(document.totalVatAmount),
+          ),
+          _WordPreviewSummaryRow(
+            label: 'Tổng giá trị hợp đồng (đã bao gồm thuế GTGT)',
+            value: _moneyOrDash(document.totalAfterVat),
+            emphasized: true,
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 10, 8, 10),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: _AmountInWords(document: document),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WordPreviewSummaryRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool emphasized;
+
+  const _WordPreviewSummaryRow({
+    required this.label,
+    required this.value,
+    this.emphasized = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final background = emphasized
+        ? AppColors.primarySurfaceOf(context)
+        : AppColors.neutral50Of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+      decoration: BoxDecoration(
+        color: background,
+        border: Border(bottom: BorderSide(color: AppColors.borderOf(context))),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: AppTextStyles.bodyCompact.copyWith(
+                color: AppColors.textPrimaryOf(context),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            value,
+            textAlign: TextAlign.right,
+            style: AppTextStyles.bodyCompact.copyWith(
+              color: AppColors.textPrimaryOf(context),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }

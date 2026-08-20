@@ -95,13 +95,62 @@ void main() {
     final table = find.byKey(const Key('contract-appendix-preview-table'));
     final amount = find.byKey(const Key('contract-appendix-amount-in-words'));
     expect(preview, findsOneWidget);
+    expect(table, findsOneWidget);
+    expect(amount, findsOneWidget);
+    expect(find.text('Mã hàng'), findsNothing);
+    expect(find.text('Tổng cộng'), findsOneWidget);
+    expect(find.text('Thuế GTGT'), findsOneWidget);
     expect(
-      tester.getTopLeft(amount).dy,
-      greaterThan(tester.getBottomLeft(table).dy),
+      find.text('Bằng chữ: Mười lăm triệu năm trăm bảy mươi nghìn đồng chẵn.'),
+      findsOneWidget,
     );
-    expect(find.text('Mã hàng'), findsOneWidget);
     expect(find.text('Thành tiền'), findsOneWidget);
     expect(find.text('15.570.000'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Word preview wraps and locks ERP name and unit cells', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(768, 1024);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const longName =
+        'Máy tính xách tay Acer Aspire 7 A715 phiên bản hiệu năng cao '
+        'màn hình 15.6 inch dành cho công việc và giải trí';
+    final provider = ContractAppendixProvider(
+      _ScreenDataSource(productName: longName),
+      clipboardWriter: _NoopClipboardWriter(),
+    );
+    await provider.lookupOrder('SO-LOCKED');
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: provider,
+        child: const MaterialApp(
+          home: Scaffold(body: ContractAppendixScreen()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.bySemanticsLabel('Tên hàng hóa: $longName (đang khóa)'),
+      findsOneWidget,
+    );
+    expect(
+      find.bySemanticsLabel('Đơn vị tính: Bản (đang khóa)'),
+      findsOneWidget,
+    );
+    final name = find.text(longName);
+    expect(name, findsOneWidget);
+    expect(tester.getSize(name).height, greaterThan(20));
+    final table = find.byKey(const Key('contract-appendix-preview-table'));
+    expect(
+      find.descendant(of: table, matching: find.byType(TextField)),
+      findsNothing,
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -159,7 +208,7 @@ void main() {
           (tester.getCenter(input).dy - tester.getCenter(fetch).dy).abs(),
           lessThan(8),
         );
-        expect(find.text('Mã hàng'), findsOneWidget);
+        expect(find.text('Mã hàng'), findsNothing);
         expect(find.text('Thành tiền'), findsOneWidget);
       }
       expect(tester.takeException(), isNull);
@@ -207,6 +256,12 @@ class _NoopClipboardWriter implements ContractAppendixClipboardWriter {
 }
 
 class _ScreenDataSource implements ContractAppendixDataSource {
+  final String productName;
+
+  _ScreenDataSource({
+    this.productName = 'Phần mềm Microsoft Win Pro 11 64-bit',
+  });
+
   @override
   Future<ContractAppendixDocument> preview({
     required List<String> orderCodes,
@@ -225,7 +280,7 @@ class _ScreenDataSource implements ContractAppendixDataSource {
           sourceLineKey: '1:220909037',
           sku: '220909037',
           sellerSku: '220909037',
-          productName: 'Phần mềm Microsoft Win Pro 11 64-bit',
+          productName: productName,
           quantity: 3,
           unit: 'Bản',
           finalSellPrice: 5190000,

@@ -20,5 +20,11 @@
 - Flutter dùng dedicated full page: desktop editor và preview cạnh nhau;
   mobile dùng item cards, preview bảng cuộn hai chiều. Lịch sử phân trang phía
   server.
-- Rich clipboard ghi cùng lúc HTML đã escape và TSV fallback. Copy bị khóa khi
-  editor dirty hoặc snapshot chưa được lưu.
+- Rich clipboard ghi cùng lúc HTML đã escape và TSV fallback. Web ghi native
+  `ClipboardItem` (`text/html` + `text/plain`) để Word nhận được bảng; native
+  Windows tiếp tục dùng `super_clipboard`. Copy bị khóa khi editor dirty hoặc
+  snapshot chưa được lưu.
+- Preview Word dùng sáu cột `STT / Tên hàng hóa / ĐVT / SL / Đơn giá / Thành
+  tiền`, không có SKU/Mã hàng. Tên hàng và ĐVT là dữ liệu ERP chỉ đọc; tên hàng
+  tự wrap trong ô/card. Preview hiển thị cùng ba dòng tổng và tiền bằng chữ với
+  clipboard.
