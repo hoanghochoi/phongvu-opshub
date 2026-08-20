@@ -2,6 +2,7 @@ import 'package:super_clipboard/super_clipboard.dart';
 
 import '../../../core/formatting/money_formatters.dart';
 import '../domain/contract_appendix.dart';
+import 'contract_appendix_clipboard_platform.dart';
 
 class ContractAppendixClipboardPayload {
   final String html;
@@ -23,11 +24,24 @@ class SuperClipboardContractAppendixWriter
 
   @override
   Future<void> write(ContractAppendixDocument document) async {
+    final payload = buildContractAppendixClipboardPayload(document);
+
+    // super_clipboard's browser codec can expose only text/html without an
+    // encoder, which leaves Word with no usable CF_HTML payload. The web
+    // implementation writes a native ClipboardItem containing both HTML and
+    // TSV during the button's transient user activation. Native platforms
+    // continue using super_clipboard below.
+    if (await writeContractAppendixClipboardOnWeb(
+      html: payload.html,
+      plainText: payload.plainText,
+    )) {
+      return;
+    }
+
     final clipboard = SystemClipboard.instance;
     if (clipboard == null) {
       throw StateError('Thiết bị này chưa hỗ trợ sao chép bảng.');
     }
-    final payload = buildContractAppendixClipboardPayload(document);
     final item = DataWriterItem();
     item.add(Formats.htmlText(payload.html));
     item.add(Formats.plainText(payload.plainText));
@@ -63,28 +77,26 @@ ContractAppendixClipboardPayload buildContractAppendixClipboardPayload(
     ..writeln(_htmlColumn(_columnWidths[3]))
     ..writeln(_htmlColumn(_columnWidths[4]))
     ..writeln(_htmlColumn(_columnWidths[5]))
-    ..writeln(_htmlColumn(_columnWidths[6]))
     ..writeln('</colgroup>')
     // Keep the first row as ordinary tbody/td cells. Word can turn semantic
     // thead/th markup into a repeating table header on page breaks.
     ..writeln('<tbody><tr>')
     ..write(_htmlHeader('STT', width: _columnWidths[0]))
     ..write(_htmlHeader('Tên hàng hóa', width: _columnWidths[1]))
-    ..write(_htmlHeader('Mã hàng', width: _columnWidths[2]))
-    ..write(_htmlHeader('ĐVT', width: _columnWidths[3]))
-    ..write(_htmlHeader('SL', width: _columnWidths[4]))
-    ..write(_htmlHeader('Đơn giá (VNĐ)<br>Chưa VAT', width: _columnWidths[5]))
+    ..write(_htmlHeader('ĐVT', width: _columnWidths[2]))
+    ..write(_htmlHeader('SL', width: _columnWidths[3]))
+    ..write(_htmlHeader('Đơn giá (VNĐ)<br>Chưa VAT', width: _columnWidths[4]))
     ..write(
       _htmlHeader(
         'Thành tiền (VNĐ)<br>(đã bao gồm VAT)',
-        width: _columnWidths[6],
+        width: _columnWidths[5],
       ),
     )
     ..writeln('</tr>');
 
   final tsv = StringBuffer()
     ..writeln(
-      'STT\tTên hàng hóa\tMã hàng\tĐVT\tSL\t'
+      'STT\tTên hàng hóa\tĐVT\tSL\t'
       'Đơn giá (VNĐ) - Chưa VAT\t'
       'Thành tiền (VNĐ) (đã bao gồm VAT)',
     );
@@ -105,7 +117,7 @@ ContractAppendixClipboardPayload buildContractAppendixClipboardPayload(
       ..write(_htmlCell(item.productName, width: _columnWidths[1]))
       ..write(
         _htmlCell(
-          item.sku,
+          item.unit,
           width: _columnWidths[2],
           align: 'center',
           nowrap: true,
@@ -113,7 +125,7 @@ ContractAppendixClipboardPayload buildContractAppendixClipboardPayload(
       )
       ..write(
         _htmlCell(
-          item.unit,
+          item.quantity.toString(),
           width: _columnWidths[3],
           align: 'center',
           nowrap: true,
@@ -121,7 +133,7 @@ ContractAppendixClipboardPayload buildContractAppendixClipboardPayload(
       )
       ..write(
         _htmlCell(
-          item.quantity.toString(),
+          unitBeforeVat,
           width: _columnWidths[4],
           align: 'center',
           nowrap: true,
@@ -129,24 +141,16 @@ ContractAppendixClipboardPayload buildContractAppendixClipboardPayload(
       )
       ..write(
         _htmlCell(
-          unitBeforeVat,
-          width: _columnWidths[5],
-          align: 'center',
-          nowrap: true,
-        ),
-      )
-      ..write(
-        _htmlCell(
           lineAfterVat,
-          width: _columnWidths[6],
+          width: _columnWidths[5],
           align: 'center',
           nowrap: true,
         ),
       )
       ..writeln('</tr>');
     tsv.writeln(
-      '${item.position}\t${_tsv(item.productName)}\t${_tsv(item.sku)}\t'
-      '${_tsv(item.unit)}\t${item.quantity}\t$unitBeforeVat\t$lineAfterVat',
+      '${item.position}\t${_tsv(item.productName)}\t${_tsv(item.unit)}\t'
+      '${item.quantity}\t$unitBeforeVat\t$lineAfterVat',
     );
   }
 
@@ -168,10 +172,10 @@ ContractAppendixClipboardPayload buildContractAppendixClipboardPayload(
     ..writeln();
 
   tsv
-    ..writeln('Tổng cộng\t\t\t\t\t\t${_money(document.totalBeforeVat)}')
-    ..writeln('Thuế GTGT\t\t\t\t\t\t${_money(document.totalVatAmount)}')
+    ..writeln('Tổng cộng\t\t\t\t\t${_money(document.totalBeforeVat)}')
+    ..writeln('Thuế GTGT\t\t\t\t\t${_money(document.totalVatAmount)}')
     ..writeln(
-      'Tổng giá trị hợp đồng (đã bao gồm thuế GTGT)\t\t\t\t\t\t'
+      'Tổng giá trị hợp đồng (đã bao gồm thuế GTGT)\t\t\t\t\t'
       '${_money(document.totalAfterVat)}',
     )
     ..writeln()
@@ -183,10 +187,9 @@ ContractAppendixClipboardPayload buildContractAppendixClipboardPayload(
   );
 }
 
-// R2 keeps one seven-column Word table and uses the SKU as the identifier
-// column. VAT remains part of the derived totals rather than a separate
-// visible column, so the line total stays the ERP-authoritative rowTotal.
-const _columnWidths = <String>['6%', '34%', '14%', '7%', '6%', '17%', '16%'];
+// Word keeps six visible columns. SKU remains in the immutable snapshot for
+// provenance/grouping, but is deliberately omitted from the user-facing table.
+const _columnWidths = <String>['6%', '48%', '8%', '8%', '15%', '15%'];
 
 const _wordFontStyle =
     "font-family:'Times New Roman';mso-ascii-font-family:'Times New Roman';"
@@ -218,7 +221,7 @@ String _htmlCell(
     '<td width="$width"${nowrap ? ' nowrap="nowrap"' : ''} align="$align" '
     'valign="middle" dir="ltr" style="width:$width;$_cellStyle'
     'text-align:$align!important;text-justify:none;'
-    '${nowrap ? 'white-space:nowrap;' : ''}">'
+    '${nowrap ? 'white-space:nowrap;' : _htmlWrapStyle}">'
     '${_htmlBlock(_html(value), align: align, nowrap: nowrap)}'
     '</td>';
 
@@ -235,15 +238,18 @@ String _htmlBlock(
     '<p align="$align" dir="ltr" style="margin:0cm;mso-para-margin:0cm;'
     'mso-para-margin-left:0cm;mso-para-margin-right:0cm;'
     'text-align:$align!important;text-justify:none;line-height:1.2;'
-    '$_wordFontStyle${nowrap ? 'white-space:nowrap;' : ''}">'
+    '$_wordFontStyle${nowrap ? 'white-space:nowrap;' : _htmlWrapStyle}">'
     '${_htmlRun(value, bold: bold, nowrap: nowrap)}'
     '</p>';
 
 String _htmlRun(String value, {bool bold = false, bool nowrap = false}) =>
     '<span style="$_wordFontStyle${bold ? 'font-weight:bold;' : ''}'
-    '${nowrap ? 'white-space:nowrap;' : ''}">'
+    '${nowrap ? 'white-space:nowrap;' : _htmlWrapStyle}">'
     '<font face="Times New Roman" size="3" style="font-size:12pt;">'
     '$value</font></span>';
+
+const _htmlWrapStyle =
+    'white-space:normal;word-wrap:break-word;overflow-wrap:break-word;';
 
 void _appendHtmlSummary(
   StringBuffer buffer,
@@ -253,7 +259,7 @@ void _appendHtmlSummary(
 }) {
   final background = emphasized ? 'background:#f4c7a8;' : '';
   buffer.writeln(
-    '<tr><td colspan="4" align="center" valign="middle" style="$_cellStyle'
+    '<tr><td colspan="3" align="center" valign="middle" style="$_cellStyle'
     '${background}text-align:center;">'
     '${_htmlBlock(_html(label), align: 'center', bold: true)}</td>'
     '<td colspan="3" align="center" valign="middle" style="$_cellStyle'

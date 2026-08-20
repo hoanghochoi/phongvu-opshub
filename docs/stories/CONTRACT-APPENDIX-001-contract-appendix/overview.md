@@ -28,8 +28,8 @@ mở lại trong 30 ngày mà không lưu dữ liệu khách hàng không cần 
 - Thiếu thuế không được mặc định; chỉ tiếp tục bằng lựa chọn tay có cờ.
 - Save refetch nguồn, phát hiện thay đổi bằng `quoteVersion`, lưu snapshot cá
   nhân bất biến và hết hạn sau đúng 30 ngày.
-- Windows Word paste giữ bảng 7 cột `STT / Tên hàng hóa / Mã hàng / ĐVT / SL /
-  Đơn giá / Thành tiền`, border, header, summary và Unicode; cột cuối dùng
+- Windows/Web Word paste giữ bảng 6 cột `STT / Tên hàng hóa / ĐVT / SL / Đơn giá /
+  Thành tiền`, border, header, summary và Unicode; không có cột SKU/Mã hàng; cột cuối dùng
   `lineAfterVat` với nhãn `Thành tiền (VNĐ) (đã bao gồm VAT)`.
 
 ## Affected Runtime Contract

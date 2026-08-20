@@ -250,13 +250,14 @@ class ContractAppendixProvider extends ChangeNotifier {
     return fetchOrders();
   }
 
-  void updateProductName(String sourceLineKey, String value) {
-    _updateItem(sourceLineKey, (item) => item.copyWith(productName: value));
-  }
+  /// ERP product names are immutable in the appendix editor. Keep these
+  /// compatibility entry points for older callers, but never mutate the
+  /// snapshot from a client-side text edit.
+  void updateProductName(String sourceLineKey, String value) {}
 
-  void updateUnit(String sourceLineKey, String value) {
-    _updateItem(sourceLineKey, (item) => item.copyWith(unit: value));
-  }
+  /// ERP units are immutable in the appendix editor. See
+  /// [updateProductName] for the compatibility rationale.
+  void updateUnit(String sourceLineKey, String value) {}
 
   void updateManualVatRate(String sourceLineKey, int? vatRateBps) {
     final document = _draft;
@@ -617,19 +618,6 @@ class ContractAppendixProvider extends ChangeNotifier {
     if (_errorMessage == null && _successMessage == null) return;
     _clearMessages();
     notifyListeners();
-  }
-
-  void _updateItem(
-    String sourceLineKey,
-    ContractAppendixItem Function(ContractAppendixItem) update,
-  ) {
-    final document = _draft;
-    if (document == null) return;
-    final index = document.items.indexWhere(
-      (item) => item.sourceLineKey == sourceLineKey,
-    );
-    if (index < 0) return;
-    _replaceItem(index, update(document.items[index]));
   }
 
   void _replaceItem(

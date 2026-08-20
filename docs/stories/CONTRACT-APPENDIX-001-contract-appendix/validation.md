@@ -25,15 +25,16 @@
   `Formats.plainText` khớp tài liệu package.
 - Đạt: live PPM CLI qua `SalesReportErpService` dùng credential capture hiện
   hữu; SKU `250902982` trả `8%` (`vatRateBps=800`) tại terminal đã chốt.
-- Đạt follow-up UI/Word: 29 focused core/screen/design-guard test khóa layout
+- Đạt follow-up UI/Word trước R3: 29 focused core/screen/design-guard test khóa layout
   một cột, preview desktop 960px, Times New Roman 12pt, cột tiền căn giữa,
   căn lề ô, số tiền không bẻ dòng và đoạn `Bằng chữ` ngoài bảng.
 - Follow-up CF_HTML khóa payload ở dạng fragment thuần, font trực tiếp trên
-  từng text run và tỷ lệ cột `6/40/6/7/16/9/16`; vẫn loại `thead/th` để Word
+  từng text run và tỷ lệ cột legacy `6/40/6/7/16/9/16`; vẫn loại `thead/th` để Word
   không đánh dấu hàng tiêu đề lặp lại.
-- Đạt staging: workflow `29564482891` apply migration, deploy đúng SHA
+- Đạt staging baseline: workflow `29564482891` apply migration, deploy đúng SHA
   `708ba564` và vượt public health/version/manifest checks. User đã xác nhận
-  rich table paste được vào Word Windows trước follow-up định dạng này.
+  rich table paste được vào Word Windows trước follow-up định dạng này; web
+  ClipboardItem path và R3 six-column preview vẫn cần staging proof.
 - Chưa xác minh: migration up/rollback trên database scratch vì Docker Desktop
   Linux engine chưa chạy trong phiên local này.
 
@@ -98,9 +99,9 @@
 - Đơn có quantity > 1 chứng minh `finalSellPrice` là giá mỗi đơn vị và footer
   reconcile đúng.
 - User khác không đọc được snapshot; bản hết hạn bị 404 và cron xóa idempotent.
-- Paste trên Word Windows giữ 7 cột, màu header, border, dòng tổng và tiền chữ.
+- Paste trên Word Windows/Web giữ 6 cột, màu header, border, ba dòng tổng và tiền chữ.
 - Build Windows, web và Android trước staging proof.
-- Cần recheck thủ công sau khi phát hành follow-up: Word Windows hiển thị đúng
+- Cần recheck thủ công sau khi phát hành follow-up: Word Windows/Web hiển thị đúng
   Times New Roman 12pt và cùng tỷ lệ cột trên cả tài liệu trắng lẫn file mẫu;
   đồng thời không lặp header khi qua trang, số tiền không bẻ dòng và đoạn
   `Bằng chữ` nằm ngoài bảng. Đơn ERP có quantity > 1 vẫn là fixture tích hợp
