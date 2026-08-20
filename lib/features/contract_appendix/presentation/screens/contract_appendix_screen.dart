@@ -395,7 +395,6 @@ class _OrderCommandArea extends StatelessWidget {
       builder: (context, constraints) {
         final compact =
             constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
-        final wide = constraints.maxWidth >= 1000;
         final command = _OrderCommandCard(
           controller: controller,
           focusNode: focusNode,
@@ -405,25 +404,14 @@ class _OrderCommandArea extends StatelessWidget {
           onFetch: onFetch,
           onReset: onReset,
         );
-        final useFullWidthSummary = provider.selectedOrderCodes.length >= 3;
-        if (!wide || useFullWidthSummary) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              command,
-              if (provider.selectedOrderCodes.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                _OrderSummaryCard(provider: provider),
-              ],
-            ],
-          );
-        }
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(flex: 710, child: command),
-            const SizedBox(width: 24),
-            Expanded(flex: 392, child: _OrderSummaryCard(provider: provider)),
+            command,
+            if (provider.selectedOrderCodes.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _OrderSummaryCard(provider: provider),
+            ],
           ],
         );
       },
