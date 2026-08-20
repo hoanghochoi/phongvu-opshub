@@ -80,10 +80,10 @@ the new domain contract.
 - [x] Flutter analyze and full Flutter tests pass (`896` passed, `3` skipped),
       plus focused URL, storage, realtime, self-update and admin-endpoint
       coverage including the `/v1/ws/v2` ticket URI regression.
-- [x] Workflow/config and affected-consumer proof (`verify-task --full`) passes
-      at exact HEAD `6ff4c470078c4bd4e9fc9551ec8e4c605b731886`, with stable
-      fingerprint
-      `5743c4246e9ef2fc5f1d5ae3cd2229968c62c77625e6ce57749326f383ed8699`.
+- [x] Workflow/config and affected-consumer proof (`verify-task --full`)
+      passes with a stable fingerprint. The final SHA and fingerprint are
+      recorded in the OPS-210 Linear proof note after the last repository
+      change.
 - [x] Confirm the retired MSIX workflow is absent and no active release job or
       package metadata points to MSIX. The direct EXE/ZIP path remains the only
       supported Windows release path.
