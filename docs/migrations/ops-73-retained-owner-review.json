@@ -2,8 +2,8 @@
   "formatVersion": 1,
   "issue": "OPS-73",
   "phase": "retained-owner-review",
-  "sourceRevision": "d1c73a26ffae55d045cdae0c707240134a0ac528",
-  "reviewedAtUtc": "2026-08-21T01:21:00.000Z",
+  "sourceRevision": "b37c8d62fb46df148a15212ae81568b01a7b9db2",
+  "reviewedAtUtc": "2026-08-20T18:58:00.000Z",
   "sourceInventory": "docs/migrations/ops-73-artifact-inventory.json",
   "sourceInventorySha256": "241e54629ffe9d2d12f33b5100a3854f0ed3f8c6daeacdc92195d064440cd713",
   "candidates": [
@@ -187,20 +187,20 @@
         {
           "path": ".github/workflows/deploy-opshub-staging.yml",
           "kind": "file",
-          "sha256": "63166fd90742536c42f657ecfc5ae5bcc3db4e65d8221fa115b501748f6bbfb3",
-          "bytes": 91572
+          "sha256": "d9ecd9866fd16ff22ce2dd73374a324c227901f962318e11adb1eb0eae9d0523",
+          "bytes": 93380
         },
         {
           "path": ".github/workflows/deploy-opshub.yml",
           "kind": "file",
-          "sha256": "32f38f9a51551814b54532de4ddc29080663f2d1ebf98d1b267b7d78b1116c38",
-          "bytes": 65926
+          "sha256": "54b9230674d7da4498a06afde97992e9993f9f07e63d71d3c332b5ef578ff767",
+          "bytes": 68212
         },
         {
           "path": "deploy/staging/README.md",
           "kind": "file",
-          "sha256": "56dc20d4c5f6ce4c5a70d96acc7829199718c735d9c30f423f9d3978f1614200",
-          "bytes": 10575
+          "sha256": "e63d1e385e1c2a07289031ad0d6a40b94cee7756b16a5401b2a95561b7539e56",
+          "bytes": 9627
         }
       ],
       "ownerReferences": [
