@@ -119,7 +119,9 @@ curl http://localhost:3000/app-version
   then promote them to `/srv/opshub/downloads/` and publish
   `/downloads/latest.json` for the download landing page. The same deploy
   builds Flutter web with
-  `API_BASE_URL=https://opshub.hoanghochoi.com/api`, syncs it to
+  `API_BASE_URL=https://api.phongvu.work/v1`,
+  `PUBLIC_BASE_URL=https://phongvu.work`, and
+  `REALTIME_BASE_URL=wss://api.phongvu.work/v1/ws`, syncs it to
   `/srv/opshub/web/`, and publishes the built help asset bundle under
   `/srv/opshub/downloads/help/`. When `origin/help-content` exists, full
   production deploys load `docs/help` from that branch before building the help
@@ -129,16 +131,18 @@ curl http://localhost:3000/app-version
   assets, and mounted `docs/help/*` source from existing live artifacts; it
   must not change app-version metadata or rebuild client packages.
 - Staging deploys run on `staging` pushes or manual `Deploy OpsHub Staging`
-  dispatches, target `opshub-staging.hoanghochoi.com` for API/runtime traffic,
+  dispatches, target `api-staging.phongvu.work/v1` for API/runtime traffic,
   build Flutter web with
-  `API_BASE_URL=https://opshub-staging.hoanghochoi.com/api`, publish it under
+  `API_BASE_URL=https://api-staging.phongvu.work/v1`,
+  `PUBLIC_BASE_URL=https://staging.phongvu.work`, and
+  `REALTIME_BASE_URL=wss://api-staging.phongvu.work/v1/ws`, publish it under
   `/srv/opshub-staging/web/`, publish downloads under
-  `/srv/opshub-staging/downloads/`, expose those downloads through
-  `https://opshub-staging.hoanghochoi.com/downloads/`, expose the public
-  download page at `https://opshub-staging.hoanghochoi.com/download`, and build
-  staging client packages with separate Android and Windows app identities. The
-  production `/staging-download` route is compatibility-only and must not be
-  published in new app-version metadata.
+  `/srv/opshub-staging/downloads/`, expose the web/download page through
+  `https://staging.phongvu.work`, and build staging client packages with
+  separate Android and Windows app identities. The legacy web hostname
+  redirects to the new web hostname while its machine paths remain a measured
+  bridge. Package metadata may continue to publish the legacy download
+  hostname until the 24-hour zero-valid-traffic cleanup gate passes.
   Staging DB refresh is a separate manual sanitized-clone operation and is not
   part of the normal staging deploy workflow.
 - Production and staging Flutter web builds use the source-controlled

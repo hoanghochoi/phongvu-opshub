@@ -112,7 +112,7 @@ void main() {
       expect(requests.last.method, 'PATCH');
       expect(
         requests.last.url.path,
-        '/api/admin/map-vietin/statements/tx-1/order-tracking',
+        '/v1/admin/map-vietin/statements/tx-1/order-tracking',
       );
       expect(jsonDecode(requests.last.body), {'status': 'UNFOLLOWED'});
       expect(transaction.isFollowing, isFalse);

@@ -7,7 +7,8 @@ ENV_FILE="$ENV_DIR/env"
 TOKEN_FILE="$ENV_DIR/token"
 CLOUDFLARED_BIN="$(command -v cloudflared || true)"
 TUNNEL_NAME="${CLOUDFLARED_TUNNEL_NAME:-opshub-staging}"
-TUNNEL_HOSTNAME="${CLOUDFLARED_TUNNEL_HOSTNAME:-opshub-staging.hoanghochoi.com}"
+TUNNEL_HOSTNAME="${CLOUDFLARED_TUNNEL_HOSTNAME:-staging.phongvu.work}"
+API_TUNNEL_HOSTNAME="${CLOUDFLARED_API_TUNNEL_HOSTNAME:-api-staging.phongvu.work}"
 TUNNEL_SERVICE="${CLOUDFLARED_TUNNEL_SERVICE:-http://127.0.0.1:8090}"
 ORIGIN_CERT="${CLOUDFLARED_ORIGIN_CERT:-$HOME/.cloudflared/cert.pem}"
 ROUTE_DNS="${CLOUDFLARED_ROUTE_DNS:-false}"
@@ -53,8 +54,10 @@ EOF
   if [[ "$ROUTE_DNS" == "true" || "$ROUTE_DNS" == "1" ]]; then
     "$CLOUDFLARED_BIN" --origincert "$ORIGIN_CERT" tunnel route dns \
       --overwrite-dns "$TUNNEL_ID" "$TUNNEL_HOSTNAME"
+    "$CLOUDFLARED_BIN" --origincert "$ORIGIN_CERT" tunnel route dns \
+      --overwrite-dns "$TUNNEL_ID" "$API_TUNNEL_HOSTNAME"
   else
-    echo "Skipping DNS route. Set CLOUDFLARED_ROUTE_DNS=true only when this cert can manage $TUNNEL_HOSTNAME."
+    echo "Skipping DNS routes. Set CLOUDFLARED_ROUTE_DNS=true only when this cert can manage $TUNNEL_HOSTNAME and $API_TUNNEL_HOSTNAME."
   fi
   CLOUDFLARED_TUNNEL_TOKEN="$($CLOUDFLARED_BIN --origincert "$ORIGIN_CERT" tunnel token "$TUNNEL_ID")"
   if [[ -z "$CLOUDFLARED_TUNNEL_TOKEN" ]]; then

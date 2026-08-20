@@ -36,7 +36,7 @@ const PRODUCTION_PLACEHOLDERS: Record<string, string[]> = {
     'replace-with-long-random-redis-password',
   ],
   IMAGE_BASE_URL: ['https://img.example.com'],
-  PRIVATE_MEDIA_PUBLIC_BASE_URL: ['https://api.example.com/api'],
+  PRIVATE_MEDIA_PUBLIC_BASE_URL: ['https://api.example.com/v1'],
 };
 
 const PLACEHOLDER_SENSITIVE_KEYS = [
@@ -198,34 +198,36 @@ function validateBidvPublicBaseUrl(
   } catch {
     throw new Error('Invalid BIDV_H2H_PUBLIC_BASE_URL value');
   }
-  if (
-    parsed.username ||
-    parsed.password ||
-    parsed.search ||
-    parsed.hash ||
-    parsed.pathname !== '/'
-  ) {
+  if (parsed.username || parsed.password || parsed.search || parsed.hash) {
     throw new Error('Invalid BIDV_H2H_PUBLIC_BASE_URL value');
   }
   const expectedHost =
     environment === 'production'
-      ? 'bankapis.hoanghochoi.com'
+      ? 'api.phongvu.work'
       : environment === 'staging'
-        ? 'bankapis-staging.hoanghochoi.com'
+        ? 'api-staging.phongvu.work'
         : null;
   if (expectedHost) {
-    if (parsed.protocol !== 'https:' || parsed.hostname !== expectedHost) {
+    const normalizedPath = parsed.pathname.replace(/\/+$/, '') || '/';
+    if (
+      parsed.protocol !== 'https:' ||
+      parsed.hostname !== expectedHost ||
+      normalizedPath !== '/v1/bidv'
+    ) {
       throw new Error(
-        `BIDV_H2H_PUBLIC_BASE_URL must use https://${expectedHost}`,
+        `BIDV_H2H_PUBLIC_BASE_URL must use https://${expectedHost}/v1/bidv`,
       );
     }
-  } else if (
-    !['http:', 'https:'].includes(parsed.protocol) ||
-    !LOCAL_ORIGIN_HOSTS.has(parsed.hostname)
-  ) {
-    throw new Error(
-      'Local BIDV_H2H_PUBLIC_BASE_URL must target localhost over HTTP(S)',
-    );
+  } else {
+    if (
+      !['http:', 'https:'].includes(parsed.protocol) ||
+      !LOCAL_ORIGIN_HOSTS.has(parsed.hostname) ||
+      parsed.pathname !== '/'
+    ) {
+      throw new Error(
+        'Local BIDV_H2H_PUBLIC_BASE_URL must target localhost over HTTP(S)',
+      );
+    }
   }
   return parsed.toString().replace(/\/$/, '');
 }

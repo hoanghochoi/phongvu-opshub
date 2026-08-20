@@ -8,10 +8,8 @@ stay disabled.
 ## Safety boundary
 
 - Run the fixed Home HTTP proof only against the exact allowlisted base URL
-  `https://opshub-staging.hoanghochoi.com/api` or the OPS-42 API-only ingress
-  `https://api-opshub-staging.hoanghochoi.com/api`. Realtime and every other
-  staging profile remain restricted to
-  `wss://opshub-staging.hoanghochoi.com/ws/v2` and the original base URL. The
+  `https://api-staging.phongvu.work/v1`. Realtime and every other staging
+  profile remain restricted to `wss://api-staging.phongvu.work/v1/ws/v2`. The
   scripts hard-fail for any other target, approval phrase, run id, user count,
   RPS or socket count.
 - Use an official stable k6 binary on the workstation and record its exact
@@ -35,7 +33,7 @@ stay disabled.
 Before preparing any synthetic user for OPS-42, run the API-only health gate:
 
 ```text
-BASE_URL=https://api-opshub-staging.hoanghochoi.com/api
+BASE_URL=https://api-staging.phongvu.work/v1
 TEST_RUN_ID=<unique-lowercase-run-id>
 LOAD_APPROVAL=OPSHUB_STAGING_API_HEALTH_GATE_APPROVED
 ```
@@ -91,7 +89,7 @@ The manifest contains deterministic user order and the verified Home end date.
 ### Synchronized public-ingress telemetry
 
 The Caddy access logger `staging_home_load_telemetry` activates only for the
-dedicated staging hostname and `GET /api/home/summary` when all three official
+dedicated staging API hostname and `GET /v1/home/summary` when all three official
 load headers are present. Caddy validates the telemetry nonce as exactly 64
 lowercase hexadecimal characters and accepts only the fixed 1/7/30/90-day
 range tags plus `legacy` or `daily_series`. It overwrites any caller-supplied
@@ -187,8 +185,8 @@ Run `scripts/load/opshub-staging-home-100qps.js` with the temporary k6 binary
 and these exact environment values:
 
 ```text
-BASE_URL=https://opshub-staging.hoanghochoi.com/api
-WS_URL=wss://opshub-staging.hoanghochoi.com/ws/v2
+BASE_URL=https://api-staging.phongvu.work/v1
+WS_URL=wss://api-staging.phongvu.work/v1/ws/v2
 TEST_RUN_ID=<run-id>
 TOKENS_FILE=<absolute-temporary-token-manifest-path>
 TARGET_RPS=100

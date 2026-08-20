@@ -3,7 +3,7 @@
   "issue": "OPS-73",
   "phase": "retained-owner-review",
   "sourceRevision": "d1c73a26ffae55d045cdae0c707240134a0ac528",
-  "reviewedAtUtc": "2026-08-17T05:58:46.224Z",
+  "reviewedAtUtc": "2026-08-21T01:21:00.000Z",
   "sourceInventory": "docs/migrations/ops-73-artifact-inventory.json",
   "sourceInventorySha256": "241e54629ffe9d2d12f33b5100a3854f0ed3f8c6daeacdc92195d064440cd713",
   "candidates": [
@@ -138,7 +138,6 @@
       ],
       "ownerReferences": [
         ".github/actions/setup-flutter/action.yml",
-        ".github/workflows/build-windows-msix.yml",
         ".github/workflows/deploy-opshub-staging.yml",
         ".github/workflows/deploy-opshub.yml",
         "scripts/build-windows-msix-internal.ps1"

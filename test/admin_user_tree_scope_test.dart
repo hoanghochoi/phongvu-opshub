@@ -107,8 +107,8 @@ void main() {
 
       expect(assignments.single.impactedUserCount, 3);
       expect(calls, [
-        'GET /api/admin/features/node-assignments',
-        'POST /api/admin/features/node-assignments/batch',
+        'GET /v1/admin/features/node-assignments',
+        'POST /v1/admin/features/node-assignments/batch',
       ]);
       expect(bodies.single['organizationNodeIds'], ['org-pos-sa']);
       expect(bodies.single['featureTreeCodes'], ['FIFO']);

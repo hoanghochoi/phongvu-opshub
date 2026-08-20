@@ -39,7 +39,7 @@ export const PROFILES = Object.freeze([
       /^tests\/migration\//,
       /^tests\/toolchain\//,
       /^tests\/(?:installer|maintenance|migration|verification)\//,
-      /^\.github\/workflows\/(?:build-windows-msix|cold-dependency-canary|deploy-opshub(?:-staging)?|post-merge-maintenance|release-guard-pr)\.yml$/,
+      /^\.github\/workflows\/(?:cold-dependency-canary|deploy-opshub(?:-staging)?|post-merge-maintenance|release-guard-pr)\.yml$/,
     ],
     consumers: [
       "repository-harness-adoption",
@@ -386,6 +386,8 @@ export const PROFILES = Object.freeze([
       /^deploy\//,
       /^docker-compose\.yml$/,
       /^scripts\/(?:build-runtime-release|validate-ops39-caddy|verify-platform-security)\.mjs$/,
+      /^scripts\/load\/opshub-staging-(?:home-100qps|rate-limit-semantics|targets(?:\.test)?)\.(?:js|mjs)$/,
+      /^scripts\/(?:opshub-web-visual-smoke|test-cloudflare-api-tunnel-installer)\.mjs$/,
     ],
     consumers: ["deployment manifests", "runtime configuration"],
     prerequisites: ["deployment tooling"],

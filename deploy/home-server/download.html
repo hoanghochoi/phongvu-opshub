@@ -688,10 +688,23 @@
             pathPrefix: `${downloadsBasePath}/`,
           },
         ];
-        if (window.location.hostname === 'opshub-staging.hoanghochoi.com') {
+        const isStagingHost = [
+          'staging.phongvu.work',
+          'opshub-staging.hoanghochoi.com',
+        ].includes(window.location.hostname);
+        const isProductionHost = [
+          'phongvu.work',
+          'opshub.hoanghochoi.com',
+        ].includes(window.location.hostname);
+        if (isStagingHost) {
+          allowedLocations.push({
+            origin: 'https://opshub-staging.hoanghochoi.com',
+            pathPrefix: '/downloads/',
+          });
+        } else if (isProductionHost) {
           allowedLocations.push({
             origin: 'https://opshub.hoanghochoi.com',
-            pathPrefix: '/staging-download/downloads/',
+            pathPrefix: '/downloads/',
           });
         }
         const isAllowedLocation = allowedLocations.some(

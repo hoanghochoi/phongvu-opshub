@@ -21,8 +21,11 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  OPSHUB_PUBLIC_BASE_URL: https://opshub.hoanghochoi.com
-  OPSHUB_API_BASE_URL: https://opshub.hoanghochoi.com/api
+  OPSHUB_PUBLIC_BASE_URL: https://phongvu.work
+  OPSHUB_API_BASE_URL: https://api.phongvu.work/v1
+  OPSHUB_REALTIME_BASE_URL: wss://api.phongvu.work/v1/ws
+  # Keep package metadata on the legacy host until the measured bridge cleanup.
+  OPSHUB_DOWNLOAD_PUBLIC_BASE_URL: https://opshub.hoanghochoi.com
   OPSHUB_REMOTE_APP_DIR: /home/ubuntu/phongvu-opshub
   OPSHUB_ENV_FILE: /srv/opshub/env
   OPSHUB_HELP_CONTENT_BRANCH: help-content
@@ -74,7 +77,8 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
-          lfs: true
+          # Android never packages the Windows-only payment audio assets.
+          lfs: false
 
       - name: Set up Flutter
         uses: ./.github/actions/setup-flutter
@@ -121,7 +125,10 @@ jobs:
             --flavor production \
             --build-name "${{ needs.prepare.outputs.version_name }}" \
             --build-number "${{ needs.prepare.outputs.version_code }}" \
-            --dart-define "API_BASE_URL=${OPSHUB_API_BASE_URL}"
+            --dart-define "API_BASE_URL=${OPSHUB_API_BASE_URL}" \
+            --dart-define "PUBLIC_BASE_URL=${OPSHUB_PUBLIC_BASE_URL}" \
+            --dart-define "REALTIME_BASE_URL=${OPSHUB_REALTIME_BASE_URL}" \
+            --dart-define "APP_ENV=production"
 
       - name: Connect Tailscale
         uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8
@@ -175,7 +182,22 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
-          lfs: true
+          lfs: false
+
+      - name: Restore Windows payment audio LFS cache
+        id: payment_audio_cache
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
+        with:
+          path: windows/assets/payment_audio/local_preset_speaker_v1
+          key: opshub-payment-audio-${{ runner.os }}-${{ hashFiles('windows/assets/payment_audio/local_preset_speaker_v1/**/manifest.json') }}
+
+      - name: Pull Windows payment audio on cache miss
+        if: steps.payment_audio_cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          git lfs version
+          git lfs install --local
+          git lfs pull --include="windows/assets/payment_audio/local_preset_speaker_v1/**" --exclude=""
 
       - name: Set up Flutter
         uses: ./.github/actions/setup-flutter
@@ -190,7 +212,10 @@ jobs:
           node scripts/run-with-toolchain.mjs --profile flutter -- flutter build windows --release --no-pub `
             --build-name "${{ needs.prepare.outputs.windows_build_name }}" `
             --build-number "${{ needs.prepare.outputs.version_code }}" `
-            --dart-define "API_BASE_URL=${env:OPSHUB_API_BASE_URL}"
+            --dart-define "API_BASE_URL=${env:OPSHUB_API_BASE_URL}" `
+            --dart-define "PUBLIC_BASE_URL=${env:OPSHUB_PUBLIC_BASE_URL}" `
+            --dart-define "REALTIME_BASE_URL=${env:OPSHUB_REALTIME_BASE_URL}" `
+            --dart-define "APP_ENV=production"
 
       - name: Validate local payment audio release presets
         shell: pwsh
@@ -422,7 +447,10 @@ jobs:
             --no-web-resources-cdn \
             --build-name "${{ needs.prepare.outputs.version_name }}" \
             --build-number "${{ needs.prepare.outputs.version_code }}" \
-            --dart-define "API_BASE_URL=${OPSHUB_API_BASE_URL}"
+            --dart-define "API_BASE_URL=${OPSHUB_API_BASE_URL}" \
+            --dart-define "PUBLIC_BASE_URL=${OPSHUB_PUBLIC_BASE_URL}" \
+            --dart-define "REALTIME_BASE_URL=${OPSHUB_REALTIME_BASE_URL}" \
+            --dart-define "APP_ENV=production"
           WEB_CACHE_BUST_TOKEN="${GITHUB_SHA}" node scripts/patch-flutter-web-cache-busting.mjs
 
       - name: Connect Tailscale
@@ -487,6 +515,7 @@ jobs:
       - name: Write download manifest
         shell: bash
         env:
+          OPSHUB_PUBLIC_BASE_URL: ${{ env.OPSHUB_DOWNLOAD_PUBLIC_BASE_URL }}
           DOWNLOAD_MANIFEST_OUTPUT: dist/downloads/latest.json
           APP_VERSION: ${{ needs.prepare.outputs.version_name }}
           APP_BUILD_NUMBER: ${{ needs.prepare.outputs.version_code }}
@@ -542,8 +571,8 @@ jobs:
           remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           client_staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}"
           tmp_dir="${OPSHUB_REMOTE_APP_DIR}/tmp/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          android_update_url="${OPSHUB_PUBLIC_BASE_URL}/downloads/${{ needs.prepare.outputs.apk_name }}"
-          windows_update_url="${OPSHUB_PUBLIC_BASE_URL}/downloads/${{ needs.prepare.outputs.windows_installer_name }}"
+          android_update_url="${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}/downloads/${{ needs.prepare.outputs.apk_name }}"
+          windows_update_url="${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}/downloads/${{ needs.prepare.outputs.windows_installer_name }}"
           android_package_sha256="$(ssh opshub-vps "sha256sum '$client_staging_dir/android/${{ needs.prepare.outputs.apk_name }}' | awk '{print \$1}'")"
           windows_package_sha256="$(ssh opshub-vps "sha256sum '$client_staging_dir/windows/${{ needs.prepare.outputs.windows_installer_name }}' | awk '{print \$1}'")"
           android_package_size_bytes="$(ssh opshub-vps "stat -c%s '$client_staging_dir/android/${{ needs.prepare.outputs.apk_name }}'")"
@@ -685,6 +714,8 @@ jobs:
             DATABASE_URL
             JWT_SECRET
             OPSHUB_DOMAIN
+            OPSHUB_API_DOMAIN
+            OPSHUB_LEGACY_DOMAIN
             OPSHUB_HTTP_BIND
             OPSHUB_RUNTIME_UID
             OPSHUB_RUNTIME_GID
@@ -734,6 +765,11 @@ jobs:
             fi
           }
 
+          unset_env() {
+            key="$1"
+            sudo sed -i "/^${key}=/d" "$OPSHUB_ENV_FILE"
+          }
+
           contact_grace_until=$(sudo grep '^SALES_REPORT_FOLLOW_UP_CONTACT_GRACE_UNTIL=' "$OPSHUB_ENV_FILE" | tail -n 1 | cut -d= -f2- || true)
           if [ -z "$contact_grace_until" ]; then
             contact_grace_until=$(date -u -d '+14 days' '+%Y-%m-%dT%H:%M:%SZ')
@@ -741,9 +777,16 @@ jobs:
           fi
           echo "Follow-up contact grace ends at $contact_grace_until"
 
+          upsert_env OPSHUB_DOMAIN "phongvu.work"
+          upsert_env OPSHUB_API_DOMAIN "api.phongvu.work"
+          upsert_env OPSHUB_LEGACY_DOMAIN "opshub.hoanghochoi.com"
+          unset_env BIDV_H2H_DOMAIN
+          upsert_env PUBLIC_BASE_URL "$OPSHUB_PUBLIC_BASE_URL"
+          upsert_env PRIVATE_MEDIA_PUBLIC_BASE_URL "https://api.phongvu.work/v1"
+          upsert_env IMAGE_BASE_URL "${OPSHUB_PUBLIC_BASE_URL}/uploads"
+          upsert_env ALLOWED_ORIGINS "${OPSHUB_PUBLIC_BASE_URL},https://opshub.hoanghochoi.com"
           upsert_env APP_VERSION "$APP_VERSION"
-          upsert_env BIDV_H2H_DOMAIN "bankapis.hoanghochoi.com"
-          upsert_env BIDV_H2H_PUBLIC_BASE_URL "https://bankapis.hoanghochoi.com"
+          upsert_env BIDV_H2H_PUBLIC_BASE_URL "https://api.phongvu.work/v1/bidv"
           upsert_env BIDV_H2H_ENVIRONMENT production
           if ! sudo grep -q '^BIDV_H2H_INGEST_ENABLED=' "$OPSHUB_ENV_FILE"; then
             upsert_env BIDV_H2H_INGEST_ENABLED false
@@ -1044,7 +1087,7 @@ jobs:
           compose=(docker compose --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
           compose_cmd() { "${compose[@]}" "$@" < /dev/null; }
           compose_cmd up -d --build --force-recreate --wait --wait-timeout 240 redis api realtime caddy
-          curl -fsS -H 'Host: opshub.hoanghochoi.com' -H 'X-Forwarded-Proto: https' 'http://127.0.0.1:8090/health' >/dev/null
+          curl -fsS -H 'Host: phongvu.work' -H 'X-Forwarded-Proto: https' 'http://127.0.0.1:8090/health' >/dev/null
           echo 'Production release, env, web, Help, manifest and client files rolled back; checkpoint retained because public verification failed.' >&2
           REMOTE
 

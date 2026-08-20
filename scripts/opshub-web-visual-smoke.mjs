@@ -17,10 +17,10 @@ const outputDir = path.resolve(
   process.env.OPSHUB_VISUAL_SMOKE_OUTPUT || 'output/playwright/opshub-visual-smoke',
 );
 const baseUrl = normalizeBaseUrl(
-  process.env.OPSHUB_VISUAL_SMOKE_URL || 'https://opshub-staging.hoanghochoi.com',
+  process.env.OPSHUB_VISUAL_SMOKE_URL || 'https://staging.phongvu.work',
 );
 const apiBaseUrl = normalizeBaseUrl(
-  process.env.OPSHUB_VISUAL_SMOKE_API_URL || `${baseUrl}/api`,
+  process.env.OPSHUB_VISUAL_SMOKE_API_URL || 'https://api-staging.phongvu.work/v1',
 );
 const storageEnvironment =
   process.env.OPSHUB_VISUAL_SMOKE_STORAGE_ENV || environmentForBaseUrl(apiBaseUrl);
@@ -552,10 +552,10 @@ function sanitizeSensitiveText(value) {
 function environmentForBaseUrl(value) {
   const url = new URL(value);
   const host = url.host.toLowerCase();
-  if (host.includes('opshub-staging') || url.pathname.toLowerCase().includes('staging')) {
+  if (host.includes('opshub-staging') || host === 'staging.phongvu.work' || host === 'api-staging.phongvu.work' || url.pathname.toLowerCase().includes('staging')) {
     return 'staging';
   }
-  if (host === 'opshub.hoanghochoi.com') return 'production';
+  if (host === 'phongvu.work' || host === 'opshub.hoanghochoi.com') return 'production';
   if (
     host.startsWith('localhost') ||
     host.startsWith('127.0.0.1') ||

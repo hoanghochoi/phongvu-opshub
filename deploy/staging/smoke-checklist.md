@@ -7,11 +7,11 @@ Use this checklist after the manual staging workflow succeeds.
 - `ssh mementoamoris` resolves to `100.127.127.89`.
 - `sudo ufw status verbose` has no public `22`, `80`, or `443` allow rule.
 - `systemctl is-active cloudflared-opshub-staging` returns `active`.
-- `curl -fsS https://opshub-staging.hoanghochoi.com/health` returns `ok`.
-- `curl -fsS https://opshub-staging.hoanghochoi.com/api/health` returns backend health JSON.
-- `curl -fsS https://opshub-staging.hoanghochoi.com/api/app-version?platform=android` points to `https://opshub-staging.hoanghochoi.com/downloads/`.
-- `curl -fsS https://opshub-staging.hoanghochoi.com/download` returns the public staging download landing page.
-- `curl -fsS https://opshub-staging.hoanghochoi.com/downloads/latest.json` contains only staging URLs.
+- `curl -fsS https://staging.phongvu.work/health` returns `ok`.
+- `curl -fsS https://api-staging.phongvu.work/v1/health` returns backend health JSON.
+- `curl -fsS https://api-staging.phongvu.work/v1/app-version?platform=android` returns staging metadata.
+- `curl -fsS https://staging.phongvu.work/download` returns the public staging download landing page.
+- `curl -fsS https://staging.phongvu.work/downloads/latest.json` contains only staging URLs.
 - Direct-origin trailing-slash contract, run on `mementoamoris` with the staging
   Host header: `/download/` returns 308 with exactly `Location: /download`, and
   `/help/` returns 308 with exactly `Location: /help`.
@@ -20,10 +20,10 @@ Use this checklist after the manual staging workflow succeeds.
   public download-page check; do not weaken the route/content check to run them.
 
   ```bash
-  curl -sS -o /dev/null -D - -H 'Host: opshub-staging.hoanghochoi.com' http://127.0.0.1:8090/download/
-  curl -sS -o /dev/null -D - -H 'Host: opshub-staging.hoanghochoi.com' http://127.0.0.1:8090/help/
-  curl -sS -o /dev/null -D - -H 'Host: opshub-staging.hoanghochoi.com' http://127.0.0.1:8090/download
-  curl -sS -o /dev/null -D - -H 'Host: opshub-staging.hoanghochoi.com' http://127.0.0.1:8090/help
+  curl -sS -o /dev/null -D - -H 'Host: staging.phongvu.work' http://127.0.0.1:8090/download/
+  curl -sS -o /dev/null -D - -H 'Host: staging.phongvu.work' http://127.0.0.1:8090/help/
+  curl -sS -o /dev/null -D - -H 'Host: staging.phongvu.work' http://127.0.0.1:8090/download
+  curl -sS -o /dev/null -D - -H 'Host: staging.phongvu.work' http://127.0.0.1:8090/help
   ```
 - The response carries enforced `Content-Security-Policy` (not
   `Content-Security-Policy-Report-Only`) and the normal security headers.
@@ -38,9 +38,10 @@ Use this checklist after the manual staging workflow succeeds.
 - Android staging APK installs beside production and shows `PhongVu OpsHub Staging`.
 - Windows staging installer uses a separate app name, AppId, install folder, and shortcut.
 - Login works with the known staging users created by the sanitizer.
-- FIFO check/sort, warranty upload, feedback submit, app logs upload, and `/ws` realtime connection work.
+- FIFO check/sort, warranty upload, feedback submit, app logs upload, and `/v1/ws` realtime connection work.
 - New uploads appear under `/srv/opshub-staging/uploads` only.
-- No app-version, download manifest, or client API URL points to `opshub.hoanghochoi.com`.
+- Client API/realtime URLs point to the new staging host. Legacy package URLs are
+  allowed only while the measured bridge window is active.
 
 ## Release-proof checks
 

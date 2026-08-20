@@ -2,16 +2,27 @@ class ApiConstants {
   ApiConstants._();
 
   // ──────────────────────────────────────────────────────────
-  // Base URL — override at build/run time with:
-  // flutter run --dart-define=API_BASE_URL=http://localhost:3000
+  // Public URL contracts are independent so the web origin, REST API and
+  // realtime gateway can be moved without changing private-media or update
+  // routing. Override them at build/run time with dart-defines when needed.
   // ──────────────────────────────────────────────────────────
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://opshub.hoanghochoi.com/api',
+    defaultValue: 'https://api.phongvu.work/v1',
+  );
+
+  static const String publicBaseUrl = String.fromEnvironment(
+    'PUBLIC_BASE_URL',
+    defaultValue: 'https://phongvu.work',
+  );
+
+  static const String realtimeBaseUrl = String.fromEnvironment(
+    'REALTIME_BASE_URL',
+    defaultValue: 'wss://api.phongvu.work/v1/ws',
   );
 
   static Uri get publicBaseUri {
-    final base = Uri.parse(baseUrl);
+    final base = Uri.parse(publicBaseUrl);
     return base.replace(path: '', queryParameters: null, fragment: null);
   }
 
@@ -189,22 +200,31 @@ class ApiConstants {
   static const String notificationsFeedEndpoint = '/notifications/feed';
   static const String appLogsEndpoint = '/app-logs';
   static Uri realtimeWsUri({String? storeId, required String ticket}) {
-    final base = Uri.parse(baseUrl);
-    final scheme = base.scheme == 'https' ? 'wss' : 'ws';
+    final base = Uri.parse(realtimeBaseUrl);
+    final scheme = switch (base.scheme) {
+      'https' => 'wss',
+      'http' => 'ws',
+      _ => base.scheme,
+    };
     final query = {
       if (storeId != null && storeId.trim().isNotEmpty)
         'store_id': storeId.trim().toUpperCase(),
       'ticket': ticket.trim(),
     };
-    return base.replace(scheme: scheme, path: '/ws', queryParameters: query);
+    return base.replace(scheme: scheme, queryParameters: query);
   }
 
   static String get appUpdateRealtimeWsUrl {
-    final base = Uri.parse(baseUrl);
+    final base = Uri.parse(realtimeBaseUrl);
+    final basePath = base.path.replaceFirst(RegExp(r'/+$'), '');
     return base
         .replace(
-          scheme: base.scheme == 'https' ? 'wss' : 'ws',
-          path: '/ws/app-updates',
+          scheme: switch (base.scheme) {
+            'https' => 'wss',
+            'http' => 'ws',
+            _ => base.scheme,
+          },
+          path: '$basePath/app-updates',
           queryParameters: null,
         )
         .toString();

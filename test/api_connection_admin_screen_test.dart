@@ -32,7 +32,7 @@ void main() {
 
     final snapshot = await repository.fetchSnapshot();
     expect(snapshot.environment, 'staging');
-    expect(request.url.path, '/api/admin/api-connections/bidv');
+    expect(request.url.path, '/v1/admin/api-connections/bidv');
     expect(request.headers['Authorization'], 'Bearer staff-jwt');
   });
 
@@ -278,7 +278,7 @@ class _FakeRepository extends ApiConnectionRepository {
 final _snapshotJson = <String, dynamic>{
   'bankCode': 'BIDV',
   'environment': 'staging',
-  'publicBaseUrl': 'https://bankapis-staging.hoanghochoi.com',
+  'publicBaseUrl': 'https://api-staging.phongvu.work/v1/bidv',
   'controls': {
     'ingressRequested': false,
     'projectionRequested': false,

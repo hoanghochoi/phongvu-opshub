@@ -39,8 +39,17 @@ class AppSelfUpdateService {
   static const _androidChannel = MethodChannel('phongvu_opshub/app_update');
   static const _connectTimeout = Duration(seconds: 30);
   static const _chunkTimeout = Duration(minutes: 5);
-  static const _productionPackageHost = 'opshub.hoanghochoi.com';
-  static const _stagingPackageHost = 'opshub-staging.hoanghochoi.com';
+  // Keep both package hosts during the measured bridge. Metadata starts on
+  // the legacy host so already-installed clients can fetch their bridge
+  // release; the new host is accepted immediately for newly built clients.
+  static const _productionPackageHosts = {
+    'opshub.hoanghochoi.com',
+    'phongvu.work',
+  };
+  static const _stagingPackageHosts = {
+    'opshub-staging.hoanghochoi.com',
+    'staging.phongvu.work',
+  };
   static const _windowsRelaunchArg = '/OPSHUBRELAUNCH=1';
   static const _defaultWindowsInstallerArgs = [
     '/VERYSILENT',
@@ -521,10 +530,10 @@ class AppSelfUpdateService {
       return false;
     }
     final host = uri.host.toLowerCase();
-    if (isStaging) {
-      return host == _stagingPackageHost && uri.path.startsWith('/downloads/');
-    }
-    return host == _productionPackageHost && uri.path.startsWith('/downloads/');
+    final trustedHosts = isStaging
+        ? _stagingPackageHosts
+        : _productionPackageHosts;
+    return trustedHosts.contains(host) && uri.path.startsWith('/downloads/');
   }
 
   static Map<String, Object?> _logContext(AppUpdateCheckResult result) {

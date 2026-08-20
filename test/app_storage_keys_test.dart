@@ -35,6 +35,21 @@ void main() {
     );
   });
 
+  test('keeps stable namespaces on new production and staging hosts', () {
+    expect(
+      AppStorageKeys.environmentForBaseUrl(
+        'https://api.phongvu.work/v1',
+      ),
+      'production',
+    );
+    expect(
+      AppStorageKeys.environmentForBaseUrl(
+        'https://api-staging.phongvu.work/v1',
+      ),
+      'staging',
+    );
+  });
+
   test('namespaces shared and secure keys by resolved environment', () {
     final environment = AppStorageKeys.environment;
 

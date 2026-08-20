@@ -45,6 +45,8 @@ class AppBrand {
     }
     final normalized = apiBaseUrl.trim().toLowerCase();
     return normalized.contains('opshub-staging') ||
+        normalized.contains('api-staging.phongvu.work') ||
+        normalized.contains('staging.phongvu.work') ||
         normalized.contains('/staging');
   }
 

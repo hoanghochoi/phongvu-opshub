@@ -106,8 +106,8 @@ export class UserWelcomeEmailService {
           `Chào ${displayName},\n\n` +
           'Tài khoản PhongVu OpsHub của bạn đã được tạo.\n' +
           'Để đặt mật khẩu lần đầu, vui lòng mở ứng dụng và dùng chức năng Quên mật khẩu với email này theo hướng dẫn bên dưới:\n' +
-          'Windows và Android tải tại: https://opshub.hoanghochoi.com/download\n' +
-          'iOS: Mở trang https://opshub.hoanghochoi.com bằng trình duyệt Safari -> Share -> Add to Home Screen\n\n' +
+          'Windows và Android tải tại: https://phongvu.work/download\n' +
+          'iOS: Mở trang https://phongvu.work bằng trình duyệt Safari -> Share -> Add to Home Screen\n\n' +
           'Nếu bạn không yêu cầu tài khoản này, vui lòng liên hệ quản trị viên.',
       });
       this.runtime.logger.log(

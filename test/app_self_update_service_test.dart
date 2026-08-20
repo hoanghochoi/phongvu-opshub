@@ -291,6 +291,20 @@ void main() {
         ),
         isFalse,
       );
+      expect(
+        AppSelfUpdateService.isTrustedPackageUriForTesting(
+          Uri.parse('https://phongvu.work/downloads/opshub.exe'),
+          isStaging: false,
+        ),
+        isTrue,
+      );
+      expect(
+        AppSelfUpdateService.isTrustedPackageUriForTesting(
+          Uri.parse('https://staging.phongvu.work/downloads/opshub.exe'),
+          isStaging: true,
+        ),
+        isTrue,
+      );
     });
 
     test('does not follow package download redirects', () async {

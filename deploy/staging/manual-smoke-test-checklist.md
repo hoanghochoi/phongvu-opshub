@@ -2,8 +2,8 @@
 
 Dùng checklist này cho bản staging tải tại:
 
-- Trang tải: https://opshub-staging.hoanghochoi.com/download
-- API staging: https://opshub-staging.hoanghochoi.com/api
+- Trang tải: https://staging.phongvu.work/download
+- API staging: https://api-staging.phongvu.work/v1
 
 Tài khoản staging có sẵn:
 
@@ -33,7 +33,7 @@ rõ ràng.
 
 ## 1. Cài Đặt Và Định Danh App
 
-- [x] Mở `https://opshub-staging.hoanghochoi.com/download`.
+- [x] Mở `https://staging.phongvu.work/download`.
 - [x] Trang tải hiển thị rõ `PhongVu OpsHub Staging`.
 - [x] Tải được bộ cài Windows.
 - [x] Cài Windows staging cạnh production, không ghi đè production.
@@ -47,13 +47,14 @@ rõ ràng.
 ## 2. Endpoint Và Thông Tin Cập Nhật
 
 - [x] App mở được, không báo lỗi kết nối API.
-- [x] Nếu có prompt cập nhật, link cập nhật trỏ về `https://opshub-staging.hoanghochoi.com/downloads/...`.
+- [x] Nếu có prompt cập nhật, link cập nhật trỏ về staging; trong bridge window
+  link package có thể là `https://opshub-staging.hoanghochoi.com/downloads/...`.
 - [x] Không có link tải/cập nhật nào trỏ về `/download` production.
-- [x] `https://opshub-staging.hoanghochoi.com/health` trả `ok`.
-- [x] `https://opshub-staging.hoanghochoi.com/api/health` trả JSON health của backend.
-- [x] `https://opshub-staging.hoanghochoi.com/api/app-version?platform=android` trỏ về `https://opshub-staging.hoanghochoi.com/downloads/`.
-- [x] `https://opshub-staging.hoanghochoi.com/api/app-version?platform=windows` trỏ về `https://opshub-staging.hoanghochoi.com/downloads/`.
-- [x] `https://opshub-staging.hoanghochoi.com/downloads/latest.json` chỉ chứa URL artifact staging.
+- [x] `https://staging.phongvu.work/health` trả `ok`.
+- [x] `https://api-staging.phongvu.work/v1/health` trả JSON health của backend.
+- [x] `https://api-staging.phongvu.work/v1/app-version?platform=android` trả metadata staging.
+- [x] `https://api-staging.phongvu.work/v1/app-version?platform=windows` trả metadata staging.
+- [x] `https://staging.phongvu.work/downloads/latest.json` chỉ chứa URL artifact staging.
 
 ## 3. Đăng Nhập, Session Và Đăng Xuất
 
@@ -174,7 +175,8 @@ rõ ràng.
 - [ ] Tuỳ chọn kiểm tra server: UFW không mở public `22`, `80`, `443`.
 - [ ] File upload nằm dưới `/srv/opshub-staging/uploads`.
 - [ ] Artifact tải app nằm dưới `/srv/opshub-staging/downloads`.
-- [ ] Không có API call staging nào dùng `https://opshub.hoanghochoi.com/api`.
+- [ ] Không có API call staging nào dùng hostname production hoặc `/api` legacy;
+  API phải là `https://api-staging.phongvu.work/v1`.
 - [ ] Không có upload/download staging nào ghi vào `/srv/opshub` production.
 
 ## 11. Tiêu Chí Chấp Nhận Cuối
@@ -186,6 +188,7 @@ rõ ràng.
 - [ ] Gửi phản hồi hoạt động.
 - [ ] Luồng upload bảo hành hoạt động hoặc lỗi validation staging rõ ràng.
 - [ ] FIFO/sort không crash khi staging thiếu dữ liệu.
-- [ ] App-version và download manifest trỏ về `https://opshub-staging.hoanghochoi.com/downloads/`.
+- [ ] App-version và download manifest trỏ về staging; package URL legacy chỉ
+  được giữ trong bridge window.
 - [ ] Không đụng endpoint hoặc storage production trong lúc smoke test.
 - [ ] Mọi lỗi được ghi lại kèm ảnh chụp, thời điểm, user, nền tảng và bước tái hiện.

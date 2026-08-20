@@ -34,4 +34,11 @@ void main() {
 
     expect(data.lengthInBytes, greaterThan(0));
   });
+
+  test('recognizes the new staging API hostname', () {
+    expect(
+      AppBrand.titleFor(apiBaseUrl: 'https://api-staging.phongvu.work/v1'),
+      AppBrand.stagingTitle,
+    );
+  });
 }

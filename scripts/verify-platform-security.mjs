@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -111,7 +112,6 @@ const [
   productionWorkflow,
   stagingWorkflow,
   codeqlWorkflow,
-  windowsMsixWorkflow,
   pubspec,
   robotoLicense,
   privateMediaHeaders,
@@ -149,7 +149,6 @@ const [
   text('.github/workflows/deploy-opshub.yml'),
   text('.github/workflows/deploy-opshub-staging.yml'),
   text('.github/workflows/codeql.yml'),
-  text('.github/workflows/build-windows-msix.yml'),
   text('pubspec.yaml'),
   text('fonts/Roboto-LICENSE.txt'),
   text('lib/core/network/private_media_headers.dart'),
@@ -236,18 +235,21 @@ for (const [expected, label] of [
 ]) {
   contains(caddy, expected, label);
 }
-const dedicatedBidvMarker = '\n# Dedicated BIDV H2H origin.';
-const staffCaddy = caddy.split(dedicatedBidvMarker, 1)[0];
-assert.ok(staffCaddy.length < caddy.length, 'Dedicated BIDV site marker is missing');
+const apiCaddyMarker = '\n# The API hostname is an exact namespace.';
+const legacyCaddyMarker = '\n# Legacy web host bridge.';
+const apiCaddyStart = caddy.indexOf(apiCaddyMarker);
+const legacyCaddyStart = caddy.indexOf(legacyCaddyMarker);
+assert.ok(apiCaddyStart >= 0 && legacyCaddyStart > apiCaddyStart, 'Exact API Caddy site marker is missing');
+const apiCaddy = caddy.slice(apiCaddyStart, legacyCaddyStart);
 assert.equal(
-  staffCaddy.split('dynamic a api 3000').length - 1,
-  2,
-  'Staff Caddy site must discover every scaled API replica for both API routes',
+  apiCaddy.split('dynamic a api 3000').length - 1,
+  3,
+  'API Caddy site must discover every scaled API replica for BIDV and REST routes',
 );
 assert.equal(
-  staffCaddy.split('lb_policy round_robin').length - 1,
-  2,
-  'Staff Caddy site must distribute both API routes across discovered replicas',
+  apiCaddy.split('lb_policy round_robin').length - 1,
+  3,
+  'API Caddy site must distribute BIDV and REST routes across discovered replicas',
 );
 excludes(caddy, 'reverse_proxy api:3000', 'single logical API upstream');
 
@@ -427,8 +429,10 @@ contains(gradle, 'releaseTaskRequested && !hasReleaseSigning', 'Android release 
 excludes(gradle, 'signingConfigs.getByName("debug")', 'Android debug-signing fallback');
 
 contains(updater, "uri.scheme.toLowerCase() != 'https'", 'updater HTTPS policy');
-contains(updater, "_productionPackageHost = 'opshub.hoanghochoi.com'", 'production updater host allowlist');
-contains(updater, "_stagingPackageHost = 'opshub-staging.hoanghochoi.com'", 'staging updater host allowlist');
+contains(updater, "'phongvu.work'", 'production updater host allowlist');
+contains(updater, "'staging.phongvu.work'", 'staging updater host allowlist');
+contains(updater, "'opshub.hoanghochoi.com'", 'production legacy updater bridge');
+contains(updater, "'opshub-staging.hoanghochoi.com'", 'staging legacy updater bridge');
 contains(updater, 'isTrustedPackageUriForTesting(uri, isStaging: AppBrand.isStaging)', 'build-scoped updater host policy');
 contains(updater, 'request.followRedirects = false', 'updater redirect policy');
 contains(updater, 'final actual = await _sha256Of(file);', 'updater SHA-256 verification');
@@ -565,8 +569,8 @@ assert.ok(
   'staging source scope gate must run before the first synthetic user create',
 );
 for (const expected of [
-  'https://opshub-staging.hoanghochoi.com/api',
-  'wss://opshub-staging.hoanghochoi.com/ws/v2',
+  'https://api-staging.phongvu.work/v1',
+  'wss://api-staging.phongvu.work/v1/ws/v2',
   'targetRps !== 100 || targetSockets !== 60',
   '__ENV.PUBLIC_WS_ENABLED',
   '__ENV.LEGACY_WS_ENABLED',
@@ -602,6 +606,19 @@ for (const expected of [
 }
 
 contains(productionWorkflow, '--no-web-resources-cdn', 'production local Flutter web resources');
+contains(productionWorkflow, 'lfs: false', 'production checkout avoids Android LFS download');
+contains(productionWorkflow, 'actions/cache@caa296126883cff596d87d8935842f9db880ef25', 'production Windows payment audio cache');
+contains(productionWorkflow, "hashFiles('windows/assets/payment_audio/local_preset_speaker_v1/**/manifest.json')", 'production payment audio manifest cache key');
+contains(productionWorkflow, 'git lfs pull --include="windows/assets/payment_audio/local_preset_speaker_v1/**"', 'production scoped Windows LFS pull');
+contains(stagingWorkflow, 'lfs: false', 'staging checkout avoids Android LFS download');
+contains(stagingWorkflow, 'actions/cache@caa296126883cff596d87d8935842f9db880ef25', 'staging Windows payment audio cache');
+contains(stagingWorkflow, "hashFiles('windows/assets/payment_audio/local_preset_speaker_v1/**/manifest.json')", 'staging payment audio manifest cache key');
+contains(stagingWorkflow, 'git lfs pull --include="windows/assets/payment_audio/local_preset_speaker_v1/**"', 'staging scoped Windows LFS pull');
+assert.equal(
+  existsSync(path.join(root, '.github', 'workflows', 'build-windows-msix.yml')),
+  false,
+  'retired MSIX workflow must be absent',
+);
 contains(
   productionWorkflow,
   'required_runtime_env_keys=(',
@@ -724,7 +741,7 @@ contains(
 );
 contains(
   stagingWorkflow,
-  'Staging /ws/v2 without a one-time ticket returned ${ws_status}; expected 401',
+  'Staging /v1/ws/v2 without a one-time ticket returned ${ws_status}; expected 401',
   'staging public realtime route smoke',
 );
 const stagingRuntimeCheckpointIndex = stagingWorkflow.indexOf(
@@ -857,12 +874,12 @@ contains(
 );
 contains(
   stagingWorkflow,
-  "verify_direct_origin_route '/download/' '/download'",
+  "verify_direct_origin_route '/download/' 'staging.phongvu.work' '/download'",
   'guarded staging direct-origin download smoke',
 );
 contains(
   stagingWorkflow,
-  "verify_direct_origin_route '/help/' '/help'",
+  "verify_direct_origin_route '/help/' 'staging.phongvu.work' '/help'",
   'guarded staging direct-origin help smoke',
 );
 for (const expected of [
@@ -883,7 +900,6 @@ for (const [workflow, label] of [
   [productionWorkflow, 'production workflow'],
   [stagingWorkflow, 'staging workflow'],
   [codeqlWorkflow, 'CodeQL workflow'],
-  [windowsMsixWorkflow, 'Windows MSIX workflow'],
 ]) {
   contains(workflow, `actions/checkout@${checkoutSha}`, `${label} checkout pin`);
   excludes(workflow, 'actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5', `${label} deprecated checkout pin`);
@@ -936,13 +952,13 @@ contains(download, 'sanitizeDownloadUrl', 'Download URL allowlist');
 contains(download, 'allowedLocations.some', 'Download origin and path allowlist');
 contains(
   download,
-  "hostname === 'opshub-staging.hoanghochoi.com'",
+  "'staging.phongvu.work'",
   'Download staging host restriction',
 );
 
 const helpUrlPolicy = extractFunction(help, 'sanitizeUrl');
 const helpUrlSandbox = {
-  window: { location: { origin: 'https://opshub.hoanghochoi.com' } },
+  window: { location: { origin: 'https://phongvu.work' } },
   helpBasePath: '/help',
   escapeAttribute: (value) => value,
 };
@@ -953,7 +969,7 @@ const sanitizeHelpUrl = (input) =>
     URL,
   });
 assert.equal(sanitizeHelpUrl('//evil.test/a'), '#');
-assert.equal(sanitizeHelpUrl('http://opshub.hoanghochoi.com/help'), '#');
+assert.equal(sanitizeHelpUrl('http://phongvu.work/help'), '#');
 assert.equal(sanitizeHelpUrl('https://evil.test/help'), '#');
 assert.equal(sanitizeHelpUrl('/help/assets/a.png'), '/help/assets/a.png');
 assert.equal(sanitizeHelpUrl('guide.md'), '/help/guide.md');
@@ -970,8 +986,8 @@ const sanitizeDownloadUrl = (
   input,
   {
     downloadsBasePath = '/downloads',
-    origin = 'https://opshub.hoanghochoi.com',
-    hostname = 'opshub.hoanghochoi.com',
+    origin = 'https://phongvu.work',
+    hostname = 'phongvu.work',
   } = {},
 ) =>
   vm.runInNewContext(`${downloadUrlPolicy}; sanitizeDownloadUrl(input)`, {
@@ -982,44 +998,41 @@ const sanitizeDownloadUrl = (
   });
 assert.equal(sanitizeDownloadUrl('javascript:alert(1)'), '');
 assert.equal(sanitizeDownloadUrl('https://evil.test/downloads/a.apk'), '');
-assert.equal(sanitizeDownloadUrl('https://opshub.hoanghochoi.com/other/a.apk'), '');
+assert.equal(sanitizeDownloadUrl('https://phongvu.work/other/a.apk'), '');
 assert.equal(
   sanitizeDownloadUrl('/downloads/a.apk'),
+  'https://phongvu.work/downloads/a.apk',
+);
+assert.equal(
+  sanitizeDownloadUrl('https://opshub.hoanghochoi.com/downloads/a.apk'),
   'https://opshub.hoanghochoi.com/downloads/a.apk',
 );
 assert.equal(
   sanitizeDownloadUrl(
-    '/staging-download/downloads/a.apk',
-    { downloadsBasePath: '/staging-download/downloads' },
-  ),
-  'https://opshub.hoanghochoi.com/staging-download/downloads/a.apk',
-);
-assert.equal(
-  sanitizeDownloadUrl(
-    'https://opshub.hoanghochoi.com/staging-download/downloads/a.apk',
+    'https://opshub-staging.hoanghochoi.com/downloads/a.apk',
     {
-      origin: 'https://opshub-staging.hoanghochoi.com',
-      hostname: 'opshub-staging.hoanghochoi.com',
+      origin: 'https://staging.phongvu.work',
+      hostname: 'staging.phongvu.work',
     },
   ),
-  'https://opshub.hoanghochoi.com/staging-download/downloads/a.apk',
+  'https://opshub-staging.hoanghochoi.com/downloads/a.apk',
 );
 assert.equal(
   sanitizeDownloadUrl(
     'https://opshub.hoanghochoi.com/downloads/a.apk',
     {
-      origin: 'https://opshub-staging.hoanghochoi.com',
-      hostname: 'opshub-staging.hoanghochoi.com',
+      origin: 'https://staging.phongvu.work',
+      hostname: 'staging.phongvu.work',
     },
   ),
   '',
 );
 assert.equal(
   sanitizeDownloadUrl(
-    'https://opshub.hoanghochoi.com/staging-download/downloads/a.apk#bad',
+    'https://opshub-staging.hoanghochoi.com/downloads/a.apk#bad',
     {
-      origin: 'https://opshub-staging.hoanghochoi.com',
-      hostname: 'opshub-staging.hoanghochoi.com',
+      origin: 'https://staging.phongvu.work',
+      hostname: 'staging.phongvu.work',
     },
   ),
   '',

@@ -5,8 +5,8 @@ import exec from "k6/execution";
 import { SharedArray } from "k6/data";
 import { Counter, Rate, Trend } from "k6/metrics";
 
-const REQUIRED_BASE_URL = "https://opshub-staging.hoanghochoi.com/api";
-const REQUIRED_WS_URL = "wss://opshub-staging.hoanghochoi.com/ws/v2";
+const REQUIRED_BASE_URL = "https://api-staging.phongvu.work/v1";
+const REQUIRED_WS_URL = "wss://api-staging.phongvu.work/v1/ws/v2";
 const REQUIRED_APPROVAL = "OPSHUB_STAGING_HOME_100QPS_APPROVED";
 const TOKENS_FILE = String(__ENV.TOKENS_FILE || "");
 const manifest = TOKENS_FILE ? JSON.parse(open(TOKENS_FILE)) : null;
@@ -337,7 +337,7 @@ export function realtimeV2() {
   const response = ws.connect(
     `${wsUrl}?ticket=${encodeURIComponent(ticket)}`,
     {
-      headers: { Origin: "https://opshub-staging.hoanghochoi.com" },
+      headers: { Origin: "https://staging.phongvu.work" },
       tags: { endpoint: "ws_v2" },
     },
     (socket) => {

@@ -1,5 +1,11 @@
 # Execution Plan: OPS-42 API-only Staging Ingress
 
+> **OPS-210 topology note (2026-08-21):** The public migration contract uses
+> one shared `opshub-staging` tunnel for both `staging.phongvu.work` and
+> `api-staging.phongvu.work`. This OPS-42 connector remains only for its
+> separately approved performance-isolation/rollback scope and must not own the
+> new API hostname or DNS record.
+
 Date: 2026-07-30
 
 ## Status

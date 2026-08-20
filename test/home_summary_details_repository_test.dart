@@ -55,7 +55,7 @@ void main() {
           limit: 500,
         );
 
-        expect(requestedUri.path, '/api/home/summary/details/v2');
+        expect(requestedUri.path, '/v1/home/summary/details/v2');
         expect(requestedUri.queryParameters, {
           'startDate': '2026-07-01',
           'endDate': '2026-07-30',
