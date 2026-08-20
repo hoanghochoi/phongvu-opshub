@@ -118,7 +118,7 @@
     "contractSha256": "0c4dbfdcaff8457195e4e98161e06da00f8aaba69f868699e05d68054efe9384",
     "httpProofSha256": "3a25e01b11a28e58f08948011e53b979df4f003b6c0ddc2122daa3ed4db9ae7a",
     "profileSha256": "da49beff1272cddcde60d627a541ac2bfb92d825b61f9623b5f8a13c8a58ce3d",
-    "runbookSha256": "2f734ae0e97285d8581e6d37b21ee900a31317941c5b4f30c5f16dc834742e12",
+    "runbookSha256": "16e793aa481f823c0e4a30a6d66121d3fdbcbc77e5df317e5a462f4a8cf0509c",
     "routeDays": [1, 7, 30, 90],
     "pairedVariants": true,
     "syntheticUsers": 60,
@@ -157,7 +157,7 @@
     },
     {
       "path": "deploy/staging/load-proof-runbook.md",
-      "sha256": "2f734ae0e97285d8581e6d37b21ee900a31317941c5b4f30c5f16dc834742e12"
+      "sha256": "16e793aa481f823c0e4a30a6d66121d3fdbcbc77e5df317e5a462f4a8cf0509c"
     },
     {
       "path": "scripts/load/opshub-home-phase1-contract.mjs",
