@@ -652,7 +652,7 @@ jobs:
           set -euo pipefail
           node scripts/validate-ops39-local-boundary.mjs
           node scripts/build-runtime-release.mjs
-          tar -C docs/help -czf dist/help-assets.tar.gz assets
+          tar -C docs/help -czf dist/help-assets.tar.gz .
           tar -C build/web -czf dist/web.tar.gz .
           remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           tmp_dir="${OPSHUB_REMOTE_APP_DIR}/tmp/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
@@ -927,7 +927,9 @@ jobs:
             sudo tar --no-same-owner -xzf "$TMP_DIR/web.tar.gz" -C "$shared_stage_dir/web"
             sudo tar --no-same-owner -xzf "$TMP_DIR/help-assets.tar.gz" -C "$shared_stage_dir/help"
             if ! sudo test -s "$shared_stage_dir/web/index.html" || \
-               ! sudo test -d "$shared_stage_dir/help/assets"; then
+               ! sudo test -d "$shared_stage_dir/help/assets" || \
+               ! sudo test -s "$shared_stage_dir/help/navigation.json" || \
+               ! sudo test -d "$shared_stage_dir/help/content"; then
               echo "Staged web or Help bundle is incomplete." >&2
               return 1
             fi

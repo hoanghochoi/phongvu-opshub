@@ -53,18 +53,22 @@ fi
 
 mkdir -p "$temp/opshub/releases/old/deploy/home-server" \
   "$temp/opshub/releases/new/deploy/home-server" \
-  "$temp/opshub/downloads/help/assets" "$temp/opshub/web" \
-  "$temp/input/web" "$temp/input/help/assets" "$temp/input/android" "$temp/input/windows"
+  "$temp/opshub/downloads/help/assets" "$temp/opshub/downloads/help/content" "$temp/opshub/web" \
+  "$temp/input/web" "$temp/input/help/assets" "$temp/input/help/content" "$temp/input/android" "$temp/input/windows"
 printf 'old runtime\n' > "$temp/opshub/releases/old/deploy/home-server/Caddyfile"
 printf 'new runtime\n' > "$temp/opshub/releases/new/deploy/home-server/Caddyfile"
 printf 'old index\n' > "$temp/opshub/web/index.html"
 printf 'old help\n' > "$temp/opshub/downloads/help/assets/old.md"
+printf '[{"key":"old","title":"Old","file":"old.md"}]\n' > "$temp/opshub/downloads/help/navigation.json"
+printf 'old Help content\n' > "$temp/opshub/downloads/help/content/old.md"
 printf 'old manifest\n' > "$temp/opshub/downloads/latest.json"
 printf 'old page\n' > "$temp/opshub/downloads/download.html"
 printf 'old icon\n' > "$temp/opshub/downloads/opshub-icon-192.png"
 printf 'old env\n' > "$temp/opshub.env"
 printf 'new index\n' > "$temp/input/web/index.html"
 printf 'new help\n' > "$temp/input/help/assets/new.md"
+printf '[{"key":"new","title":"New","file":"new.md"}]\n' > "$temp/input/help/navigation.json"
+printf 'new Help content\n' > "$temp/input/help/content/new.md"
 printf 'new manifest\n' > "$temp/input/latest.json"
 printf 'new page\n' > "$temp/input/download.html"
 printf 'new icon\n' > "$temp/input/opshub-icon-192.png"
@@ -175,32 +179,36 @@ opshub_txn_restore_shared
 grep -Fxq 'old index' "$WEB_DIR/index.html"
 opshub_txn_cleanup
 
-# Static-only transaction snapshots current Caddy/Help and shared download files.
+# Static-only publication changes shared download content only. The immutable
+# current release must remain byte-for-byte unchanged so its release manifest
+# and mounted Caddy identity remain valid.
 export DEPLOY_RUN_ID=103
 export DEPLOY_RUN_ATTEMPT=3
 export REMOTE_RELEASE_DIR="$CURRENT_DIR"
 export OPSHUB_TXN_STATIC_ONLY=true
-mkdir -p "$temp/input-static/help/assets"
+mkdir -p "$temp/input-static/help/assets" "$temp/input-static/help/content"
 printf 'static manifest\n' > "$temp/input-static/latest.json"
 printf 'static page\n' > "$temp/input-static/download.html"
 printf 'static icon\n' > "$temp/input-static/opshub-icon-192.png"
-printf 'static caddy\n' > "$temp/input-static/Caddyfile"
 printf 'static help\n' > "$temp/input-static/help/assets/static.md"
+printf '[{"key":"static","title":"Static","file":"static.md"}]\n' > "$temp/input-static/help/navigation.json"
+printf 'static Help content sentinel\n' > "$temp/input-static/help/content/static.md"
 tar -C "$temp/input-static/help" -czf "$temp/input-static/docs-help.tar.gz" .
 export TXN_INPUT_DIR="$temp/input-static"
+release_hash_before="$(find "$CURRENT_DIR" -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')"
 opshub_txn_begin
 opshub_txn_promote_static
 opshub_txn_require_promoted
 grep -Fxq 'static manifest' "$DOWNLOADS_DIR/latest.json"
-grep -Fxq 'static caddy' "$CURRENT_DIR/deploy/home-server/Caddyfile"
-grep -Fxq 'static help' "$CURRENT_DIR/docs/help/assets/static.md"
 grep -Fxq 'static help' "$DOWNLOADS_DIR/help/assets/static.md"
+grep -Fxq 'static Help content sentinel' "$DOWNLOADS_DIR/help/content/static.md"
+test "$(find "$CURRENT_DIR" -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')" = "$release_hash_before"
+test ! -e "$CURRENT_DIR/docs/help"
 opshub_txn_restore_shared
-opshub_txn_restore_static_current
 grep -Fxq 'old manifest' "$DOWNLOADS_DIR/latest.json"
 grep -Fxq 'old runtime' "$CURRENT_DIR/deploy/home-server/Caddyfile"
 grep -Fxq 'old help' "$DOWNLOADS_DIR/help/assets/old.md"
-test ! -e "$CURRENT_DIR/docs/help/assets/static.md"
+test "$(find "$CURRENT_DIR" -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')" = "$release_hash_before"
 opshub_txn_cleanup
 
 workflow="$root/.github/workflows/deploy-opshub.yml"
@@ -208,24 +216,44 @@ grep -Fq 'action-staging/${GITHUB_RUN_ID}/' "$workflow"
 ! grep -Fq 'action-staging/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}' "$workflow"
 grep -Fq "DEPLOY_RUN_ATTEMPT='\$GITHUB_RUN_ATTEMPT'" "$workflow"
 grep -Fq 'source "$TMP_DIR/release-transaction.sh"' "$workflow"
+static_publish_block="$(sed -n '/name: Publish shared download landing and Help files/,/name: Verify static download deploy/p' "$workflow")"
+! grep -Fq 'Caddyfile' <<<"$static_publish_block"
+! grep -Fq 'compose_cmd' <<<"$static_publish_block"
+static_finalize_block="$(sed -n '/name: Finalize successful static-only publication checkpoint/,/echo '\''Static-only publication checkpoint finalized/p' "$workflow")"
+grep -Fq 'production-runtime-identity.sh' <<<"$static_finalize_block"
+grep -Fq 'write "$runtime_identity"' <<<"$static_finalize_block"
+grep -Fq 'verify "$runtime_identity"' <<<"$static_finalize_block"
+grep -Fq 'verify-static-response' "$workflow"
+grep -Fq 'help-before-sentinel.json' "$workflow"
+grep -Fq -- '--force-recreate --wait --wait-timeout 120 api' "$workflow"
+grep -Fq 'tar -C docs/help -czf dist/help-assets.tar.gz .' "$workflow"
+grep -Fq '${OPSHUB_SSD_ROOT:-/srv/opshub}/downloads/help:/app/docs/help:ro' \
+  "$root/deploy/home-server/docker-compose.home.yml"
+! grep -Fq '../../docs/help:/app/docs/help:ro' \
+  "$root/deploy/home-server/docker-compose.home.yml"
 
 verify_full_line=$(grep -n 'name: Verify public health and version metadata' "$workflow" | cut -d: -f1)
-rollback_full_line=$(grep -n 'name: Roll back production after failed release verification' "$workflow" | cut -d: -f1)
+activate_tunnel_line=$(grep -n 'name: Activate production Cloudflare ingress after direct-origin acceptance' "$workflow" | cut -d: -f1)
+restore_tunnel_line=$(grep -n 'name: Restore production Tunnel after failed public verification' "$workflow" | cut -d: -f1)
 finalize_full_line=$(grep -n 'name: Finalize successful production release checkpoint' "$workflow" | cut -d: -f1)
 verify_static_line=$(grep -n 'name: Verify static download deploy' "$workflow" | cut -d: -f1)
 rollback_static_line=$(grep -n 'name: Roll back static-only publication after failed verification' "$workflow" | cut -d: -f1)
 finalize_static_line=$(grep -n 'name: Finalize successful static-only publication checkpoint' "$workflow" | cut -d: -f1)
-full_trap_line=$(grep -n "trap 'rollback_on_error" "$workflow" | cut -d: -f1)
+full_trap_line=$(grep -n "trap 'rollback_on_error" "$workflow" | head -n 1 | cut -d: -f1)
 full_promote_line=$(grep -n 'opshub_txn_stage_shared' "$workflow" | cut -d: -f1)
-static_trap_line=$(grep -n "trap 'rollback_static" "$workflow" | cut -d: -f1)
+static_trap_line=$(grep -n "trap 'rollback_static" "$workflow" | head -n 1 | cut -d: -f1)
 static_promote_line=$(grep -n 'opshub_txn_promote_static' "$workflow" | cut -d: -f1)
 mapfile -t cleanup_lines < <(grep -n 'opshub_txn_cleanup' "$workflow" | cut -d: -f1)
-test "$verify_full_line" -lt "$rollback_full_line"
-test "$rollback_full_line" -lt "$finalize_full_line"
+test "$activate_tunnel_line" -lt "$verify_full_line"
+test "$verify_full_line" -lt "$restore_tunnel_line"
+test "$restore_tunnel_line" -lt "$finalize_full_line"
 test "$verify_static_line" -lt "$rollback_static_line"
 test "$rollback_static_line" -lt "$finalize_static_line"
 test "$full_trap_line" -lt "$full_promote_line"
 test "$static_trap_line" -lt "$static_promote_line"
+grep -Fq "trap 'rollback_static 130' INT" "$workflow"
+grep -Fq "trap 'rollback_static 143' TERM" "$workflow"
+grep -Fq "trap 'rollback_static 129' HUP" "$workflow"
 test "${#cleanup_lines[@]}" -eq 2
 test "$finalize_full_line" -lt "${cleanup_lines[0]}"
 test "$finalize_static_line" -lt "${cleanup_lines[1]}"
@@ -301,5 +329,7 @@ bash "$1" "$2" "$3"
 printf 'remote-transaction-continued\n' > "$4"
 REMOTE
 grep -Fxq 'remote-transaction-continued' "$bootstrap_marker"
+
+bash "$root/tests/release/test-production-cutover-transaction.sh"
 
 echo 'release transaction snapshot, stdin boundary, fail-closed retention, and static rollback contract passed'

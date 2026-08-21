@@ -611,15 +611,35 @@ jobs:
           else
             echo "origin/${OPSHUB_HELP_CONTENT_BRANCH} not found; using docs/help from ${GITHUB_REF_NAME}."
           fi
+          previous_release_real="$(ssh opshub-vps "readlink -f '${OPSHUB_REMOTE_APP_DIR}/current'")"
+          previous_release_name="$(basename "$previous_release_real")"
+          directory_release_sha="${previous_release_name%%-*}"
+          previous_release_sha="$(
+            ssh opshub-vps \
+              "python3 -c 'import json; print(json.load(open(\"${previous_release_real}/release-manifest.json\", encoding=\"utf-8\"))[\"sourceCommit\"])'"
+          )"
+          if ! [[ "$previous_release_sha" =~ ^[0-9a-f]{40}$ ]] || \
+             [ "$previous_release_sha" != "$directory_release_sha" ]; then
+            echo "Current production release does not expose an exact Git SHA: $previous_release_name" >&2
+            exit 1
+          fi
+          git fetch --no-tags --depth=1 origin "$previous_release_sha"
+          rollback_authority_dir="dist/rollback-authority/${previous_release_sha}"
+          mkdir -p "$rollback_authority_dir"
+          git show "${previous_release_sha}:deploy/home-server/env.example" \
+            > "$rollback_authority_dir/env.example"
           node scripts/validate-ops39-local-boundary.mjs
           node scripts/build-runtime-release.mjs
-          tar -C docs/help -czf dist/help-assets.tar.gz assets
+          tar -C docs/help -czf dist/help-assets.tar.gz .
           tar -C build/web -czf dist/web.tar.gz .
           remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           tmp_dir="${OPSHUB_REMOTE_APP_DIR}/tmp/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           ssh opshub-vps "mkdir -p '$remote_release_dir' '$tmp_dir'"
           rsync -az --delete 'dist/runtime-release/' \
             "opshub-vps:${remote_release_dir}/"
+          ssh opshub-vps "mkdir -p '${remote_release_dir}/rollback-authority/${previous_release_sha}'"
+          scp "$rollback_authority_dir/env.example" \
+            "opshub-vps:${remote_release_dir}/rollback-authority/${previous_release_sha}/env.example"
           scp 'dist/downloads/latest.json' 'deploy/home-server/download.html' \
             'dist/help-assets.tar.gz' 'dist/web.tar.gz' "opshub-vps:${tmp_dir}/"
           scp 'web/icons/Icon-192.png' \
@@ -652,6 +672,7 @@ jobs:
              OPSHUB_SSD_ROOT='/srv/opshub' \
              DOWNLOADS_DIR='/srv/opshub/downloads' \
              WEB_DIR='/srv/opshub/web' \
+             OPSHUB_COMPOSE_PROJECT='home-server' \
              OPSHUB_PUBLIC_BASE_URL='${OPSHUB_PUBLIC_BASE_URL}' \
              APK_NAME='${{ needs.prepare.outputs.apk_name }}' \
              WINDOWS_ZIP_NAME='${{ needs.prepare.outputs.windows_zip_name }}' \
@@ -682,6 +703,25 @@ jobs:
           fi
           opshub_txn_begin
           previous_current="$(opshub_txn_previous_release)"
+          rollback_source_commit="$(
+            python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["sourceCommit"])' \
+              "$previous_current/release-manifest.json"
+          )"
+          verified_rollback_commit="$(
+            bash "$REMOTE_RELEASE_DIR/deploy/home-server/verify-release-manifest.sh" "$previous_current"
+          )"
+          [ "$verified_rollback_commit" = "$rollback_source_commit" ] || {
+            echo 'Exact previous release manifest verification returned a different source commit.' >&2
+            exit 1
+          }
+          rollback_env="${OPSHUB_TXN_ENV_SNAPSHOT}.prepared"
+          runtime_identity="${OPSHUB_TXN_ROLLBACK_DIR}/current-runtime-identity.json"
+          recovery_started=false
+          recovery_disabled=false
+          bash "$REMOTE_RELEASE_DIR/deploy/home-server/prepare-rollback-env.sh" \
+            "$previous_current" "$OPSHUB_TXN_ENV_SNAPSHOT" "$rollback_env" \
+            "$REMOTE_RELEASE_DIR/rollback-authority/$rollback_source_commit/env.example" \
+            "$rollback_source_commit"
 
           compose_cmd() {
              "${compose[@]}" "$@" < /dev/null
@@ -703,56 +743,38 @@ jobs:
              set -e
           }
 
-          rollback_to_release() {
-             local candidate="$1"
-             if [ ! -d "$candidate" ]; then
-               return 1
-             fi
-             echo "Attempting rollback to release: $candidate"
-             ln -sfn "$candidate" "${CURRENT_DIR}.rollback"
-             mv -Tf "${CURRENT_DIR}.rollback" "$CURRENT_DIR"
-             cd "$CURRENT_DIR"
-             export OPSHUB_ENV_FILE
-             compose=(docker compose --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
-             if compose_cmd up -d --build --force-recreate --wait --wait-timeout 240 redis api realtime caddy; then
-               echo "Rollback release is healthy: $candidate"
-               compose_cmd ps
-               return 0
-             fi
-             dump_deploy_diagnostics
-             return 1
-          }
-
           rollback_on_error() {
              local status="$1"
-             local env_restored=false
              local shared_restored=false
-             trap - ERR
+             if [ "$recovery_disabled" = true ]; then exit "$status"; fi
+             if [ "$recovery_started" = true ]; then
+               echo 'Production recovery re-entry blocked.' >&2
+               exit "$status"
+             fi
+             recovery_started=true
+             trap - ERR INT TERM HUP
              echo "Deploy failed with status $status" >&2
              dump_deploy_diagnostics
-             if opshub_txn_restore_env; then
-               env_restored=true
-             else
-               echo "Production env restore failed; rollback evidence retained." >&2
-             fi
              if opshub_txn_restore_shared; then
                shared_restored=true
              else
                echo "Production shared publication restore failed; rollback evidence retained." >&2
              fi
-             if [ "$env_restored" != true ]; then
-               echo "Exact runtime rollback is unsafe without the previous env; manual recovery required." >&2
+             if OPSHUB_SUDO=sudo \
+                bash "$REMOTE_RELEASE_DIR/deploy/home-server/rollback-runtime.sh" \
+                  "$previous_current" "$rollback_env" "$OPSHUB_ENV_FILE" "$CURRENT_DIR" && \
+                [ "$shared_restored" = true ] && \
+                OPSHUB_SUDO=sudo bash "$REMOTE_RELEASE_DIR/deploy/home-server/verify-production-baseline.sh" \
+                  "$previous_current" "$rollback_env" "$OPSHUB_ENV_FILE" "$CURRENT_DIR" \
+                  "$DOWNLOADS_DIR" "$WEB_DIR" && \
+                sudo env OPSHUB_SUDO='' bash "$REMOTE_RELEASE_DIR/deploy/home-server/production-runtime-identity.sh" \
+                  write "$runtime_identity" "$previous_current" "$rollback_env" \
+                  "$DOWNLOADS_DIR" "$WEB_DIR" "$CURRENT_DIR" && \
+                verify_previous_baseline; then
+               echo "Rollback is identity-bound and behaviorally coherent; checkpoint retained because the release failed." >&2
                exit "$status"
              fi
-             if rollback_to_release "$previous_current"; then
-               if [ "$shared_restored" = true ]; then
-                 echo "Rollback is healthy; checkpoint retained because the release failed." >&2
-               else
-                 echo "Runtime is healthy but shared publication recovery remains incomplete." >&2
-               fi
-               exit "$status"
-             fi
-             echo "Exact previous release rollback did not become healthy; evidence retained." >&2
+             echo "Exact previous release rollback did not pass shared, runtime, identity and behavior proof; evidence retained." >&2
              exit "$status"
           }
 
@@ -766,6 +788,25 @@ jobs:
              rollback_on_error "$status"
           }
           trap 'rollback_on_error $?' ERR
+          trap 'rollback_on_error 130' INT
+          trap 'rollback_on_error 143' TERM
+          trap 'rollback_on_error 129' HUP
+
+          verify_previous_baseline() {
+            OPSHUB_SUDO=sudo \
+              bash "$REMOTE_RELEASE_DIR/deploy/home-server/verify-production-baseline.sh" \
+                "$previous_current" "$rollback_env" "$OPSHUB_ENV_FILE" "$CURRENT_DIR" \
+                "$DOWNLOADS_DIR" "$WEB_DIR" && \
+            sudo env OPSHUB_SUDO='' \
+              bash "$REMOTE_RELEASE_DIR/deploy/home-server/production-runtime-identity.sh" \
+                verify "$runtime_identity" "$previous_current" "$rollback_env" \
+                "$DOWNLOADS_DIR" "$WEB_DIR" "$CURRENT_DIR"
+          }
+
+          OPSHUB_SUDO=sudo \
+            bash "$REMOTE_RELEASE_DIR/deploy/home-server/reconcile-production-baseline.sh" \
+              "$previous_current" "$rollback_env" "$OPSHUB_ENV_FILE" "$CURRENT_DIR" \
+              "$DOWNLOADS_DIR" "$WEB_DIR" "$runtime_identity"
 
           sudo chown root:"$(id -gn)" "$OPSHUB_ENV_FILE"
           sudo chmod 640 "$OPSHUB_ENV_FILE"
@@ -784,9 +825,6 @@ jobs:
             UPLOAD_BASE_DIR
             PRIVATE_MEDIA_BASE_DIR
           )
-          # Domain and public publication keys are owned by this release
-          # transaction below. The existing production env may predate the
-          # domain migration, so validate these keys after upserting them.
           for key in "${required_runtime_env_keys[@]}"; do
             value="$(sudo sed -n "s/^${key}=//p" "$OPSHUB_ENV_FILE" | head -n 1)"
             if [ -z "$value" ]; then
@@ -909,21 +947,20 @@ jobs:
             -v "$REMOTE_RELEASE_DIR/deploy/home-server/Caddyfile:/etc/caddy/Caddyfile:ro" \
             caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile < /dev/null
 
-          # Publish client/static inputs only after env and Caddy validation,
-          # while keeping the complete rollback checkpoint alive.
           opshub_txn_stage_shared
           ln -sfn "$REMOTE_RELEASE_DIR" "${CURRENT_DIR}.next"
           mv -Tf "${CURRENT_DIR}.next" "$CURRENT_DIR"
           cd "$CURRENT_DIR"
           export OPSHUB_ENV_FILE
-          compose=(docker compose --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
+          compose=(docker compose --project-name "$OPSHUB_COMPOSE_PROJECT" --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
           compose_cmd() {
             "${compose[@]}" "$@" < /dev/null
           }
 
           compose_cmd config >/dev/null
           run_compose_or_rollback up -d --no-recreate --wait postgres
-          bash deploy/home-server/bootstrap-bidv-kek.sh "$OPSHUB_ENV_FILE"
+          COMPOSE_PROJECT_NAME="$OPSHUB_COMPOSE_PROJECT" \
+            bash deploy/home-server/bootstrap-bidv-kek.sh "$OPSHUB_ENV_FILE"
 
           # The first hardened production rollout enables Redis authentication.
           # Recreate Redis in the same guarded maintenance transaction so API and
@@ -988,12 +1025,56 @@ jobs:
             sleep 5
           done
 
+          bash deploy/home-server/verify-production-origin.sh "$OPSHUB_ENV_FILE" "$DOWNLOADS_DIR"
+          sudo env OPSHUB_SUDO='' \
+            bash deploy/home-server/production-runtime-identity.sh \
+              write "$runtime_identity" "$CURRENT_DIR" "$OPSHUB_ENV_FILE" \
+              "$DOWNLOADS_DIR" "$WEB_DIR" "$CURRENT_DIR"
+          sudo install -m 0600 /dev/null "$OPSHUB_TXN_SHARED_SNAPSHOT/DIRECT_ORIGIN_ACCEPTED"
           compose_cmd ps
-          trap - ERR
+          recovery_disabled=true
+          trap - ERR INT TERM HUP
 
           REMOTE
 
+      - name: Activate production Cloudflare ingress after direct-origin acceptance
+        id: activate_tunnel
+        shell: bash
+        run: |
+          set -euo pipefail
+          remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ssh opshub-vps \
+            "REMOTE_RELEASE_DIR='$remote_release_dir' \
+             CURRENT_DIR='${OPSHUB_REMOTE_APP_DIR}/current' \
+             DEPLOY_RUN_ID='$GITHUB_RUN_ID' \
+             DEPLOY_RUN_ATTEMPT='$GITHUB_RUN_ATTEMPT' \
+             OPSHUB_ENV_FILE='$OPSHUB_ENV_FILE' \
+             OPSHUB_SSD_ROOT='/srv/opshub' \
+             DOWNLOADS_DIR='/srv/opshub/downloads' \
+             WEB_DIR='/srv/opshub/web' \
+             bash -s" <<'REMOTE'
+          set -Eeuo pipefail
+          source "$REMOTE_RELEASE_DIR/deploy/home-server/release-transaction.sh"
+          export OPSHUB_SUDO=sudo
+          opshub_txn_load
+          opshub_txn_require_promoted
+          current_real="$(readlink -f "$CURRENT_DIR" || true)"
+          candidate_real="$(opshub_txn_candidate_release)"
+          [ "$current_real" = "$candidate_real" ] || { echo 'Cloudflare activation candidate does not match current runtime.' >&2; exit 1; }
+          sudo test -e "$OPSHUB_TXN_SHARED_SNAPSHOT/DIRECT_ORIGIN_ACCEPTED" || { echo 'Production direct-origin acceptance marker is missing.' >&2; exit 1; }
+          runtime_identity="${OPSHUB_TXN_ROLLBACK_DIR}/current-runtime-identity.json"
+          sudo env OPSHUB_SUDO='' \
+            bash "$REMOTE_RELEASE_DIR/deploy/home-server/production-runtime-identity.sh" \
+              verify "$runtime_identity" "$CURRENT_DIR" "$OPSHUB_ENV_FILE" \
+              "$DOWNLOADS_DIR" "$WEB_DIR" "$CURRENT_DIR"
+          tunnel_snapshot="${OPSHUB_TXN_ROLLBACK_DIR}/cloudflare-${OPSHUB_TXN_ID}.config"
+          sudo env OPSHUB_SUDO='' \
+            bash "$REMOTE_RELEASE_DIR/deploy/home-server/cloudflare-ingress-transaction.sh" \
+              activate /etc/cloudflared/config.yml "$tunnel_snapshot"
+          REMOTE
+
       - name: Verify public health and version metadata
+        id: verify_public
         shell: bash
         run: |
           set -euo pipefail
@@ -1027,6 +1108,22 @@ jobs:
               echo 'Production still serves a report-only CSP.' >&2
               return 1
             fi
+          }
+          verify_public_artifact() {
+            local url="$1" headers status content_length
+            headers="$(mktemp)"
+            status="$(curl -sSIL -o "$headers" -w '%{http_code}' --max-redirs 5 "$url")"
+            if [[ "$status" != 2* ]]; then
+              rm -f "$headers"
+              echo "Production artifact final response returned ${status}; expected exact 2xx after redirects." >&2
+              return 1
+            fi
+            content_length="$(awk 'tolower($1) == "content-length:" { gsub(/\r/, "", $2); value=$2 } END { print value }' "$headers")"
+            rm -f "$headers"
+            [[ "$content_length" =~ ^[1-9][0-9]*$ ]] || {
+              echo 'Production artifact final response lacks a positive Content-Length.' >&2
+              return 1
+            }
           }
 
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/health"
@@ -1098,11 +1195,57 @@ jobs:
             if (web.forceUpdate !== false) throw new Error('Web forceUpdate must be false');
             if (web.minSupportedBuild !== 1) throw new Error('Web minSupportedBuild must be 1');
           " "$android_json" "$windows_json" "$web_json" "${{ needs.prepare.outputs.version_code }}"
-          curl -fIs "$(node -e "console.log(JSON.parse(process.argv[1]).packageUrl)" "$android_json")" >/dev/null
-          curl -fIs "$(node -e "console.log(JSON.parse(process.argv[1]).packageUrl)" "$windows_json")" >/dev/null
+          verify_public_artifact "$(node -e "console.log(JSON.parse(process.argv[1]).packageUrl)" "$android_json")"
+          verify_public_artifact "$(node -e "console.log(JSON.parse(process.argv[1]).packageUrl)" "$windows_json")"
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/download" >/dev/null
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/help" >/dev/null
           help_json="$(retry_curl "${OPSHUB_API_BASE_URL}/help-content/public")"
+          ws_status="$(curl --http1.1 --max-time 10 -sS -o /dev/null -w '%{http_code}' \
+            -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' \
+            -H 'Sec-WebSocket-Key: MDEyMzQ1Njc4OWFiY2RlZg==' \
+            "${OPSHUB_API_BASE_URL}/ws/v2")"
+          if [ "$ws_status" != 401 ]; then
+            echo "Production /v1/ws/v2 without a one-time ticket returned ${ws_status}; expected 401." >&2
+            exit 1
+          fi
+          token_body="$(mktemp)"
+          balance_body="$(mktemp)"
+          token_status="$(curl -sS -o "$token_body" -w '%{http_code}' -X POST \
+            -H 'Content-Type: application/x-www-form-urlencoded' \
+            -H 'Authorization: Basic aW52YWxpZDppbnZhbGlk' \
+            --data 'grant_type=client_credentials' "${OPSHUB_API_BASE_URL}/bidv/oauth2/token")"
+          balance_status="$(curl -sS -o "$balance_body" -w '%{http_code}' -X POST \
+            -H 'Content-Type: application/json' -H 'Authorization: Bearer invalid' \
+            -H 'REQUESTID: opshub-release-gate' --data '{"bankCode":"BIDV","data":"QQ=="}' \
+            "${OPSHUB_API_BASE_URL}/bidv/balance-changes")"
+          if [ "$token_status" = 503 ]; then
+            expected_bidv_status=503
+            expected_token_error=temporarily_unavailable
+            expected_balance_error=temporarily_unavailable
+          elif [ "$token_status" = 401 ]; then
+            expected_bidv_status=401
+            expected_token_error=invalid_client
+            expected_balance_error=invalid_token
+          else
+            rm -f "$token_body" "$balance_body"
+            echo "Production BIDV token policy returned forbidden status ${token_status}." >&2
+            exit 1
+          fi
+          if [ "$balance_status" != "$expected_bidv_status" ]; then
+            rm -f "$token_body" "$balance_body"
+            echo "Production BIDV policy mismatch token=${token_status} balance=${balance_status} expected=${expected_bidv_status}." >&2
+            exit 1
+          fi
+          node -e "
+            const fs = require('fs');
+            const checks = [[process.argv[1], process.argv[2]], [process.argv[3], process.argv[4]]];
+            for (const [file, expected] of checks) {
+              if (JSON.parse(fs.readFileSync(file, 'utf8')).error !== expected) {
+                throw new Error('BIDV public namespace error contract mismatch');
+              }
+            }
+          " "$token_body" "$expected_token_error" "$balance_body" "$expected_balance_error"
+          rm -f "$token_body" "$balance_body"
           manifest_json="$(retry_curl "${OPSHUB_PUBLIC_BASE_URL}/downloads/latest.json")"
           node -e "
             const help = JSON.parse(process.argv[1]);
@@ -1134,64 +1277,46 @@ jobs:
             const manifest = JSON.parse(process.argv[1]);
             for (const file of Object.values(manifest.files)) console.log(file.url);
           " "$manifest_json" | while IFS= read -r url; do
-            curl -fIs "$url" >/dev/null
+            verify_public_artifact "$url"
           done
 
-      - name: Roll back production after failed release verification
-        if: ${{ (failure() || cancelled()) && steps.deploy_runtime.outcome == 'success' }}
+      - name: Restore production Tunnel after failed public verification
+        if: ${{ always() && steps.activate_tunnel.outcome != 'skipped' && steps.verify_public.outcome != 'success' }}
         shell: bash
         run: |
           set -euo pipefail
           remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          client_staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}"
-          tmp_dir="${OPSHUB_REMOTE_APP_DIR}/tmp/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           ssh opshub-vps \
             "REMOTE_RELEASE_DIR='$remote_release_dir' \
              CURRENT_DIR='${OPSHUB_REMOTE_APP_DIR}/current' \
-             CLIENT_STAGING_DIR='$client_staging_dir' \
-             TMP_DIR='$tmp_dir' \
-             OPSHUB_REMOTE_APP_DIR='${OPSHUB_REMOTE_APP_DIR}' \
              DEPLOY_RUN_ID='$GITHUB_RUN_ID' \
              DEPLOY_RUN_ATTEMPT='$GITHUB_RUN_ATTEMPT' \
              OPSHUB_ENV_FILE='$OPSHUB_ENV_FILE' \
              OPSHUB_SSD_ROOT='/srv/opshub' \
              DOWNLOADS_DIR='/srv/opshub/downloads' \
              WEB_DIR='/srv/opshub/web' \
-             APK_NAME='${{ needs.prepare.outputs.apk_name }}' \
-             WINDOWS_ZIP_NAME='${{ needs.prepare.outputs.windows_zip_name }}' \
-             WINDOWS_INSTALLER_NAME='${{ needs.prepare.outputs.windows_installer_name }}' \
-             WINDOWS_CHECKSUM_NAME='${{ needs.prepare.outputs.windows_checksum_name }}' \
-             COMPOSE_PROJECT_NAME='opshub' \
              bash -s" <<'REMOTE'
           set -Eeuo pipefail
           source "$REMOTE_RELEASE_DIR/deploy/home-server/release-transaction.sh"
           export OPSHUB_SUDO=sudo
-          txn_id="${DEPLOY_RUN_ID}-${DEPLOY_RUN_ATTEMPT}"
-          if ! sudo test -s "${OPSHUB_ENV_FILE}.rollback.${txn_id}" || \
-             ! sudo test -s "${OPSHUB_SSD_ROOT}/rollback/deploy-${txn_id}.state" || \
-             ! sudo test -e "${OPSHUB_SSD_ROOT}/rollback/deploy-${txn_id}.shared/SNAPSHOT_READY"; then
-            echo 'Protected production rollback checkpoint is missing; manual recovery required.' >&2
-            exit 1
-          fi
           opshub_txn_load
           opshub_txn_require_promoted
-          previous_release="$(opshub_txn_previous_release)"
           current_real="$(readlink -f "$CURRENT_DIR" || true)"
-          if [ "$current_real" != "$(opshub_txn_candidate_release)" ]; then
-            echo 'Production rollback candidate no longer matches checkpoint; refusing runtime change.' >&2
-            exit 1
-          fi
-          opshub_txn_restore_env
-          opshub_txn_restore_shared
-          ln -sfn "$previous_release" "${CURRENT_DIR}.rollback"
-          mv -Tf "${CURRENT_DIR}.rollback" "$CURRENT_DIR"
-          cd "$CURRENT_DIR"
-          export OPSHUB_ENV_FILE COMPOSE_PROJECT_NAME
-          compose=(docker compose --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
-          compose_cmd() { "${compose[@]}" "$@" < /dev/null; }
-          compose_cmd up -d --build --force-recreate --wait --wait-timeout 240 redis api realtime caddy
+          candidate_real="$(opshub_txn_candidate_release)"
+          [ "$current_real" = "$candidate_real" ] || { echo 'Directly accepted production foundation no longer matches current runtime.' >&2; exit 1; }
+          sudo test -e "$OPSHUB_TXN_SHARED_SNAPSHOT/DIRECT_ORIGIN_ACCEPTED" || { echo 'Direct-origin acceptance evidence is missing.' >&2; exit 1; }
+          runtime_identity="${OPSHUB_TXN_ROLLBACK_DIR}/current-runtime-identity.json"
+          tunnel_snapshot="${OPSHUB_TXN_ROLLBACK_DIR}/cloudflare-${OPSHUB_TXN_ID}.config"
+          sudo env OPSHUB_SUDO='' \
+            bash "$REMOTE_RELEASE_DIR/deploy/home-server/cloudflare-ingress-transaction.sh" \
+              restore /etc/cloudflared/config.yml "$tunnel_snapshot"
           curl -fsS -H 'Host: phongvu.work' -H 'X-Forwarded-Proto: https' 'http://127.0.0.1:8090/health' >/dev/null
-          echo 'Production release, env, web, Help, manifest and client files rolled back; checkpoint retained because public verification failed.' >&2
+          curl -fsS -H 'Host: api.phongvu.work' -H 'X-Forwarded-Proto: https' 'http://127.0.0.1:8090/v1/health' >/dev/null
+          sudo env OPSHUB_SUDO='' \
+            bash "$REMOTE_RELEASE_DIR/deploy/home-server/production-runtime-identity.sh" \
+              verify "$runtime_identity" "$CURRENT_DIR" "$OPSHUB_ENV_FILE" \
+              "$DOWNLOADS_DIR" "$WEB_DIR" "$CURRENT_DIR"
+          echo 'Production Tunnel was restored; the directly verified dual-domain candidate foundation and rollback checkpoint were retained.' >&2
           REMOTE
 
       - name: Finalize successful production release checkpoint
@@ -1212,6 +1337,16 @@ jobs:
           current_real="$(readlink -f "$CURRENT_DIR" || true)"
           candidate_real="$(opshub_txn_candidate_release)"
           [ "$current_real" = "$candidate_real" ] || { echo 'Successful release checkpoint does not match current runtime.' >&2; exit 1; }
+          sudo test -e "$OPSHUB_TXN_SHARED_SNAPSHOT/DIRECT_ORIGIN_ACCEPTED" || { echo 'Successful release is missing direct-origin acceptance evidence.' >&2; exit 1; }
+          runtime_identity="${OPSHUB_TXN_ROLLBACK_DIR}/current-runtime-identity.json"
+          sudo env OPSHUB_SUDO='' \
+            bash "$REMOTE_RELEASE_DIR/deploy/home-server/production-runtime-identity.sh" \
+              verify "$runtime_identity" "$CURRENT_DIR" "$OPSHUB_ENV_FILE" \
+              "$DOWNLOADS_DIR" "$WEB_DIR" "$CURRENT_DIR"
+          tunnel_snapshot="${OPSHUB_TXN_ROLLBACK_DIR}/cloudflare-${OPSHUB_TXN_ID}.config"
+          sudo env OPSHUB_SUDO='' \
+            bash "$REMOTE_RELEASE_DIR/deploy/home-server/cloudflare-ingress-transaction.sh" \
+              finalize /etc/cloudflared/config.yml "$tunnel_snapshot"
           case "$CLIENT_STAGING_DIR" in "$OPSHUB_REMOTE_APP_DIR"/action-staging/*) rm -rf -- "$CLIENT_STAGING_DIR" ;; *) exit 1 ;; esac
           case "$TMP_DIR" in "$OPSHUB_REMOTE_APP_DIR"/tmp/*) rm -rf -- "$TMP_DIR" ;; *) exit 1 ;; esac
           releases_dir="$(dirname "$REMOTE_RELEASE_DIR")"
@@ -1226,8 +1361,9 @@ jobs:
           mapfile -t client_files < <(find "$DOWNLOADS_DIR" -maxdepth 1 -type f \( -name 'phongvu-opshub-v*.apk' -o -name 'phongvu-opshub-windows-v*.zip' -o -name 'phongvu-opshub-windows-setup-v*.exe' -o -name 'phongvu-opshub-windows-v*.sha256' \) -printf '%T@ %p\n' | sort -rn | awk '{print $2}')
           kept=0
           for file in "${client_files[@]}"; do if [ "$kept" -lt 20 ]; then kept=$((kept + 1)); else rm -f -- "$file"; fi; done
+          sudo rm -f -- "${OPSHUB_TXN_ENV_SNAPSHOT}.prepared"
           opshub_txn_cleanup
-          echo 'Production release checkpoint finalized after public verification.'
+          echo 'Production release and Tunnel checkpoints finalized after public verification.'
           REMOTE
 
   deploy_download_static:
@@ -1291,7 +1427,23 @@ jobs:
             echo "  IdentitiesOnly yes"
           } >> ~/.ssh/config
 
-      - name: Upload download landing files and reload Caddy
+      - name: Capture complete Help ownership state
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/downloads
+          curl -fsS "${OPSHUB_API_BASE_URL}/help-content/public" > dist/downloads/help-before.json
+          node scripts/verify-help-content-sentinel.mjs from-response \
+            dist/downloads/help-before.json dist/downloads/help-before-sentinel.json
+          ssh opshub-vps \
+            "cd '${OPSHUB_REMOTE_APP_DIR}/current' && \
+             OPSHUB_ENV_FILE='$OPSHUB_ENV_FILE' OPSHUB_SSD_ROOT='/srv/opshub' \
+             docker compose --project-name home-server --env-file '$OPSHUB_ENV_FILE' \
+               -f deploy/home-server/docker-compose.home.yml exec -T api \
+               node dist/src/help-content/help-content-deploy-state.js < /dev/null" \
+            > dist/downloads/help-state-before.json
+
+      - name: Publish shared download landing and Help files
         id: deploy_static
         shell: bash
         run: |
@@ -1304,9 +1456,11 @@ jobs:
           fi
           tmp_dir="${OPSHUB_REMOTE_APP_DIR}/tmp/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-static"
           tar -C docs/help -czf dist/docs-help.tar.gz .
+          node scripts/verify-help-content-sentinel.mjs \
+            from-docs docs/help dist/help-content-sentinel.json
           ssh opshub-vps "mkdir -p '$tmp_dir'"
           scp 'dist/downloads/latest.json' 'deploy/home-server/download.html' \
-            'deploy/home-server/Caddyfile' 'deploy/home-server/release-transaction.sh' \
+            'deploy/home-server/release-transaction.sh' \
             'dist/docs-help.tar.gz' \
             "opshub-vps:${tmp_dir}/"
           scp 'web/icons/Icon-192.png' \
@@ -1333,58 +1487,39 @@ jobs:
             echo "Current deploy directory is missing: $CURRENT_DIR/deploy/home-server" >&2
             exit 1
           fi
-          docker run --rm \
-            --env-file "$OPSHUB_ENV_FILE" \
-            -v "$TMP_DIR/Caddyfile:/etc/caddy/Caddyfile:ro" \
-            caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile < /dev/null
           opshub_txn_begin
           rollback_static() {
             local status="$1"
             local shared_restored=false
-            local static_restored=false
-            local caddy_restored=false
-            trap - ERR
+            local api_restored=false
+            trap - ERR INT TERM HUP
             echo "Static-only publication failed with status $status" >&2
             if opshub_txn_restore_shared; then
               shared_restored=true
             fi
-            if opshub_txn_restore_static_current; then
-              static_restored=true
-            fi
-            if [ "$shared_restored" = true ] && [ "$static_restored" = true ]; then
+            if [ "$shared_restored" = true ]; then
               cd "$CURRENT_DIR"
-              export OPSHUB_ENV_FILE
-              compose=(docker compose --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
-              compose_cmd() { "${compose[@]}" "$@" < /dev/null; }
-              if compose_cmd up -d --no-deps --force-recreate --wait --wait-timeout 120 caddy; then
-                caddy_restored=true
+              compose=(docker compose --project-name home-server --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
+              if "${compose[@]}" up -d --no-deps --force-recreate --wait --wait-timeout 120 api < /dev/null; then
+                api_restored=true
               fi
             fi
-            if [ "$shared_restored" = true ] && [ "$static_restored" = true ] && [ "$caddy_restored" = true ]; then
-              echo 'Static rollback is healthy; checkpoint retained because publication failed.' >&2
+            if [ "$shared_restored" = true ] && [ "$api_restored" = true ]; then
+              echo 'Static shared-content and API mount rollback completed; checkpoint retained because publication failed.' >&2
             else
               echo 'Static-only rollback incomplete; evidence retained.' >&2
             fi
             exit "$status"
           }
           trap 'rollback_static $?' ERR
+          trap 'rollback_static 130' INT
+          trap 'rollback_static 143' TERM
+          trap 'rollback_static 129' HUP
           opshub_txn_promote_static
           cd "$CURRENT_DIR"
-          export OPSHUB_ENV_FILE
-          compose=(docker compose --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
-          compose_cmd() {
-            "${compose[@]}" "$@" < /dev/null
-          }
-
-          # The Caddyfile is a file bind mount. Recreate Caddy so replacing
-          # the host file also refreshes the container's mounted inode.
-          compose_cmd up -d --no-deps --force-recreate --wait --wait-timeout 120 caddy
-          if ! compose_cmd exec -T caddy caddy reload --config /etc/caddy/Caddyfile; then
-            compose_cmd restart caddy
-            compose_cmd up -d --no-deps --wait --wait-timeout 120 caddy
-          fi
-          compose_cmd ps caddy
-          trap - ERR
+          compose=(docker compose --project-name home-server --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
+          "${compose[@]}" up -d --no-deps --force-recreate --wait --wait-timeout 120 api < /dev/null
+          trap - ERR INT TERM HUP
           REMOTE
 
       - name: Verify static download deploy
@@ -1402,10 +1537,42 @@ jobs:
             done
             curl -fsS "$url"
           }
+          verify_static_artifact() {
+            local headers status length
+            headers="$(mktemp)"
+            status="$(curl -sSIL -o "$headers" -w '%{http_code}' --max-redirs 5 "$1")"
+            length="$(awk 'tolower($1) == "content-length:" { gsub(/\r/, "", $2); value=$2 } END { print value }' "$headers")"
+            rm -f "$headers"
+            [[ "$status" == 2* && "$length" =~ ^[1-9][0-9]*$ ]] || {
+              echo "Static artifact final response invalid: status=${status} contentLength=${length:-missing}." >&2
+              return 1
+            }
+          }
 
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/download" >/dev/null
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/help" >/dev/null
-          help_json="$(retry_curl "${OPSHUB_API_BASE_URL}/help-content/public")"
+          help_response_file="$(mktemp)"
+          help_verified=false
+          for attempt in {1..5}; do
+            retry_curl "${OPSHUB_API_BASE_URL}/help-content/public" > "$help_response_file"
+            ssh opshub-vps \
+              "cd '${OPSHUB_REMOTE_APP_DIR}/current' && \
+               OPSHUB_ENV_FILE='$OPSHUB_ENV_FILE' OPSHUB_SSD_ROOT='/srv/opshub' \
+               docker compose --project-name home-server --env-file '$OPSHUB_ENV_FILE' \
+                 -f deploy/home-server/docker-compose.home.yml exec -T api \
+                 node dist/src/help-content/help-content-deploy-state.js < /dev/null" \
+              > dist/downloads/help-state-after.json
+            if node scripts/verify-help-content-sentinel.mjs verify-static-response \
+              dist/downloads/help-state-before.json dist/help-content-sentinel.json \
+              dist/downloads/help-state-after.json "$help_response_file"; then
+              help_verified=true
+              break
+            fi
+            sleep 2
+          done
+          [ "$help_verified" = true ] || { echo 'Help state did not stabilize during static verification.' >&2; exit 1; }
+          help_json="$(cat "$help_response_file")"
+          rm -f "$help_response_file"
           manifest_json="$(retry_curl "${OPSHUB_PUBLIC_BASE_URL}/downloads/latest.json")"
           android_after="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=android")"
           windows_after="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=windows")"
@@ -1441,7 +1608,7 @@ jobs:
             const manifest = JSON.parse(process.argv[1]);
             for (const file of Object.values(manifest.files)) console.log(file.url);
           " "$manifest_json" | while IFS= read -r url; do
-            curl -fIs "$url" >/dev/null
+            verify_static_artifact "$url"
           done
 
       - name: Roll back static-only publication after failed verification
@@ -1464,14 +1631,32 @@ jobs:
             exit 1
           }
           opshub_txn_restore_shared
-          opshub_txn_restore_static_current
           cd "$CURRENT_DIR"
-          export OPSHUB_ENV_FILE
-          compose=(docker compose --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
-          compose_cmd() { "${compose[@]}" "$@" < /dev/null; }
-          compose_cmd up -d --no-deps --force-recreate --wait --wait-timeout 120 caddy
+          compose=(docker compose --project-name home-server --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
+          "${compose[@]}" up -d --no-deps --force-recreate --wait --wait-timeout 120 api < /dev/null
           echo 'Static-only publication rolled back; checkpoint retained because public verification failed.' >&2
           REMOTE
+          rollback_help_response="$(mktemp)"
+          rollback_help_verified=false
+          for attempt in {1..5}; do
+            curl -fsS "${OPSHUB_API_BASE_URL}/help-content/public" > "$rollback_help_response"
+            ssh opshub-vps \
+              "cd '${OPSHUB_REMOTE_APP_DIR}/current' && \
+               OPSHUB_ENV_FILE='$OPSHUB_ENV_FILE' OPSHUB_SSD_ROOT='/srv/opshub' \
+               docker compose --project-name home-server --env-file '$OPSHUB_ENV_FILE' \
+                 -f deploy/home-server/docker-compose.home.yml exec -T api \
+                 node dist/src/help-content/help-content-deploy-state.js < /dev/null" \
+              > dist/downloads/help-state-rollback.json
+            if node scripts/verify-help-content-sentinel.mjs verify-static-response \
+              dist/downloads/help-state-before.json dist/downloads/help-before-sentinel.json \
+              dist/downloads/help-state-rollback.json "$rollback_help_response"; then
+              rollback_help_verified=true
+              break
+            fi
+            sleep 2
+          done
+          [ "$rollback_help_verified" = true ] || { echo 'Help state did not stabilize after static rollback.' >&2; exit 1; }
+          rm -f "$rollback_help_response"
 
       - name: Finalize successful static-only publication checkpoint
         if: ${{ success() && steps.deploy_static.outcome == 'success' }}
@@ -1481,7 +1666,7 @@ jobs:
           current_dir="${OPSHUB_REMOTE_APP_DIR}/current"
           tmp_dir="${OPSHUB_REMOTE_APP_DIR}/tmp/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-static"
           ssh opshub-vps \
-            "REMOTE_RELEASE_DIR='$current_dir' CURRENT_DIR='$current_dir' TMP_DIR='$tmp_dir' OPSHUB_REMOTE_APP_DIR='${OPSHUB_REMOTE_APP_DIR}' DEPLOY_RUN_ID='$GITHUB_RUN_ID' DEPLOY_RUN_ATTEMPT='$GITHUB_RUN_ATTEMPT' OPSHUB_ENV_FILE='$OPSHUB_ENV_FILE' OPSHUB_SSD_ROOT='/srv/opshub' OPSHUB_TXN_STATIC_ONLY=true bash -s" <<'REMOTE'
+            "REMOTE_RELEASE_DIR='$current_dir' CURRENT_DIR='$current_dir' TMP_DIR='$tmp_dir' OPSHUB_REMOTE_APP_DIR='${OPSHUB_REMOTE_APP_DIR}' DEPLOY_RUN_ID='$GITHUB_RUN_ID' DEPLOY_RUN_ATTEMPT='$GITHUB_RUN_ATTEMPT' OPSHUB_ENV_FILE='$OPSHUB_ENV_FILE' OPSHUB_SSD_ROOT='/srv/opshub' DOWNLOADS_DIR='/srv/opshub/downloads' WEB_DIR='/srv/opshub/web' OPSHUB_TXN_STATIC_ONLY=true bash -s" <<'REMOTE'
           set -Eeuo pipefail
           source "$TMP_DIR/release-transaction.sh"
           export OPSHUB_SUDO=sudo
@@ -1492,6 +1677,15 @@ jobs:
             echo 'Static checkpoint no longer matches current runtime; refusing cleanup.' >&2
             exit 1
           }
+          runtime_identity="${OPSHUB_TXN_ROLLBACK_DIR}/current-runtime-identity.json"
+          sudo env OPSHUB_SUDO='' \
+            bash "$CURRENT_DIR/deploy/home-server/production-runtime-identity.sh" \
+              write "$runtime_identity" "$CURRENT_DIR" "$OPSHUB_ENV_FILE" \
+              "$DOWNLOADS_DIR" "$WEB_DIR" "$CURRENT_DIR"
+          sudo env OPSHUB_SUDO='' \
+            bash "$CURRENT_DIR/deploy/home-server/production-runtime-identity.sh" \
+              verify "$runtime_identity" "$CURRENT_DIR" "$OPSHUB_ENV_FILE" \
+              "$DOWNLOADS_DIR" "$WEB_DIR" "$CURRENT_DIR"
           case "$TMP_DIR" in "$OPSHUB_REMOTE_APP_DIR"/tmp/*) rm -rf -- "$TMP_DIR" ;; *) exit 1 ;; esac
           opshub_txn_cleanup
           echo 'Static-only publication checkpoint finalized after verification.'

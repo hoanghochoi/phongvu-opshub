@@ -385,7 +385,7 @@ export const PROFILES = Object.freeze([
     pathPatterns: [
       /^deploy\//,
       /^docker-compose\.yml$/,
-      /^scripts\/(?:build-runtime-release|validate-ops39-(?:backup-boundary|caddy|local-boundary)|verify-platform-security)\.mjs$/,
+      /^scripts\/(?:build-runtime-release|validate-ops39-(?:backup-boundary|caddy|local-boundary)|verify-(?:help-content-sentinel|platform-security))\.mjs$/,
       /^scripts\/generate-bidv-h2h-playbook-pdf\.py$/,
       /^scripts\/load\/opshub-staging-(?:home-100qps|rate-limit-semantics|targets(?:\.test)?)\.(?:js|mjs)$/,
       /^scripts\/(?:opshub-web-visual-smoke|test-cloudflare-api-tunnel-installer)\.mjs$/,
@@ -410,6 +410,24 @@ export const PROFILES = Object.freeze([
         cwd: ".",
         executable: process.execPath,
         argv: ["scripts/verify-platform-security.mjs"],
+      },
+      {
+        id: "production-cutover-transaction-contract",
+        cwd: ".",
+        executable: "bash",
+        argv: ["tests/release/test-production-cutover-transaction.sh"],
+      },
+      {
+        id: "help-content-behavior-sentinel",
+        cwd: ".",
+        executable: process.execPath,
+        argv: ["tests/release/test-help-content-sentinel.mjs"],
+      },
+      {
+        id: "static-transaction-rehearsal",
+        cwd: ".",
+        executable: "bash",
+        argv: ["tests/release/test-static-transaction-rehearsal.sh"],
       },
       {
         id: "blue-green-topology-contract-tests",

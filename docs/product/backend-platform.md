@@ -52,9 +52,11 @@ development services for OpsHub.
 - Public staff guidance is exposed by the public Flutter `/help` route, backed
   by `GET /api/help-content/public`.
 - Runtime help content is managed by Super Admin through
-  `/api/admin/help-content/*`. The production API container mounts
-  `docs/help/*` read-only so runtime help can seed, auto-sync docs-managed
-  pages, and restore from docs in deployed environments.
+  `/api/admin/help-content/*`. Production and staging API containers mount the
+  shared `${OPSHUB_SSD_ROOT}/downloads/help` directory read-only at
+  `/app/docs/help`; immutable release directories are never a static-deploy
+  target. The shared tree contains navigation, Markdown content, and assets so
+  runtime help can seed, auto-sync docs-managed pages, and restore from docs.
 - Flutter web is served as the SPA root at `GET /` in production and staging.
   Caddy must route `/api`, `/ws`, `/download`, `/help/assets`, `/uploads`,
   `/downloads`, `/staging-download`, and `/health` before the SPA fallback, and
@@ -109,11 +111,11 @@ curl http://localhost:3000/app-version
   Linear lifecycle, hotfix, and rollback rules are defined in
   `docs/runbooks/git-release-playbook.md`. The `help-content` branch remains the
   production source branch for `docs/help/*` plus `/help/assets/*`; pushing it
-  runs only the production static help/download deploy. That deploy syncs the
-  latest `docs/help/*` onto
-  the live release so docs-managed runtime help can auto-sync on the next load,
-  while admin-edited runtime pages can be realigned manually through
-  `Khôi phục từ docs`.
+  runs only the production static help/download deploy. That deploy atomically
+  swaps the complete shared Help tree, recreates only the API bind mount, and
+  keeps current-release files byte-for-byte immutable. Docs-managed runtime
+  help auto-syncs on the next load, while any editor-managed public, private,
+  or draft page suppresses docs auto-sync until `Khôi phục từ docs` is used.
 - Full production GitHub deploys build the client packages in Actions, upload
   the APK, Windows installer, Windows ZIP, and checksum directly to VPS staging,
   then promote them to `/srv/opshub/downloads/` and publish
@@ -122,14 +124,17 @@ curl http://localhost:3000/app-version
   `API_BASE_URL=https://api.phongvu.work/v1`,
   `PUBLIC_BASE_URL=https://phongvu.work`, and
   `REALTIME_BASE_URL=wss://api.phongvu.work/v1/ws`, syncs it to
-  `/srv/opshub/web/`, and publishes the built help asset bundle under
+  `/srv/opshub/web/`, and publishes the complete Help source under
   `/srv/opshub/downloads/help/`. When `origin/help-content` exists, full
-  production deploys load `docs/help` from that branch before building the help
-  asset bundle and before shipping the release source mounted into the API
-  container. Pushing `help-content`, or running manual `workflow_dispatch` with
-  `skip_client_build=true`, refreshes only the static download page, help
-  assets, and mounted `docs/help/*` source from existing live artifacts; it
-  must not change app-version metadata or rebuild client packages.
+  production deploys load `docs/help` from that branch before building the
+  shared Help bundle. Pushing `help-content`, or running manual
+  `workflow_dispatch` with `skip_client_build=true`, refreshes only the static
+  download page and shared Help source from existing live artifacts. The
+  transaction snapshots/restores that shared source, recreates only the API
+  service after each directory swap, and verifies full server-side ownership
+  plus a public content fingerprint without exporting private/draft Markdown.
+  It must not change app-version metadata, rebuild client packages, or mutate
+  the immutable current release.
 - Staging deploys run on `staging` pushes or manual `Deploy OpsHub Staging`
   dispatches, target `api-staging.phongvu.work/v1` for API/runtime traffic,
   build Flutter web with
