@@ -1078,16 +1078,46 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Cloudflare Bot Fight Mode challenges GitHub-hosted runner egress.
+          # Probe from the production host but require CF-Ray/Server edge evidence.
+          ssh opshub-vps \
+            "OPSHUB_PUBLIC_BASE_URL='$OPSHUB_PUBLIC_BASE_URL' \
+             OPSHUB_API_BASE_URL='$OPSHUB_API_BASE_URL' \
+             OPSHUB_ENV_FILE='$OPSHUB_ENV_FILE' \
+             CURRENT_DIR='${OPSHUB_REMOTE_APP_DIR}/current' \
+             OPSHUB_COMPOSE_PROJECT='home-server' \
+             PUBLIC_PROBE_SCRIPT='${OPSHUB_REMOTE_APP_DIR}/current/deploy/home-server/cloudflare-public-probe.sh' \
+             GITHUB_SHA='$GITHUB_SHA' \
+             EXPECTED_VERSION='${{ needs.prepare.outputs.version_name }}' \
+             EXPECTED_BUILD='${{ needs.prepare.outputs.version_code }}' \
+             bash -s" <<'REMOTE'
+          set -euo pipefail
+          source "$PUBLIC_PROBE_SCRIPT"
+          verify_cloudflare_edge_headers() {
+            local headers="$1"
+            printf '%s\n' "$headers" | grep -Eqi '^server:[[:space:]]*cloudflare([[:space:]]|$)' &&
+              printf '%s\n' "$headers" | grep -Eqi '^cf-ray:[[:space:]]*[[:alnum:]-]+'
+          }
+          cloudflare_trace() {
+            local headers="$1"
+            local cf_ray edge_server
+            cf_ray="$(printf '%s\n' "$headers" | awk 'tolower($1) == "cf-ray:" { gsub(/\r/, "", $2); value=$2 } END { print value }')"
+            edge_server="$(printf '%s\n' "$headers" | awk 'tolower($1) == "server:" { gsub(/\r/, "", $2); value=$2 } END { print value }')"
+            printf 'cfRay=%s server=%s' "${cf_ray:-missing}" "${edge_server:-missing}"
+          }
           retry_curl() {
             local url="$1"
             local attempt
             for attempt in {1..12}; do
-              if curl -fsS "$url"; then
+              if opshub_cloudflare_public_body "$url" \
+                'phongvu.work' 'api.phongvu.work' 'opshub.hoanghochoi.com'; then
                 return 0
               fi
+              echo "Production public verification attempt ${attempt}/12 failed: ${url%%\?*}." >&2
               sleep 5
             done
-            curl -fsS "$url"
+            echo "Production public verification did not receive a Cloudflare-edge 2xx response after 12 attempts: ${url%%\?*}." >&2
+            return 1
           }
           verify_security_headers() {
             local headers="$1"
@@ -1110,20 +1140,8 @@ jobs:
             fi
           }
           verify_public_artifact() {
-            local url="$1" headers status content_length
-            headers="$(mktemp)"
-            status="$(curl -sSIL -o "$headers" -w '%{http_code}' --max-redirs 5 "$url")"
-            if [[ "$status" != 2* ]]; then
-              rm -f "$headers"
-              echo "Production artifact final response returned ${status}; expected exact 2xx after redirects." >&2
-              return 1
-            fi
-            content_length="$(awk 'tolower($1) == "content-length:" { gsub(/\r/, "", $2); value=$2 } END { print value }' "$headers")"
-            rm -f "$headers"
-            [[ "$content_length" =~ ^[1-9][0-9]*$ ]] || {
-              echo 'Production artifact final response lacks a positive Content-Length.' >&2
-              return 1
-            }
+            opshub_cloudflare_public_artifact "$1" \
+              'phongvu.work' 'opshub.hoanghochoi.com'
           }
 
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/health"
@@ -1143,6 +1161,10 @@ jobs:
             echo "Production main.dart.js returned HTTP ${main_status}; expected 2xx." >&2
             exit 1
           fi
+          if ! verify_cloudflare_edge_headers "$main_headers"; then
+            echo "Production main.dart.js bypassed the required Cloudflare edge ($(cloudflare_trace "$main_headers"))." >&2
+            exit 1
+          fi
           if ! printf '%s\n' "$main_headers" | grep -qi 'cache-control:.*no-cache'; then
             echo 'Production main.dart.js is missing the required no-cache policy.' >&2
             exit 1
@@ -1151,7 +1173,7 @@ jobs:
           android_json="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=android")"
           windows_json="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=windows")"
           web_json="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=web")"
-          node -e "
+          opshub_api_node -e "
             const android = JSON.parse(process.argv[1]);
             const windows = JSON.parse(process.argv[2]);
             const web = JSON.parse(process.argv[3]);
@@ -1194,30 +1216,48 @@ jobs:
             if (String(web.updateUrl || '') !== '') throw new Error('Web updateUrl must be empty');
             if (web.forceUpdate !== false) throw new Error('Web forceUpdate must be false');
             if (web.minSupportedBuild !== 1) throw new Error('Web minSupportedBuild must be 1');
-          " "$android_json" "$windows_json" "$web_json" "${{ needs.prepare.outputs.version_code }}"
-          verify_public_artifact "$(node -e "console.log(JSON.parse(process.argv[1]).packageUrl)" "$android_json")"
-          verify_public_artifact "$(node -e "console.log(JSON.parse(process.argv[1]).packageUrl)" "$windows_json")"
+          " "$android_json" "$windows_json" "$web_json" "$EXPECTED_BUILD"
+          verify_public_artifact "$(opshub_api_node -e "console.log(JSON.parse(process.argv[1]).packageUrl)" "$android_json")"
+          verify_public_artifact "$(opshub_api_node -e "console.log(JSON.parse(process.argv[1]).packageUrl)" "$windows_json")"
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/download" >/dev/null
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/help" >/dev/null
           help_json="$(retry_curl "${OPSHUB_API_BASE_URL}/help-content/public")"
-          ws_status="$(curl --http1.1 --max-time 10 -sS -o /dev/null -w '%{http_code}' \
+          ws_headers_file="$(mktemp)"
+          ws_status="$(curl --http1.1 --max-time 10 -sS -D "$ws_headers_file" -o /dev/null -w '%{http_code}' \
             -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' \
             -H 'Sec-WebSocket-Key: MDEyMzQ1Njc4OWFiY2RlZg==' \
             "${OPSHUB_API_BASE_URL}/ws/v2")"
+          ws_headers="$(cat "$ws_headers_file")"
+          rm -f "$ws_headers_file"
           if [ "$ws_status" != 401 ]; then
             echo "Production /v1/ws/v2 without a one-time ticket returned ${ws_status}; expected 401." >&2
             exit 1
           fi
+          if ! verify_cloudflare_edge_headers "$ws_headers"; then
+            echo "Production /v1/ws/v2 bypassed the required Cloudflare edge ($(cloudflare_trace "$ws_headers"))." >&2
+            exit 1
+          fi
           token_body="$(mktemp)"
           balance_body="$(mktemp)"
-          token_status="$(curl -sS -o "$token_body" -w '%{http_code}' -X POST \
+          token_headers_file="$(mktemp)"
+          balance_headers_file="$(mktemp)"
+          token_status="$(curl -sS -D "$token_headers_file" -o "$token_body" -w '%{http_code}' -X POST \
             -H 'Content-Type: application/x-www-form-urlencoded' \
             -H 'Authorization: Basic aW52YWxpZDppbnZhbGlk' \
             --data 'grant_type=client_credentials' "${OPSHUB_API_BASE_URL}/bidv/oauth2/token")"
-          balance_status="$(curl -sS -o "$balance_body" -w '%{http_code}' -X POST \
+          balance_status="$(curl -sS -D "$balance_headers_file" -o "$balance_body" -w '%{http_code}' -X POST \
             -H 'Content-Type: application/json' -H 'Authorization: Bearer invalid' \
             -H 'REQUESTID: opshub-release-gate' --data '{"bankCode":"BIDV","data":"QQ=="}' \
             "${OPSHUB_API_BASE_URL}/bidv/balance-changes")"
+          token_headers="$(cat "$token_headers_file")"
+          balance_headers="$(cat "$balance_headers_file")"
+          rm -f "$token_headers_file" "$balance_headers_file"
+          if ! verify_cloudflare_edge_headers "$token_headers" ||
+             ! verify_cloudflare_edge_headers "$balance_headers"; then
+            rm -f "$token_body" "$balance_body"
+            echo 'Production BIDV namespace probes bypassed the required Cloudflare edge.' >&2
+            exit 1
+          fi
           if [ "$token_status" = 503 ]; then
             expected_bidv_status=503
             expected_token_error=temporarily_unavailable
@@ -1236,18 +1276,19 @@ jobs:
             echo "Production BIDV policy mismatch token=${token_status} balance=${balance_status} expected=${expected_bidv_status}." >&2
             exit 1
           fi
-          node -e "
-            const fs = require('fs');
+          token_json="$(cat "$token_body")"
+          balance_json="$(cat "$balance_body")"
+          rm -f "$token_body" "$balance_body"
+          opshub_api_node -e "
             const checks = [[process.argv[1], process.argv[2]], [process.argv[3], process.argv[4]]];
-            for (const [file, expected] of checks) {
-              if (JSON.parse(fs.readFileSync(file, 'utf8')).error !== expected) {
+            for (const [payload, expected] of checks) {
+              if (JSON.parse(payload).error !== expected) {
                 throw new Error('BIDV public namespace error contract mismatch');
               }
             }
-          " "$token_body" "$expected_token_error" "$balance_body" "$expected_balance_error"
-          rm -f "$token_body" "$balance_body"
+          " "$token_json" "$expected_token_error" "$balance_json" "$expected_balance_error"
           manifest_json="$(retry_curl "${OPSHUB_PUBLIC_BASE_URL}/downloads/latest.json")"
-          node -e "
+          opshub_api_node -e "
             const help = JSON.parse(process.argv[1]);
             const manifest = JSON.parse(process.argv[2]);
             const expectedVersion = process.argv[3];
@@ -1272,13 +1313,14 @@ jobs:
             if (!manifest.files.windowsInstaller.url.endsWith('.exe')) throw new Error('Windows installer URL is invalid');
             if (!manifest.files.windowsZip.url.endsWith('.zip')) throw new Error('Windows ZIP URL is invalid');
             if (!manifest.files.windowsChecksum.url.endsWith('.sha256')) throw new Error('Windows checksum URL is invalid');
-          " "$help_json" "$manifest_json" "${{ needs.prepare.outputs.version_name }}" "${{ needs.prepare.outputs.version_code }}"
-          node -e "
+          " "$help_json" "$manifest_json" "$EXPECTED_VERSION" "$EXPECTED_BUILD"
+          opshub_api_node -e "
             const manifest = JSON.parse(process.argv[1]);
             for (const file of Object.values(manifest.files)) console.log(file.url);
           " "$manifest_json" | while IFS= read -r url; do
             verify_public_artifact "$url"
           done
+          REMOTE
 
       - name: Restore production Tunnel after failed public verification
         if: ${{ always() && steps.activate_tunnel.outcome != 'skipped' && steps.verify_public.outcome != 'success' }}
@@ -1380,22 +1422,6 @@ jobs:
           set -euo pipefail
           echo 'Static-only deploy requested; Android and Windows build jobs are skipped.'
 
-      - name: Capture live app-version metadata
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p dist/downloads
-          curl -fsS "${OPSHUB_API_BASE_URL}/app-version?platform=android" > dist/downloads/android-before.json
-          curl -fsS "${OPSHUB_API_BASE_URL}/app-version?platform=windows" > dist/downloads/windows-before.json
-
-      - name: Write download manifest from live artifacts
-        shell: bash
-        env:
-          DOWNLOAD_MANIFEST_OUTPUT: dist/downloads/latest.json
-        run: |
-          set -euo pipefail
-          node scripts/download-manifest.mjs from-live
-
       - name: Connect Tailscale
         uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8
         with:
@@ -1427,12 +1453,38 @@ jobs:
             echo "  IdentitiesOnly yes"
           } >> ~/.ssh/config
 
+      - name: Capture live app-version metadata through Cloudflare
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/downloads
+          remote_public_curl() {
+            local quoted_url url="$1"
+            printf -v quoted_url '%q' "$url"
+            ssh opshub-vps "bash -s -- body $quoted_url phongvu.work api.phongvu.work opshub.hoanghochoi.com" \
+              < deploy/home-server/cloudflare-public-probe.sh
+          }
+          remote_public_curl "${OPSHUB_API_BASE_URL}/app-version?platform=android" > dist/downloads/android-before.json
+          remote_public_curl "${OPSHUB_API_BASE_URL}/app-version?platform=windows" > dist/downloads/windows-before.json
+
+      - name: Write download manifest from live artifacts
+        shell: bash
+        env:
+          DOWNLOAD_MANIFEST_OUTPUT: dist/downloads/latest.json
+        run: |
+          set -euo pipefail
+          node scripts/download-manifest.mjs from-live
+
       - name: Capture complete Help ownership state
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p dist/downloads
-          curl -fsS "${OPSHUB_API_BASE_URL}/help-content/public" > dist/downloads/help-before.json
+          quoted_help_url=''
+          printf -v quoted_help_url '%q' "${OPSHUB_API_BASE_URL}/help-content/public"
+          ssh opshub-vps "bash -s -- body $quoted_help_url phongvu.work api.phongvu.work opshub.hoanghochoi.com" \
+            < deploy/home-server/cloudflare-public-probe.sh \
+            > dist/downloads/help-before.json
           node scripts/verify-help-content-sentinel.mjs from-response \
             dist/downloads/help-before.json dist/downloads/help-before-sentinel.json
           ssh opshub-vps \
@@ -1526,27 +1578,28 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          remote_public_curl() {
+            local quoted_url url="$1"
+            printf -v quoted_url '%q' "$url"
+            ssh opshub-vps "bash -s -- body $quoted_url phongvu.work api.phongvu.work opshub.hoanghochoi.com" \
+              < deploy/home-server/cloudflare-public-probe.sh
+          }
           retry_curl() {
             local url="$1"
             local attempt
             for attempt in {1..12}; do
-              if curl -fsS "$url"; then
+              if remote_public_curl "$url"; then
                 return 0
               fi
               sleep 5
             done
-            curl -fsS "$url"
+            remote_public_curl "$url"
           }
           verify_static_artifact() {
-            local headers status length
-            headers="$(mktemp)"
-            status="$(curl -sSIL -o "$headers" -w '%{http_code}' --max-redirs 5 "$1")"
-            length="$(awk 'tolower($1) == "content-length:" { gsub(/\r/, "", $2); value=$2 } END { print value }' "$headers")"
-            rm -f "$headers"
-            [[ "$status" == 2* && "$length" =~ ^[1-9][0-9]*$ ]] || {
-              echo "Static artifact final response invalid: status=${status} contentLength=${length:-missing}." >&2
-              return 1
-            }
+            local quoted_url url="$1"
+            printf -v quoted_url '%q' "$url"
+            ssh opshub-vps "bash -s -- artifact $quoted_url phongvu.work opshub.hoanghochoi.com" \
+              < deploy/home-server/cloudflare-public-probe.sh
           }
 
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/download" >/dev/null
@@ -1638,8 +1691,14 @@ jobs:
           REMOTE
           rollback_help_response="$(mktemp)"
           rollback_help_verified=false
+          remote_public_curl() {
+            local quoted_url url="$1"
+            printf -v quoted_url '%q' "$url"
+            ssh opshub-vps "bash -s -- body $quoted_url phongvu.work api.phongvu.work opshub.hoanghochoi.com" \
+              < deploy/home-server/cloudflare-public-probe.sh
+          }
           for attempt in {1..5}; do
-            curl -fsS "${OPSHUB_API_BASE_URL}/help-content/public" > "$rollback_help_response"
+            remote_public_curl "${OPSHUB_API_BASE_URL}/help-content/public" > "$rollback_help_response"
             ssh opshub-vps \
               "cd '${OPSHUB_REMOTE_APP_DIR}/current' && \
                OPSHUB_ENV_FILE='$OPSHUB_ENV_FILE' OPSHUB_SSD_ROOT='/srv/opshub' \

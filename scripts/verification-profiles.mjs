@@ -385,6 +385,7 @@ export const PROFILES = Object.freeze([
     pathPatterns: [
       /^deploy\//,
       /^docker-compose\.yml$/,
+      /^tests\/release\/test-cloudflare-public-probe\.sh$/,
       /^scripts\/(?:build-runtime-release|validate-ops39-(?:backup-boundary|caddy|local-boundary)|verify-(?:help-content-sentinel|platform-security))\.mjs$/,
       /^scripts\/generate-bidv-h2h-playbook-pdf\.py$/,
       /^scripts\/load\/opshub-staging-(?:home-100qps|rate-limit-semantics|targets(?:\.test)?)\.(?:js|mjs)$/,
@@ -410,6 +411,12 @@ export const PROFILES = Object.freeze([
         cwd: ".",
         executable: process.execPath,
         argv: ["scripts/verify-platform-security.mjs"],
+      },
+      {
+        id: "cloudflare-public-probe-contract",
+        cwd: ".",
+        executable: "bash",
+        argv: ["tests/release/test-cloudflare-public-probe.sh"],
       },
       {
         id: "production-cutover-transaction-contract",

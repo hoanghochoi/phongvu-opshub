@@ -12,6 +12,10 @@ import { verifyGithubCi } from './promote-production.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const promotionScript = path.join(repoRoot, 'scripts', 'promote-production.mjs');
+const cloudflarePublicProbe = fs.readFileSync(
+  path.join(repoRoot, 'deploy', 'home-server', 'cloudflare-public-probe.sh'),
+  'utf8',
+);
 
 function run(command, args, { cwd, expectedStatus = 0, env = {} } = {}) {
   const result = spawnSync(command, args, {
@@ -365,12 +369,90 @@ test('workflow and policy preserve existing deploy consumers and never force pus
     'BIDV bootstrap must isolate Compose from the remote SSH heredoc stdin',
   );
   assert.match(stagingWorkflow, /verify_download_artifact\(\)/);
-  assert.match(stagingWorkflow, /public_curl "\$url"/);
-  assert.match(stagingWorkflow, /Range: bytes=0-0/);
+  assert.match(stagingWorkflow, /opshub_cloudflare_public_artifact "\$url"/);
+  assert.match(stagingWorkflow, /'staging\.phongvu\.work' 'opshub-staging\.hoanghochoi\.com'/);
   assert.match(stagingWorkflow, /Staging artifact verification attempt \$\{attempt\}\/12/);
   assert.doesNotMatch(stagingWorkflow, /curl -fIs/);
   assert.match(stagingWorkflow, /<title>Tải ứng dụng PhongVu OpsHub<\/title>/);
   assert.doesNotMatch(stagingWorkflow, /CF-Access-Client-Id:/);
+  const stagingPublicVerification = stagingWorkflow.match(
+    /- name: Verify staging public health and version metadata[\s\S]*?(?=\n\s+- name: Roll back staging after failed release verification)/,
+  )?.[0];
+  assert.ok(stagingPublicVerification, 'staging public verification step is missing');
+  assert.match(stagingPublicVerification, /Cloudflare Bot Fight Mode challenges GitHub-hosted runner egress/);
+  assert.match(stagingPublicVerification, /ssh opshub-staging/);
+  assert.match(stagingPublicVerification, /source "\$PUBLIC_PROBE_SCRIPT"/);
+  assert.match(stagingPublicVerification, /opshub_api_node -e/);
+  assert.doesNotMatch(stagingPublicVerification, /\bnode -e/);
+  assert.match(stagingPublicVerification, /opshub_cloudflare_headers_valid/);
+  assert.match(stagingPublicVerification, /staging\.phongvu\.work/);
+  assert.match(stagingPublicVerification, /api-staging\.phongvu\.work/);
+  assert.match(stagingPublicVerification, /opshub-staging\.hoanghochoi\.com/);
+  assert.doesNotMatch(
+    stagingPublicVerification,
+    /\bpublic_curl\b/,
+    'staging shared-probe verification must not call the removed inline curl wrapper',
+  );
+  assert.ok(
+    stagingPublicVerification.indexOf('ssh opshub-staging') <
+      stagingPublicVerification.indexOf('source "$PUBLIC_PROBE_SCRIPT"'),
+    'staging public probe must execute inside the remote SSH boundary',
+  );
+  const productionPublicVerification = productionWorkflow.match(
+    /- name: Verify public health and version metadata[\s\S]*?(?=\n\s+- name: Restore production Tunnel after failed public verification)/,
+  )?.[0];
+  assert.ok(productionPublicVerification, 'production public verification step is missing');
+  assert.match(productionPublicVerification, /Cloudflare Bot Fight Mode challenges GitHub-hosted runner egress/);
+  assert.match(productionPublicVerification, /ssh opshub-vps/);
+  assert.match(productionPublicVerification, /verify_cloudflare_edge_headers\(\)/);
+  assert.match(productionPublicVerification, /\^cf-ray:/);
+  assert.ok(
+    productionPublicVerification.indexOf('ssh opshub-vps') <
+      productionPublicVerification.indexOf('source "$PUBLIC_PROBE_SCRIPT"'),
+    'production public probe must execute inside the remote SSH boundary',
+  );
+  assert.match(productionWorkflow, /name: Capture live app-version metadata through Cloudflare/);
+  assert.match(productionWorkflow, /remote_public_curl\(\)/);
+  assert.match(
+    productionPublicVerification,
+    /source "\$PUBLIC_PROBE_SCRIPT"/,
+    'full production verification must use the shared Cloudflare probe',
+  );
+  assert.match(productionPublicVerification, /opshub_api_node -e/);
+  assert.doesNotMatch(productionPublicVerification, /\bnode -e/);
+  assert.doesNotMatch(
+    productionPublicVerification,
+    /fs\.readFileSync\(/,
+    'containerized Node validation must not read host-only temporary files',
+  );
+  assert.match(productionPublicVerification, /token_json="\$\(cat "\$token_body"\)"/);
+  assert.match(productionPublicVerification, /JSON\.parse\(payload\)\.error/);
+  assert.ok(
+    (productionWorkflow.match(/< deploy\/home-server\/cloudflare-public-probe\.sh/g) || []).length >= 5,
+    'static capture, verification, artifact, and rollback probes must stream the shared validator',
+  );
+  assert.doesNotMatch(
+    productionWorkflow,
+    /\[\[ "\$status" == 2\* \]\] &&/,
+    'public response probes must fail explicitly before emitting a body',
+  );
+  assert.match(cloudflarePublicProbe, /%\{url_effective\}/);
+  assert.match(cloudflarePublicProbe, /opshub_cloudflare_final_headers\(\)/);
+  assert.match(cloudflarePublicProbe, /opshub_cloudflare_artifact_host_allowed\(\)/);
+  assert.match(cloudflarePublicProbe, /opshub_api_node\(\)/);
+  assert.match(cloudflarePublicProbe, /exec -T api node "\$@" < \/dev\/null/);
+  assert.match(cloudflarePublicProbe, /"\$\{allowed_hosts\[@\]\}"/);
+  assert.match(cloudflarePublicProbe, /\^\(\[\[:alnum:\]\.\-\]\+\)\(:443\)\?\$/);
+  assert.match(
+    fs.readFileSync(path.join(repoRoot, 'scripts', 'build-runtime-release.mjs'), 'utf8'),
+    /deploy\/home-server\/cloudflare-public-probe\.sh/,
+    'full production runtime package must include the shared Cloudflare probe',
+  );
+  assert.doesNotMatch(
+    productionWorkflow,
+    /curl -fsS "\$\{OPSHUB_API_BASE_URL\}\/(?:app-version|help-content\/public)/,
+    'GitHub-hosted production jobs must not probe public API URLs directly',
+  );
   assert.match(stagingWorkflow, /compose_cmd up -d --no-deps --force-recreate --wait --wait-timeout 120 caddy/);
   assert.match(stagingWorkflow, /wait_for_caddy_ready\(\)/);
   assert.match(stagingWorkflow, /expected_caddy_config_hash/);
