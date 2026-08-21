@@ -194,11 +194,18 @@ model BankConnectionAudit {
 
 model BankConnectionControl {
   bankCode          String   @id
+  operatingMode     BankConnectionOperatingMode @default(STOPPED)
   ingressEnabled    Boolean  @default(false)
   projectionEnabled Boolean  @default(false)
   version           Int      @default(1)
   updatedByUserId   String?
   updatedAt         DateTime @updatedAt
+}
+
+enum BankConnectionOperatingMode {
+  STOPPED
+  UAT_INGEST_ONLY
+  LIVE
 }
 
 model BankIngressReceipt {

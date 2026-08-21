@@ -99,6 +99,7 @@ services:
       - ${OPSHUB_SSD_ROOT:-/srv/opshub}/private-media:/data/private-media
       - ${OPSHUB_SSD_ROOT:-/srv/opshub}/payment-audio:/data/payment-audio
       - ${OPSHUB_SSD_ROOT:-/srv/opshub}/import:/data/import:ro
+      - ${OPSHUB_SSD_ROOT:-/srv/opshub}/secrets/bidv-h2h-kek:/run/secrets/bidv-h2h-kek:ro
       - ../../docs/help:/app/docs/help:ro
       - ../../data:/app/data:ro
       - ../../assets/icon/source:/app/assets/icon/source:ro
@@ -145,6 +146,7 @@ services:
       - ${OPSHUB_SSD_ROOT:-/srv/opshub}/private-media:/data/private-media
       - ${OPSHUB_SSD_ROOT:-/srv/opshub}/payment-audio:/data/payment-audio
       - ${OPSHUB_SSD_ROOT:-/srv/opshub}/import:/data/import:ro
+      - ${OPSHUB_SSD_ROOT:-/srv/opshub}/secrets/bidv-h2h-kek:/run/secrets/bidv-h2h-kek:ro
       - ../../data:/app/data:ro
     networks:
       - opshub

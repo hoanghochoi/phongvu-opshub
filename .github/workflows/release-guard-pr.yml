@@ -35,6 +35,9 @@ jobs:
       - name: Run task lifecycle tests
         run: node scripts/test-task-lifecycle.mjs
 
+      - name: Enforce BIDV local-only promotion boundary
+        run: node scripts/validate-ops39-local-boundary.mjs
+
       - name: Check patch whitespace
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}

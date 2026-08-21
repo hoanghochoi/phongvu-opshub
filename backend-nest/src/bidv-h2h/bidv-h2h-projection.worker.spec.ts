@@ -35,6 +35,7 @@ describe('BidvH2hProjectionWorker', () => {
         $queryRaw: queryRaw,
       } as any,
       {} as any,
+      policy() as any,
     );
 
     await worker.tick();
@@ -54,6 +55,7 @@ describe('BidvH2hProjectionWorker', () => {
       const worker = new BidvH2hProjectionWorker(
         { store: { findMany: jest.fn() } } as any,
         {} as any,
+        policy() as any,
       );
 
       await expect(
@@ -77,6 +79,7 @@ describe('BidvH2hProjectionWorker', () => {
         },
       } as any,
       {} as any,
+      policy() as any,
     );
 
     await expect(
@@ -98,6 +101,7 @@ describe('BidvH2hProjectionWorker', () => {
         },
       } as any,
       {} as any,
+      policy() as any,
     );
 
     await expect(
@@ -125,6 +129,9 @@ describe('BidvH2hProjectionWorker', () => {
       projectionAttempts: 1,
     };
     const prisma = {
+      bankConnectionControl: {
+        findUnique: jest.fn().mockResolvedValue({ operatingMode: 'LIVE' }),
+      },
       $transaction: jest.fn(async (callback: (tx: any) => unknown) =>
         callback({
           $executeRaw: executeRaw,
@@ -143,11 +150,12 @@ describe('BidvH2hProjectionWorker', () => {
     const worker = new BidvH2hProjectionWorker(
       prisma as any,
       { createForTransaction: notify } as any,
+      policy(true) as any,
     );
 
     await (worker as any).process(transaction);
 
-    expect(executeRaw).toHaveBeenCalledTimes(1);
+    expect(executeRaw).toHaveBeenCalledTimes(2);
     expect(mapUpsert).not.toHaveBeenCalled();
     expect(notify).not.toHaveBeenCalled();
     expect(updateMany).toHaveBeenCalledWith(
@@ -160,6 +168,16 @@ describe('BidvH2hProjectionWorker', () => {
     );
   });
 });
+
+function policy(lock = false) {
+  return {
+    evaluate: jest.fn().mockResolvedValue({ effectiveMode: 'LIVE' }),
+    assertLive: jest.fn().mockResolvedValue({ effectiveMode: 'LIVE' }),
+    lock: jest.fn((tx: any) =>
+      lock ? tx.$executeRaw(['control-lock'] as any) : undefined,
+    ),
+  };
+}
 
 function restore(key: string, value: string | undefined) {
   if (value === undefined) delete process.env[key];

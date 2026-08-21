@@ -84,18 +84,51 @@ class ApiConnectionRepository {
   }
 
   Future<ApiConnectionSnapshot> updateControls({
-    required bool ingressEnabled,
-    required bool projectionEnabled,
+    ApiOperatingMode? operatingMode,
+    int? expectedVersion,
+    bool? ingressEnabled,
+    bool? projectionEnabled,
   }) async {
+    final body = <String, dynamic>{};
+    if (operatingMode != null) {
+      if (ingressEnabled != null || projectionEnabled != null) {
+        throw ArgumentError(
+          'Không gửi đồng thời trạng thái vận hành và công tắc tương thích.',
+        );
+      }
+      if (expectedVersion == null) {
+        throw ArgumentError(
+          'Cần cung cấp expectedVersion khi thay đổi trạng thái vận hành.',
+        );
+      }
+      body['operatingMode'] = operatingMode.wireValue;
+      body['expectedVersion'] = expectedVersion;
+    } else {
+      if (ingressEnabled == null || projectionEnabled == null) {
+        throw ArgumentError(
+          'Cần cung cấp operatingMode hoặc cặp công tắc tương thích.',
+        );
+      }
+      body
+        ..['ingressEnabled'] = ingressEnabled
+        ..['projectionEnabled'] = projectionEnabled;
+    }
     final response = await _client.post(
       '${ApiConstants.adminBidvConnectionsEndpoint}/controls',
-      body: {
-        'ingressEnabled': ingressEnabled,
-        'projectionEnabled': projectionEnabled,
-      },
+      body: body,
     );
     return ApiConnectionSnapshot.fromJson(
       jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<ApiConnectionSnapshot> updateOperatingMode({
+    required ApiOperatingMode mode,
+    required int expectedVersion,
+  }) {
+    return updateControls(
+      operatingMode: mode,
+      expectedVersion: expectedVersion,
     );
   }
 }

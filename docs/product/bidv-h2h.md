@@ -31,8 +31,9 @@ hostnames cannot cross-route.
   Base64-encodes the armored message. Revision 1.3 adds no payload signature.
 - `openpgp` is pinned to `6.3.1`. Generated pairs use an Ed25519 signing primary
   and X25519 encryption subkey. Imported pairs must match and pass a round trip.
-- Private armor uses AES-256-GCM with the dedicated 32-byte
-  `BIDV_H2H_KEK_BASE64`; there is no JWT, MAP or development fallback.
+- Private armor uses AES-256-GCM with a dedicated 32-byte KEK mounted read-only
+  from `/run/secrets/bidv-h2h-kek`. Each environment creates and backs up its
+  own secret; source promotion never transports it.
 
 ## Ingress contract
 
@@ -63,8 +64,11 @@ key. Rows are retained for 90 days by default.
 
 ## Projection and consumers
 
-Environment master switches and audited database switches must both be on.
-Examples default ingest and projection to `false`. Eligibility requires a
+The audited database operating mode is `STOPPED`, `UAT_INGEST_ONLY` or `LIVE`.
+Migration and every new environment start at `STOPPED`; UAT accepts canonical
+data without projection, while LIVE also enables projection. A separate
+platform emergency disable remains fail-closed and is not part of normal UI
+operation. Eligibility requires a
 conflict-free Credit, VND, positive integral legacy-safe amount and exactly one
 showroom match. Showroom matching uses only the exact normalized `remark`
 suffix `<storeId> BOT` or `<storeId>`, then verifies that candidate against one
@@ -79,14 +83,30 @@ notification, realtime, Home and BigQuery revision contracts protect retries.
 
 ## Administration and activation
 
-Only `SUPER_ADMIN` can use `/admin/api-connections/bidv`. Windows and web show
-the current Admin UI for client/key lifecycle, public-key export, one-time
-secret reveal and runtime controls. Unsupported platforms show guidance.
-Secrets and private keys never enter Flutter cache, analytics or AppLogger.
+Only `SUPER_ADMIN` can use `/admin/api-connections/bidv`. The control-plane
+snapshot reports requested/effective mode, sanitized readiness, blockers and
+pending projection count. Mode changes use an advisory lock, optimistic
+version and immutable audit. Legacy boolean controls remain synchronized for a
+bounded compatibility window. Secrets and private keys never enter Flutter
+cache, analytics or AppLogger.
+
+Token creation, receipt persistence and each projection side-effect boundary
+take the same control-plane advisory lock, then re-evaluate the shared complete
+readiness policy inside their final transaction. Lock order is control plane,
+then REQUESTID/identity where applicable. Therefore a completed downgrade
+precedes every later forbidden write; work that acquired the control lock first
+finishes before the downgrade returns.
+
+During the compatibility window, rollback to the pre-mode backend is a local
+platform-owner breakglass action only. The bridge reads the environment-local
+secret file and synchronized legacy booleans, writes them to the protected
+local runtime env, and is never called by deployment or promotion workflows.
+Its `clear` action removes all bridge variables after recovery.
 
 At most two usable versions overlap for 24 hours. The last usable client/key
 requires an explicit audited recovery override; Phase 1 UI does not expose it.
 
-Local implementation does not authorize activation. UAT still requires a
-BIDV-produced fixture, identity/batch/timezone/reconciliation confirmation and
-operator-created DNS/tunnel routing.
+Operational runbooks, bank playbooks and generated PDFs are local-only under
+the ignored `output/bidv-private/` boundary. Promotion carries only code,
+migrations, tests and this minimal technical authority; environment databases,
+credentials, keys, mode, audit and bank transactions remain separate.

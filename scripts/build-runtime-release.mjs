@@ -1,113 +1,131 @@
-import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
-import { copyFile, mkdir, rm, stat, writeFile } from "node:fs/promises";
-import { createHash } from "node:crypto";
-import path from "node:path";
-import process from "node:process";
+import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { copyFile, mkdir, rm, stat, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import path from 'node:path';
+import process from 'node:process';
 
 const rootDir = process.cwd();
-const outputDir = path.resolve(rootDir, "dist", "runtime-release");
+const outputDir = path.resolve(rootDir, 'dist', 'runtime-release');
 const expectedOutputDir = path.join(
-  path.resolve(rootDir, "dist"),
-  "runtime-release",
+  path.resolve(rootDir, 'dist'),
+  'runtime-release',
 );
 const includeReviewedUntracked = process.argv.includes(
-  "--include-untracked-reviewed",
+  '--include-untracked-reviewed',
 );
 const includeStagingLoadTools =
-  String(process.env.OPSHUB_INCLUDE_STAGING_LOAD_TOOLS ?? "").toLowerCase() ===
-  "true";
+  String(process.env.OPSHUB_INCLUDE_STAGING_LOAD_TOOLS ?? '').toLowerCase() ===
+  'true';
 
 // These tracked files are mounted read-only at /app/data for backend runtime
 // lookups. Client-only assets and manual import sources stay outside the
 // server artifact allowlist.
-const RUNTIME_DATA_FILES = [
-  "data/categories.csv",
-  "data/email_domain.txt",
-];
-const STAGING_LOAD_TOOL_FILES = ["deploy/staging/manage-load-users.sh"];
+const RUNTIME_DATA_FILES = ['data/categories.csv', 'data/email_domain.txt'];
+const STAGING_LOAD_TOOL_FILES = ['deploy/staging/manage-load-users.sh'];
 
 const REQUIRED_FILES = [
-  "backend-nest/Dockerfile",
-  "backend-nest/package.json",
-  "backend-nest/package-lock.json",
-  "backend-nest/prisma/schema.prisma",
-  "backend-nest/src/main.ts",
-  "backend-nest/src/auth/realtime-ticket.service.ts",
-  "backend-nest/src/upload/private-media.service.ts",
-  "backend-nest/prisma/migrations/20260712010000_add_private_media_objects/migration.sql",
-  "backend-nest/scripts/migrate-private-media.mjs",
-  "backend-nest/scripts/audit-legacy-upload-access.mjs",
-  "backend-go/Dockerfile",
-  "backend-go/go.mod",
-  "backend-go/main.go",
-  "backend-go/auth.go",
-  "backend-go/audience.go",
-  "backend-go/server.go",
-  "deploy/home-server/Caddyfile",
-  "deploy/home-server/Caddyfile.bluegreen.template",
-  "deploy/home-server/docker-compose.home.yml",
-  "deploy/home-server/docker-compose.blue-green.yml",
-  "deploy/home-server/release-transaction.sh",
-  "deploy/staging/blue-green-topology.mjs",
+  'backend-nest/Dockerfile',
+  'backend-nest/package.json',
+  'backend-nest/package-lock.json',
+  'backend-nest/prisma/schema.prisma',
+  'backend-nest/src/main.ts',
+  'backend-nest/src/auth/realtime-ticket.service.ts',
+  'backend-nest/src/upload/private-media.service.ts',
+  'backend-nest/prisma/migrations/20260712010000_add_private_media_objects/migration.sql',
+  'backend-nest/scripts/migrate-private-media.mjs',
+  'backend-nest/scripts/audit-legacy-upload-access.mjs',
+  'backend-go/Dockerfile',
+  'backend-go/go.mod',
+  'backend-go/main.go',
+  'backend-go/auth.go',
+  'backend-go/audience.go',
+  'backend-go/server.go',
+  'deploy/home-server/Caddyfile',
+  'deploy/home-server/Caddyfile.bluegreen.template',
+  'deploy/home-server/docker-compose.home.yml',
+  'deploy/home-server/docker-compose.blue-green.yml',
+  'deploy/home-server/release-transaction.sh',
+  'deploy/home-server/bootstrap-bidv-kek.sh',
+  'deploy/home-server/backup.sh',
+  'deploy/home-server/verify-bidv-backup.sh',
+  'deploy/home-server/prepare-bidv-legacy-rollback.sh',
+  'deploy/staging/blue-green-topology.mjs',
   ...(includeStagingLoadTools ? STAGING_LOAD_TOOL_FILES : []),
-  "docs/help/navigation.json",
+  'docs/help/navigation.json',
   ...RUNTIME_DATA_FILES,
-  "assets/icon/source/app_icon_master.png",
-  "assets/icon/acare_logo.png",
-  "fonts/SF-Pro-Display-Regular.otf",
-  "fonts/SF-Pro-Display-Semibold.otf",
-  "fonts/SF-Pro-Display-Bold.otf",
+  'assets/icon/source/app_icon_master.png',
+  'assets/icon/acare_logo.png',
+  'fonts/SF-Pro-Display-Regular.otf',
+  'fonts/SF-Pro-Display-Semibold.otf',
+  'fonts/SF-Pro-Display-Bold.otf',
 ];
 
 const EXACT_FILES = new Set([
-  "backend-nest/Dockerfile",
-  "backend-nest/package.json",
-  "backend-nest/package-lock.json",
-  "backend-nest/prisma.config.ts",
-  "backend-nest/prisma/schema.prisma",
-  "backend-nest/tsconfig.json",
-  "backend-nest/tsconfig.build.json",
-  "backend-nest/nest-cli.json",
-  "backend-go/Dockerfile",
-  "backend-go/go.mod",
-  "backend-go/go.sum",
-  "deploy/home-server/Caddyfile",
-  "deploy/home-server/Caddyfile.bluegreen.template",
-  "deploy/home-server/docker-compose.home.yml",
-  "deploy/home-server/docker-compose.blue-green.yml",
-  "deploy/home-server/release-transaction.sh",
-  "deploy/staging/blue-green-topology.mjs",
-  "deploy/home-server/download.html",
-  "deploy/home-server/backup.sh",
+  'backend-nest/Dockerfile',
+  'backend-nest/package.json',
+  'backend-nest/package-lock.json',
+  'backend-nest/prisma.config.ts',
+  'backend-nest/prisma/schema.prisma',
+  'backend-nest/tsconfig.json',
+  'backend-nest/tsconfig.build.json',
+  'backend-nest/nest-cli.json',
+  'backend-go/Dockerfile',
+  'backend-go/go.mod',
+  'backend-go/go.sum',
+  'deploy/home-server/Caddyfile',
+  'deploy/home-server/Caddyfile.bluegreen.template',
+  'deploy/home-server/docker-compose.home.yml',
+  'deploy/home-server/docker-compose.blue-green.yml',
+  'deploy/home-server/release-transaction.sh',
+  'deploy/home-server/bootstrap-bidv-kek.sh',
+  'deploy/home-server/verify-bidv-backup.sh',
+  'deploy/home-server/prepare-bidv-legacy-rollback.sh',
+  'deploy/staging/blue-green-topology.mjs',
+  'deploy/home-server/download.html',
+  'deploy/home-server/backup.sh',
   ...(includeStagingLoadTools ? STAGING_LOAD_TOOL_FILES : []),
   ...RUNTIME_DATA_FILES,
-  "assets/icon/source/app_icon_master.png",
-  "assets/icon/acare_logo.png",
-  "fonts/SF-Pro-Display-Regular.otf",
-  "fonts/SF-Pro-Display-Semibold.otf",
-  "fonts/SF-Pro-Display-Bold.otf",
+  'assets/icon/source/app_icon_master.png',
+  'assets/icon/acare_logo.png',
+  'fonts/SF-Pro-Display-Regular.otf',
+  'fonts/SF-Pro-Display-Semibold.otf',
+  'fonts/SF-Pro-Display-Bold.otf',
 ]);
 
 function isAllowed(file) {
   if (EXACT_FILES.has(file)) return true;
-  if (file.startsWith("backend-nest/src/")) return !file.endsWith(".spec.ts");
-  if (file.startsWith("backend-nest/prisma/migrations/")) {
-    return file.endsWith("/migration.sql");
+  if (file.startsWith('backend-nest/src/')) return !file.endsWith('.spec.ts');
+  if (file.startsWith('backend-nest/prisma/migrations/')) {
+    return file.endsWith('/migration.sql');
   }
-  if (file.startsWith("backend-nest/scripts/")) return file.endsWith(".mjs");
-  if (file.startsWith("backend-go/") && file.endsWith(".go")) {
-    return !file.endsWith("_test.go");
+  if (file.startsWith('backend-nest/scripts/')) return file.endsWith('.mjs');
+  if (file.startsWith('backend-go/') && file.endsWith('.go')) {
+    return !file.endsWith('_test.go');
   }
-  return file.startsWith("docs/help/");
+  return file.startsWith('docs/help/');
 }
 
 function assertSafeFile(file) {
   const lower = file.toLowerCase();
   const base = path.posix.basename(lower);
   if (
-    base === ".env" ||
-    base.startsWith(".env.") ||
+    (lower.startsWith('docs/help/') && /(?:bidv|bankapi)/.test(lower)) ||
+    /(?:bidv|bankapi).*(?:runbook|playbook|handoff|operator|operations|recovery)/.test(
+      lower,
+    ) ||
+    /(?:runbook|playbook|handoff|operator|operations|recovery).*(?:bidv|bankapi)/.test(
+      lower,
+    ) ||
+    (lower.endsWith('.pdf') && /(?:bidv|bankapi)/.test(lower))
+  ) {
+    throw new Error(
+      `Refusing to package private bank operations material: ${file}`,
+    );
+  }
+  if (
+    base === '.env' ||
+    base.startsWith('.env.') ||
     /\.(?:pem|key|pfx|p12|jks|keystore|xlsx|xls)$/i.test(base) ||
     /(?:service-account|credentials)(?:\.|$)/i.test(base)
   ) {
@@ -116,13 +134,13 @@ function assertSafeFile(file) {
 }
 
 async function sha256(filePath) {
-  const { createReadStream } = await import("node:fs");
+  const { createReadStream } = await import('node:fs');
   return new Promise((resolve, reject) => {
-    const hash = createHash("sha256");
+    const hash = createHash('sha256');
     createReadStream(filePath)
-      .on("error", reject)
-      .on("data", (chunk) => hash.update(chunk))
-      .on("end", () => resolve(hash.digest("hex")));
+      .on('error', reject)
+      .on('data', (chunk) => hash.update(chunk))
+      .on('end', () => resolve(hash.digest('hex')));
   });
 }
 
@@ -131,23 +149,23 @@ async function main() {
     throw new Error(`Unexpected runtime release output path: ${outputDir}`);
   }
 
-  const trackedFiles = execFileSync("git", ["ls-files", "-z"], {
+  const trackedFiles = execFileSync('git', ['ls-files', '-z'], {
     cwd: rootDir,
-    encoding: "utf8",
+    encoding: 'utf8',
   })
-    .split("\0")
+    .split('\0')
     .filter(Boolean)
-    .map((file) => file.replaceAll("\\", "/"));
+    .map((file) => file.replaceAll('\\', '/'));
   const untrackedRuntimeFiles = execFileSync(
-    "git",
-    ["ls-files", "-z", "--others", "--exclude-standard"],
-    { cwd: rootDir, encoding: "utf8" },
+    'git',
+    ['ls-files', '-z', '--others', '--exclude-standard'],
+    { cwd: rootDir, encoding: 'utf8' },
   )
-    .split("\0")
+    .split('\0')
     .filter(Boolean)
-    .map((file) => file.replaceAll("\\", "/"))
+    .map((file) => file.replaceAll('\\', '/'))
     .filter(isAllowed)
-    .filter((file) => existsSync(path.resolve(rootDir, ...file.split("/"))))
+    .filter((file) => existsSync(path.resolve(rootDir, ...file.split('/'))))
     .sort();
   if (untrackedRuntimeFiles.length > 0 && !includeReviewedUntracked) {
     throw new Error(
@@ -160,7 +178,7 @@ async function main() {
     ...(includeReviewedUntracked ? untrackedRuntimeFiles : []),
   ]
     .filter(isAllowed)
-    .filter((file) => existsSync(path.resolve(rootDir, ...file.split("/"))))
+    .filter((file) => existsSync(path.resolve(rootDir, ...file.split('/'))))
     .filter((file, index, all) => all.indexOf(file) === index)
     .sort();
   const releaseFileSet = new Set(releaseFiles);
@@ -177,8 +195,8 @@ async function main() {
   const manifest = [];
   for (const file of releaseFiles) {
     assertSafeFile(file);
-    const source = path.resolve(rootDir, ...file.split("/"));
-    const destination = path.resolve(outputDir, ...file.split("/"));
+    const source = path.resolve(rootDir, ...file.split('/'));
+    const destination = path.resolve(outputDir, ...file.split('/'));
     if (!destination.startsWith(`${outputDir}${path.sep}`)) {
       throw new Error(`Release path escaped the output directory: ${file}`);
     }
@@ -189,7 +207,7 @@ async function main() {
     await mkdir(path.dirname(destination), { recursive: true });
     await copyFile(source, destination);
     await (
-      await import("node:fs/promises")
+      await import('node:fs/promises')
     ).chmod(destination, sourceStat.mode & 0o777);
     manifest.push({
       path: file,
@@ -198,23 +216,23 @@ async function main() {
     });
   }
 
-  const manifestPath = path.join(outputDir, "release-manifest.json");
+  const manifestPath = path.join(outputDir, 'release-manifest.json');
   await writeFile(
     manifestPath,
     `${JSON.stringify(
       {
         schemaVersion: 1,
         includesReviewedUntracked: includeReviewedUntracked,
-        sourceCommit: execFileSync("git", ["rev-parse", "HEAD"], {
+        sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], {
           cwd: rootDir,
-          encoding: "utf8",
+          encoding: 'utf8',
         }).trim(),
         files: manifest,
       },
       null,
       2,
     )}\n`,
-    { encoding: "utf8", mode: 0o644 },
+    { encoding: 'utf8', mode: 0o644 },
   );
 
   const totalBytes = manifest.reduce((sum, item) => sum + item.bytes, 0);

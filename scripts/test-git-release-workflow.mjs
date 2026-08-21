@@ -364,6 +364,18 @@ test('workflow and policy preserve existing deploy consumers and never force pus
     productionWorkflow,
     /action-staging\/\$\{GITHUB_RUN_ID\}-\$\{GITHUB_RUN_ATTEMPT\}/,
   );
+  const productionRemoteEnvironment = productionWorkflow.match(
+    /ssh opshub-vps \\\n+\s*"REMOTE_RELEASE_DIR[\s\S]*?\s+bash -s"/,
+  )?.[0];
+  assert.ok(
+    productionRemoteEnvironment,
+    'production deploy must define the remote SSH environment block',
+  );
+  assert.match(
+    productionRemoteEnvironment,
+    /OPSHUB_PUBLIC_BASE_URL='\$\{OPSHUB_PUBLIC_BASE_URL\}'/,
+    'production remote deploy must receive the public base URL before using it under set -u',
+  );
   assert.match(policy, /explicit\s+command in the current task/);
   assert.match(policy, /Never promote an\s+arbitrary task branch or SHA to `main`/);
   assert.match(policy, /Never force-push or delete `staging` or `main`/);

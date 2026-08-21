@@ -17,12 +17,19 @@ class ApiConnectionSnapshot {
   final List<ApiPgpKey> keys;
   final List<ApiConnectionAudit> audits;
 
+  ApiOperatingMode get operatingMode => controls.operatingMode;
+  ApiOperatingMode get effectiveMode => controls.effectiveMode;
+  ApiConnectionReadiness get readiness => controls.readiness;
+  List<String> get blockers => controls.blockers;
+  int get pendingProjectionCount => controls.pendingProjectionCount;
+
   factory ApiConnectionSnapshot.fromJson(Map<String, dynamic> json) {
+    final controlsJson = <String, dynamic>{...json, ..._map(json['controls'])};
     return ApiConnectionSnapshot(
       bankCode: json['bankCode']?.toString() ?? 'BIDV',
       environment: json['environment']?.toString() ?? 'unknown',
       publicBaseUrl: _nullableText(json['publicBaseUrl']),
-      controls: ApiConnectionControls.fromJson(_map(json['controls'])),
+      controls: ApiConnectionControls.fromJson(controlsJson),
       clients: _list(json['clients'])
           .map((item) => ApiClientCredential.fromJson(_map(item)))
           .toList(growable: false),
@@ -46,6 +53,12 @@ class ApiConnectionControls {
     required this.projectionEffective,
     required this.version,
     required this.updatedAt,
+    this.operatingMode = ApiOperatingMode.stopped,
+    this.effectiveMode = ApiOperatingMode.stopped,
+    this.readiness = const ApiConnectionReadiness(),
+    this.blockers = const <String>[],
+    this.pendingProjectionCount = 0,
+    this.emergencyDisabled = false,
   });
 
   final bool ingressRequested;
@@ -56,17 +69,102 @@ class ApiConnectionControls {
   final bool projectionEffective;
   final int version;
   final DateTime? updatedAt;
+  final ApiOperatingMode operatingMode;
+  final ApiOperatingMode effectiveMode;
+  final ApiConnectionReadiness readiness;
+  final List<String> blockers;
+  final int pendingProjectionCount;
+  final bool emergencyDisabled;
+
+  bool get canEnableIngestOrLive => readiness.allReady;
+  bool get hasPendingProjection => pendingProjectionCount > 0;
 
   factory ApiConnectionControls.fromJson(Map<String, dynamic> json) {
+    final legacyIngress = json['ingressRequested'] == true;
+    final legacyProjection = json['projectionRequested'] == true;
+    final fallbackMode = ApiOperatingMode.fromJson(
+      json['operatingMode'],
+      legacyIngress: legacyIngress,
+      legacyProjection: legacyProjection,
+    );
     return ApiConnectionControls(
-      ingressRequested: json['ingressRequested'] == true,
-      projectionRequested: json['projectionRequested'] == true,
+      ingressRequested: legacyIngress,
+      projectionRequested: legacyProjection,
       ingressMasterEnabled: json['ingressMasterEnabled'] == true,
       projectionMasterEnabled: json['projectionMasterEnabled'] == true,
       ingressEffective: json['ingressEffective'] == true,
       projectionEffective: json['projectionEffective'] == true,
       version: int.tryParse(json['version']?.toString() ?? '') ?? 0,
       updatedAt: _date(json['updatedAt']),
+      operatingMode: fallbackMode,
+      effectiveMode: ApiOperatingMode.fromJson(
+        json['effectiveMode'],
+        legacyIngress: json['ingressEffective'] == true,
+        legacyProjection: json['projectionEffective'] == true,
+      ),
+      readiness: ApiConnectionReadiness.fromJson(_map(json['readiness'])),
+      blockers: _list(json['blockers'])
+          .map((item) => item.toString())
+          .where((item) => item.trim().isNotEmpty)
+          .toList(growable: false),
+      pendingProjectionCount:
+          int.tryParse(json['pendingProjectionCount']?.toString() ?? '') ?? 0,
+      emergencyDisabled: json['emergencyDisabled'] == true,
+    );
+  }
+}
+
+enum ApiOperatingMode {
+  stopped('STOPPED', 'Dừng'),
+  uatIngestOnly('UAT_INGEST_ONLY', 'UAT — Chỉ tiếp nhận'),
+  live('LIVE', 'Vận hành chính thức');
+
+  const ApiOperatingMode(this.wireValue, this.label);
+
+  final String wireValue;
+  final String label;
+
+  static ApiOperatingMode fromJson(
+    dynamic value, {
+    bool legacyIngress = false,
+    bool legacyProjection = false,
+  }) {
+    switch (value?.toString()) {
+      case 'LIVE':
+        return ApiOperatingMode.live;
+      case 'UAT_INGEST_ONLY':
+        return ApiOperatingMode.uatIngestOnly;
+      case 'STOPPED':
+        return ApiOperatingMode.stopped;
+      default:
+        if (legacyProjection && legacyIngress) return ApiOperatingMode.live;
+        if (legacyIngress) return ApiOperatingMode.uatIngestOnly;
+        return ApiOperatingMode.stopped;
+    }
+  }
+}
+
+class ApiConnectionReadiness {
+  const ApiConnectionReadiness({
+    this.infrastructure = false,
+    this.kek = false,
+    this.client = false,
+    this.openPgpKey = false,
+  });
+
+  final bool infrastructure;
+  final bool kek;
+  final bool client;
+  final bool openPgpKey;
+
+  bool get allReady => infrastructure && kek && client && openPgpKey;
+
+  factory ApiConnectionReadiness.fromJson(Map<String, dynamic> json) {
+    return ApiConnectionReadiness(
+      infrastructure: json['infrastructure'] == true,
+      kek: json['kek'] == true,
+      client: json['client'] == true,
+      openPgpKey: json['openPgpKey'] == true,
     );
   }
 }
