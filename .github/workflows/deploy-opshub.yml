@@ -185,7 +185,7 @@ jobs:
         with:
           lfs: false
 
-      - name: Restore Windows payment audio from staging artifact
+      - name: Locate Windows payment audio staging artifact
         id: payment_audio_artifact
         shell: pwsh
         env:
@@ -206,14 +206,43 @@ jobs:
             if (-not $artifact) {
               throw "Staging run $($run.id) has no unexpired artifact $artifactName."
             }
-            $target = Join-Path (Get-Location) 'windows/assets/payment_audio/local_preset_speaker_v1'
-            New-Item -ItemType Directory -Force -Path $target | Out-Null
-            gh run download $run.id --repo $repo --name $artifactName --dir $target
             "source=staging-artifact" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            "run_id=$($run.id)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            "artifact_name=$artifactName" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
             Write-Host "Restored payment audio from staging run $($run.id) for SHA $sha."
           } catch {
             Write-Warning "Staging payment audio artifact unavailable: $($_.Exception.Message)"
             "source=unavailable" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          }
+
+      - name: Restore Windows payment audio from staging artifact
+        if: steps.payment_audio_artifact.outputs.source == 'staging-artifact'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: ${{ steps.payment_audio_artifact.outputs.artifact_name }}
+          # Checkout with LFS disabled leaves pointer files at the target paths;
+          # extract to an empty directory before replacing that tree.
+          path: .ci-payment-audio-artifact
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.payment_audio_artifact.outputs.run_id }}
+
+      - name: Install Windows payment audio staging artifact
+        if: steps.payment_audio_artifact.outputs.source == 'staging-artifact'
+        shell: pwsh
+        run: |
+          $source = Join-Path (Get-Location) '.ci-payment-audio-artifact'
+          $target = Join-Path (Get-Location) 'windows/assets/payment_audio/local_preset_speaker_v1'
+          if (-not (Test-Path -LiteralPath $source -PathType Container)) {
+            throw "Downloaded payment audio artifact directory is missing: $source"
+          }
+          if (Test-Path -LiteralPath $target) {
+            Remove-Item -LiteralPath $target -Recurse -Force
+          }
+          New-Item -ItemType Directory -Force -Path (Split-Path -Parent $target) | Out-Null
+          Move-Item -Path (Join-Path $source '*') -Destination $target -Force
+          if (-not (Test-Path -LiteralPath (Join-Path $target 'manifest.json'))) {
+            throw "Downloaded payment audio artifact has no manifest.json: $target"
           }
 
       - name: Restore Windows payment audio LFS cache
