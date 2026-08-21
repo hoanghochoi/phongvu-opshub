@@ -15,6 +15,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: opshub-production-deploy
@@ -184,6 +185,37 @@ jobs:
         with:
           lfs: false
 
+      - name: Restore Windows payment audio from staging artifact
+        id: payment_audio_artifact
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $repo = $env:GITHUB_REPOSITORY
+          $sha = $env:GITHUB_SHA
+          $artifactName = "opshub-payment-audio-$sha"
+          try {
+            $runs = gh api "repos/$repo/actions/workflows/deploy-opshub-staging.yml/runs?head_sha=$sha&status=completed&per_page=100" | ConvertFrom-Json
+            $run = @($runs.workflow_runs | Where-Object { $_.conclusion -eq 'success' } | Sort-Object updated_at -Descending | Select-Object -First 1)
+            if (-not $run) {
+              throw "No successful staging deploy found for SHA $sha."
+            }
+            $artifacts = gh api "repos/$repo/actions/runs/$($run.id)/artifacts?per_page=100" | ConvertFrom-Json
+            $artifact = @($artifacts.artifacts | Where-Object { $_.name -eq $artifactName -and -not $_.expired } | Select-Object -First 1)
+            if (-not $artifact) {
+              throw "Staging run $($run.id) has no unexpired artifact $artifactName."
+            }
+            $target = Join-Path (Get-Location) 'windows/assets/payment_audio/local_preset_speaker_v1'
+            New-Item -ItemType Directory -Force -Path $target | Out-Null
+            gh run download $run.id --repo $repo --name $artifactName --dir $target
+            "source=staging-artifact" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            Write-Host "Restored payment audio from staging run $($run.id) for SHA $sha."
+          } catch {
+            Write-Warning "Staging payment audio artifact unavailable: $($_.Exception.Message)"
+            "source=unavailable" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          }
+
       - name: Restore Windows payment audio LFS cache
         id: payment_audio_cache
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
@@ -192,7 +224,7 @@ jobs:
           key: opshub-payment-audio-${{ runner.os }}-${{ hashFiles('windows/assets/payment_audio/local_preset_speaker_v1/**/manifest.json') }}
 
       - name: Pull Windows payment audio on cache miss
-        if: steps.payment_audio_cache.outputs.cache-hit != 'true'
+        if: steps.payment_audio_artifact.outputs.source != 'staging-artifact' && steps.payment_audio_cache.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           git lfs version
