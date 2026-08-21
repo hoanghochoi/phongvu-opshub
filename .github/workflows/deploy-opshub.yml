@@ -239,10 +239,10 @@ jobs:
           if (Test-Path -LiteralPath $target) {
             Remove-Item -LiteralPath $target -Recurse -Force
           }
-          New-Item -ItemType Directory -Force -Path (Split-Path -Parent $target) | Out-Null
+          New-Item -ItemType Directory -Force -Path $target | Out-Null
           Move-Item -Path (Join-Path $source '*') -Destination $target -Force
-          if (-not (Test-Path -LiteralPath (Join-Path $target 'manifest.json'))) {
-            throw "Downloaded payment audio artifact has no manifest.json: $target"
+          if (-not (Test-Path -LiteralPath (Join-Path $target 'mien-bac-thanh-ha') -PathType Container)) {
+            throw "Downloaded payment audio artifact is missing the mien-bac-thanh-ha preset directory: $target"
           }
 
       - name: Restore Windows payment audio LFS cache

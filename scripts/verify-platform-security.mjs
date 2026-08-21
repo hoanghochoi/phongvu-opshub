@@ -623,6 +623,8 @@ contains(productionWorkflow, 'run-id: ${{ steps.payment_audio_artifact.outputs.r
 contains(productionWorkflow, 'github-token: ${{ github.token }}', 'production staging payment audio artifact token');
 contains(productionWorkflow, 'path: .ci-payment-audio-artifact', 'production staging payment audio empty extraction directory');
 contains(productionWorkflow, 'Install Windows payment audio staging artifact', 'production staging payment audio artifact installation');
+contains(productionWorkflow, 'New-Item -ItemType Directory -Force -Path $target', 'production staging payment audio destination directory');
+contains(productionWorkflow, 'mien-bac-thanh-ha', 'production staging payment audio complete preset guard');
 contains(productionWorkflow, 'opshub-payment-audio-$sha', 'production staging payment audio artifact name');
 excludes(productionWorkflow, 'gh run download', 'production staging artifact restore avoids CLI download');
 contains(productionWorkflow, 'git lfs pull --include="windows/assets/payment_audio/local_preset_speaker_v1/**"', 'production scoped Windows LFS pull');
