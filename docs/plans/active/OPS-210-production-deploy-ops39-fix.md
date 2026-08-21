@@ -49,3 +49,12 @@ explicit production promotion.
   the production Tunnel from fail-closed routing.
 - If staging deploy fails, keep production on the prior healthy release and
   investigate the staging log; do not retry production.
+
+## Staging follow-up
+
+The first exact-SHA staging deploy after PR #354 (`32486763960`) built and
+published the runtime, then failed the direct-origin gate because canonical
+`/help` returned `404`; the workflow completed its controlled rollback. The
+failure is reproducible at the release boundary, while the public rollback
+state remains healthy. This follow-up makes the `/help` SPA entrypoint explicit
+in Caddy and adds a static contract assertion before the next staging attempt.

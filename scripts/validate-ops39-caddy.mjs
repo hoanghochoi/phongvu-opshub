@@ -36,6 +36,11 @@ for (const forbidden of [
 }
 const legacyStart = caddy.indexOf('http://{$OPSHUB_LEGACY_DOMAIN} {');
 assert.notEqual(legacyStart, -1, 'Legacy bridge site is missing');
+assert.match(
+  caddy,
+  /handle \/help \{[\s\S]*?root \* \/srv\/web[\s\S]*?rewrite \* \/index\.html[\s\S]*?file_server/,
+  'Web site must expose an explicit /help SPA entrypoint for direct-origin verification',
+);
 const legacySite = caddy.slice(legacyStart);
 assert.match(legacySite, /path \/api \/api\/\*/);
 assert.match(legacySite, /handle @legacy_api/);
