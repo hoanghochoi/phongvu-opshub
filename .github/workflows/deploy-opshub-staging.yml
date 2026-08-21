@@ -217,6 +217,15 @@ jobs:
           git lfs install --local
           git lfs pull --include="windows/assets/payment_audio/local_preset_speaker_v1/**" --exclude=""
 
+      - name: Publish Windows payment audio source artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: opshub-payment-audio-${{ github.sha }}
+          path: windows/assets/payment_audio/local_preset_speaker_v1
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
       - name: Set up Flutter
         uses: ./.github/actions/setup-flutter
 

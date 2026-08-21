@@ -617,10 +617,15 @@ contains(productionWorkflow, '--no-web-resources-cdn', 'production local Flutter
 contains(productionWorkflow, 'lfs: false', 'production checkout avoids Android LFS download');
 contains(productionWorkflow, 'actions/cache@caa296126883cff596d87d8935842f9db880ef25', 'production Windows payment audio cache');
 contains(productionWorkflow, "hashFiles('windows/assets/payment_audio/local_preset_speaker_v1/**/manifest.json')", 'production payment audio manifest cache key');
+contains(productionWorkflow, 'actions: read', 'production workflow artifact read permission');
+contains(productionWorkflow, 'gh run download', 'production staging payment audio artifact restore');
+contains(productionWorkflow, 'opshub-payment-audio-$sha', 'production staging payment audio artifact name');
 contains(productionWorkflow, 'git lfs pull --include="windows/assets/payment_audio/local_preset_speaker_v1/**"', 'production scoped Windows LFS pull');
 contains(stagingWorkflow, 'lfs: false', 'staging checkout avoids Android LFS download');
 contains(stagingWorkflow, 'actions/cache@caa296126883cff596d87d8935842f9db880ef25', 'staging Windows payment audio cache');
 contains(stagingWorkflow, "hashFiles('windows/assets/payment_audio/local_preset_speaker_v1/**/manifest.json')", 'staging payment audio manifest cache key');
+contains(stagingWorkflow, 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02', 'staging Windows payment audio source artifact');
+contains(stagingWorkflow, 'opshub-payment-audio-${{ github.sha }}', 'staging payment audio artifact name');
 contains(stagingWorkflow, 'git lfs pull --include="windows/assets/payment_audio/local_preset_speaker_v1/**"', 'staging scoped Windows LFS pull');
 assert.equal(
   existsSync(path.join(root, '.github', 'workflows', 'build-windows-msix.yml')),
