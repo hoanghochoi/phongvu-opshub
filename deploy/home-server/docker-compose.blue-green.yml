@@ -36,7 +36,7 @@ services:
       - ${OPSHUB_SSD_ROOT:-/srv/opshub}/payment-audio:/data/payment-audio
       - ${OPSHUB_SSD_ROOT:-/srv/opshub}/import:/data/import:ro
       - ${OPSHUB_SSD_ROOT:-/srv/opshub}/secrets/bidv-h2h-kek:/run/secrets/bidv-h2h-kek:ro
-      - ../../docs/help:/app/docs/help:ro
+      - ${OPSHUB_SSD_ROOT:-/srv/opshub}/downloads/help:/app/docs/help:ro
       - ../../data:/app/data:ro
       - ../../assets/icon/source:/app/assets/icon/source:ro
       - ../../assets/icon/acare_logo.png:/app/assets/icon/acare_logo.png:ro
@@ -88,7 +88,7 @@ services:
       - ${OPSHUB_SSD_ROOT:-/srv/opshub}/payment-audio:/data/payment-audio
       - ${OPSHUB_SSD_ROOT:-/srv/opshub}/import:/data/import:ro
       - ${OPSHUB_SSD_ROOT:-/srv/opshub}/secrets/bidv-h2h-kek:/run/secrets/bidv-h2h-kek:ro
-      - ../../docs/help:/app/docs/help:ro
+      - ${OPSHUB_SSD_ROOT:-/srv/opshub}/downloads/help:/app/docs/help:ro
       - ../../data:/app/data:ro
       - ../../assets/icon/source:/app/assets/icon/source:ro
       - ../../assets/icon/acare_logo.png:/app/assets/icon/acare_logo.png:ro

@@ -105,3 +105,115 @@ script is invoked that way in either deploy heredoc. The repair routes every
 bootstrap Compose call through one wrapper with `< /dev/null`, adds static
 guards against bypassing the wrapper, and adds a dynamic regression whose mock
 Compose drains stdin and proves the command after the bootstrap still runs.
+
+## Production Tunnel and rollback transaction follow-up
+
+Production run `32511199264` deployed candidate SHA
+`c462c94c4502dfe2ff96213f878451e495e7af4d` successfully at the direct runtime
+boundary, then failed all public checks because the locally managed production
+Tunnel still omitted `phongvu.work` and `api.phongvu.work` and therefore matched
+its final `http_status:404` rule. The automatic rollback then failed because the
+exact previous release requires `BIDV_H2H_DOMAIN`, while its protected env
+snapshot predates that compatibility key.
+
+The failed rollback left production inconsistent: `current` points to the old
+release while candidate containers remain active, and app-version metadata can
+advertise a candidate package that the restored shared download tree does not
+contain. The rollback also selected Compose project `opshub`, while the deploy
+uses the default `home-server` project, so even a parseable rollback could have
+recreated a second project instead of replacing the candidate containers. The
+next release must use one explicit Compose project identity and reconcile the
+release pointer, runtime env, running containers, app-version metadata and
+shared package files as one transaction.
+
+The bounded repair is ordered as follows:
+
+1. Prepare a transaction-local rollback env from the untouched protected
+   snapshot. If the exact previous Compose requires the legacy BIDV hostname,
+   derive `BIDV_H2H_DOMAIN`, `BIDV_H2H_PUBLIC_BASE_URL` and
+   `BIDV_H2H_ENVIRONMENT` from that release's tracked `env.example`, then run
+   `docker compose config` for that exact release before any runtime switch.
+2. Make runtime rollback coherent: install the prepared env and switch the
+   release pointer only inside a guarded rollback attempt; if recreating the
+   old release fails, restore the pre-attempt env/pointer and recreate that
+   release instead of leaving mixed state. Deploy, rollback and proof use the
+   same explicit Compose project name.
+3. Verify the candidate directly at `127.0.0.1:8090` with exact production web,
+   API and legacy hosts before opening Cloudflare ingress.
+4. Snapshot `/etc/cloudflared/config.yml`, preserve every unrelated rule, add
+   exact `phongvu.work` and `api.phongvu.work` rules before the final 404,
+   validate the candidate config, install it atomically, restart `cloudflared`,
+   and prove both rules target only `http://localhost:8090`.
+5. On public verification failure restore the Tunnel snapshot first. Keep the
+   directly verified dual-domain candidate as the production foundation; do
+   not roll that boundary back to the pre-domain release merely because the
+   external cutover failed. Runtime failures before direct-origin acceptance
+   still use the compatible exact-release rollback above.
+6. Finalization removes only the transaction-specific Tunnel/runtime snapshots
+   after public verification and release-consistency proof pass.
+
+Regression proof must cover Tunnel activate/restore/idempotency/unknown config,
+the exact pre-domain rollback contract, failure recovery without mixed state,
+explicit Compose project identity, production direct-origin ordering,
+workflow/security validators and the full affected-consumer profile. No manual
+production mutation is authorized by this plan; publish, staging deploy and a
+new production promotion retain their normal approval gates.
+
+## Correctness review follow-up
+
+Wave 4 closed the Tunnel CAS, signal-safe historical restore, immutable-release
+and full-web identity findings, but exposed one affected consumer that must be
+fixed before publication. Static-only publication now updates only
+`/srv/opshub/downloads/help`, while the API container still reads
+`/app/docs/help` from the immutable release mount. This can leave
+`/help-content/public` on old Markdown/navigation even though static assets and
+the non-empty smoke check pass.
+
+Keep release bytes immutable, but provide one shared/versioned Help source for
+both the API docs loader and the web Help assets. The static transaction must
+snapshot, promote and restore that source atomically, refresh the API mount
+safely, and verify a content sentinel through `/help-content/public` rather
+than only checking that pages are non-empty. Update and execute
+`deploy/staging/static-transaction-rehearsal.sh` for the immutable static
+contract; it must no longer expect Caddy/current-release mutation or call the
+removed `opshub_txn_restore_static_current` helper. Also remove the duplicate
+`DOWNLOADS_DIR`/`WEB_DIR` assignments in the production SSH environment block.
+
+The bounded implementation uses `/srv/opshub/downloads/help` as that one
+shared source: the API mounts it read-only at `/app/docs/help`, while Caddy
+continues serving its `assets/` subtree. Full deploys therefore stage the whole
+`docs/help` tree, not only `assets`. Static promote and rollback recreate only
+the `home-server` API service after the host directory swap so the bind mount
+cannot retain a stale inode. Verification captures the pre-deploy public Help
+snapshot: when every page is docs-managed (`seededFromDocsAt` is present), the
+post-deploy response must match the new navigation/Markdown content; when any
+page is editor-managed, the response must remain unchanged so deployment does
+not overwrite accepted runtime edits.
+
+Wave 5 review tightened two ownership boundaries. Anonymous Help responses are
+not authoritative for the whole runtime because private or draft pages are
+filtered out; the static transaction must classify docs-managed versus
+editor-managed from the complete database state inside the API maintenance
+boundary, then use the public response only for behavioral comparison. Add a
+mixed-visibility regression where a hidden editor-managed page suppresses docs
+sync and the deployment preserves the public snapshot. Update
+`docs/product/help.md` and `docs/product/backend-platform.md` to describe the
+immutable release plus shared read-only Help source.
+
+The Tunnel sidecar must also record whether the production host pair was
+inserted by this transaction or already existed before it. Surgical restore may
+remove the pair only in the inserted case. For a pre-existing pair, unrelated
+config drift is preserved together with the exact owned routes; changed owned
+routes still fail closed. Add a pre-existing-active plus unrelated-drift
+regression and re-check the live hash immediately before restart/install.
+
+The server-side Help deploy-state probe must use the repository's Prisma 7
+PostgreSQL adapter boundary (`pg.Pool` plus `PrismaPg`), not a bare
+`new PrismaClient()`. Add executable proof for the probe construction/runtime
+path in addition to pure projection tests so a build-only pass cannot hide an
+adapter initialization failure.
+
+The workflow must execute the actual Nest build output at
+`dist/src/help-content/help-content-deploy-state.js`; verification must bind the
+workflow command to that compiled path and reject the shorter non-existent
+`dist/help-content/*` path.

@@ -408,6 +408,114 @@ test('workflow and policy preserve existing deploy consumers and never force pus
     /OPSHUB_PUBLIC_BASE_URL='\$\{OPSHUB_PUBLIC_BASE_URL\}'/,
     'production remote deploy must receive the public base URL before using it under set -u',
   );
+  assert.match(
+    productionRemoteEnvironment,
+    /OPSHUB_COMPOSE_PROJECT='home-server'/,
+    'production deploy must use the existing home-server Compose project',
+  );
+  assert.doesNotMatch(
+    productionWorkflow,
+    /COMPOSE_PROJECT_NAME='opshub'|--project-name opshub/,
+    'production must not create the retired parallel opshub Compose project',
+  );
+  assert.match(
+    productionWorkflow,
+    /prepare-rollback-env\.sh"[\s\S]*?"\$REMOTE_RELEASE_DIR\/rollback-authority\/\$rollback_source_commit\/env\.example"[\s\S]*?"\$rollback_source_commit"/,
+    'production must prepare the exact previous release rollback env before promotion',
+  );
+  assert.match(
+    productionWorkflow,
+    /release-manifest\.json[\s\S]*?\["sourceCommit"\]/,
+    'production must bind rollback authority to release-manifest sourceCommit',
+  );
+  assert.match(
+    productionWorkflow,
+    /git show "\$\{previous_release_sha\}:deploy\/home-server\/env\.example"/,
+    'production must export rollback authority from the exact deployed release SHA',
+  );
+  assert.match(
+    productionWorkflow,
+    /rollback-authority\/\$\{previous_release_sha\}\/env\.example/,
+    'production must deliver exact-release rollback authority with the candidate',
+  );
+  assert.doesNotMatch(
+    productionWorkflow,
+    /prepare-bidv-legacy-rollback\.sh/,
+    'production deploy must not call the secret-bearing BIDV break-glass helper',
+  );
+  const directOriginAcceptanceIndex = productionWorkflow.indexOf(
+    'bash deploy/home-server/verify-production-origin.sh',
+  );
+  const tunnelActivationIndex = productionWorkflow.indexOf(
+    'name: Activate production Cloudflare ingress after direct-origin acceptance',
+  );
+  const publicVerificationIndex = productionWorkflow.indexOf(
+    'name: Verify public health and version metadata',
+  );
+  const tunnelRestoreIndex = productionWorkflow.indexOf(
+    'name: Restore production Tunnel after failed public verification',
+  );
+  assert.ok(
+    directOriginAcceptanceIndex >= 0 &&
+      directOriginAcceptanceIndex < tunnelActivationIndex &&
+      tunnelActivationIndex < publicVerificationIndex &&
+      publicVerificationIndex < tunnelRestoreIndex,
+    'production must pass direct-origin proof before opening Tunnel ingress and restore Tunnel after public failure',
+  );
+  assert.match(
+    productionWorkflow,
+    /steps\.activate_tunnel\.outcome != 'skipped' && steps\.verify_public\.outcome != 'success'/,
+    'production Tunnel restore must cover every attempted activation before failed or cancelled public verification',
+  );
+  const baselineReconcileIndex = productionWorkflow.indexOf(
+    'verify_previous_baseline()',
+  );
+  const candidateEnvMutationIndex = productionWorkflow.indexOf(
+    'upsert_env OPSHUB_DOMAIN "phongvu.work"',
+  );
+  assert.ok(
+    baselineReconcileIndex >= 0 &&
+      baselineReconcileIndex < candidateEnvMutationIndex,
+    'production must reconcile the previous release baseline before candidate env mutation',
+  );
+  assert.match(productionWorkflow, /Production \/v1\/ws\/v2 without a one-time ticket returned/);
+  for (const signalTrap of [
+    "trap 'rollback_on_error 130' INT",
+    "trap 'rollback_on_error 143' TERM",
+    "trap 'rollback_on_error 129' HUP",
+    'trap - ERR INT TERM HUP',
+  ]) assert.match(productionWorkflow, new RegExp(signalTrap.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(productionWorkflow, /verify-release-manifest\.sh" "\$previous_current"/);
+  assert.match(productionWorkflow, /production-runtime-identity\.sh/);
+  assert.match(productionWorkflow, /reconcile-production-baseline\.sh/);
+  assert.match(productionWorkflow, /verify_public_artifact\(\)/);
+  assert.match(productionWorkflow, /verify-static-response/);
+  const nestSourceRoot = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, 'backend-nest', 'nest-cli.json'), 'utf8'),
+  ).sourceRoot;
+  const helpDeployStateBuildPath = `dist/${nestSourceRoot}/help-content/help-content-deploy-state.js`;
+  assert.match(
+    productionWorkflow,
+    new RegExp(helpDeployStateBuildPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+    'production Help ownership probe must use the actual Nest build output path',
+  );
+  assert.doesNotMatch(
+    productionWorkflow,
+    /node dist\/help-content\/help-content-deploy-state\.js/,
+    'production Help ownership probe must not omit the Nest sourceRoot segment',
+  );
+  assert.match(productionWorkflow, /help-state-before\.json/);
+  assert.match(productionWorkflow, /--force-recreate --wait --wait-timeout 120 api/);
+  assert.doesNotMatch(productionWorkflow, /\$CURRENT_DIR\/docs\/help/);
+  assert.match(productionWorkflow, /tar -C docs\/help -czf dist\/help-assets\.tar\.gz \./);
+  assert.match(stagingWorkflow, /tar -C docs\/help -czf dist\/help-assets\.tar\.gz \./);
+  assert.match(homeCompose, /\/downloads\/help:\/app\/docs\/help:ro/);
+  assert.doesNotMatch(homeCompose, /\.\.\/\.\.\/docs\/help:\/app\/docs\/help:ro/);
+  assert.match(
+    productionWorkflow,
+    /the directly verified dual-domain candidate foundation and rollback checkpoint were retained/,
+    'public failure must retain the accepted dual-domain candidate foundation',
+  );
   assert.match(policy, /explicit\s+command in the current task/);
   assert.match(policy, /Never promote an\s+arbitrary task branch or SHA to `main`/);
   assert.match(policy, /Never force-push or delete `staging` or `main`/);

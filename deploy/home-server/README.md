@@ -233,15 +233,19 @@ The public staff download page is served at `/download`. Full deploys publish
 ZIP, and SHA256 checksum so that page can render the current links. The public
 staff help page now uses the Flutter `/help` route backed by
 `/api/help-content/public`, while Caddy still serves `/help/assets/*` from
-`/srv/opshub/downloads/help/`. For static download/help-page changes only, run
+`/srv/opshub/downloads/help/`. That shared directory contains the complete
+`navigation.json`, `content/`, and `assets/` tree and is mounted read-only at
+`/app/docs/help` in the API. Because the transaction replaces the directory,
+the static lane recreates only the `home-server` API service to refresh the
+bind mount; release files remain immutable. For static download/help-page changes only, run
 the workflow manually with `skip_client_build=true`; that path uploads the
-static landing page/icon/help asset bundle, syncs `docs/help/*` into the
-current release as the runtime seed/rollback source, regenerates `latest.json`
-from the already live app-version metadata and files, updates the current
-Caddyfile, and reloads Caddy without rebuilding APK, Windows packages, backend
-images, or app-version metadata. This path uses the same checkpoint contract:
-failed promotion or public verification restores Caddy, current-release Help,
-download Help assets, manifest, landing page and icon before cleanup.
+static landing page/icon and complete Help bundle, regenerates `latest.json`
+from the already live app-version metadata and files, and preserves APK,
+Windows packages, backend images and app-version metadata. Verification uses
+an exact behavior sentinel: docs-managed pages must match the new Markdown and
+navigation, while editor-managed runtime pages must remain unchanged. Failed
+verification restores the shared Help tree, manifest, landing page and icon,
+then recreates the API mount before checkpoint cleanup.
 
 New Android and Windows clients use `/app-version` package metadata to update
 inside the app: they download `packageUrl`, verify `packageSha256` and

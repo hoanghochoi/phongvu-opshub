@@ -101,6 +101,14 @@ const [
   stagingLoadUsers,
   stagingLoadWrapper,
   runtimeReleaseBuilder,
+  productionOriginVerifier,
+  productionRollbackRuntime,
+  productionRollbackEnv,
+  productionCloudflareTransaction,
+  productionBaselineVerifier,
+  productionManifestVerifier,
+  productionRuntimeIdentity,
+  productionBaselineReconciler,
   stagingLoadProfile,
   stagingRateLimitSemantics,
   help,
@@ -138,6 +146,14 @@ const [
   text('backend-nest/scripts/manage-staging-load-users.mjs'),
   text('deploy/staging/manage-load-users.sh'),
   text('scripts/build-runtime-release.mjs'),
+  text('deploy/home-server/verify-production-origin.sh'),
+  text('deploy/home-server/rollback-runtime.sh'),
+  text('deploy/home-server/prepare-rollback-env.sh'),
+  text('deploy/home-server/cloudflare-ingress-transaction.sh'),
+  text('deploy/home-server/verify-production-baseline.sh'),
+  text('deploy/home-server/verify-release-manifest.sh'),
+  text('deploy/home-server/production-runtime-identity.sh'),
+  text('deploy/home-server/reconcile-production-baseline.sh'),
   text('scripts/load/opshub-staging-home-100qps.js'),
   text('scripts/load/opshub-staging-rate-limit-semantics.js'),
   text('deploy/home-server/help.html'),
@@ -160,6 +176,11 @@ const [
   text('backend-nest/scripts/private-media-reference-audit.mjs'),
   text('app-security-manual-actions-12072026.md'),
 ]);
+const helpProductContract = await text('docs/product/help.md');
+const backendPlatformContract = await text('docs/product/backend-platform.md');
+const helpDeployStateProbe = await text(
+  'backend-nest/src/help-content/help-content-deploy-state.ts',
+);
 
 assertWorkflowRunExpressionLengths(productionWorkflow, 'production workflow');
 assertWorkflowRunExpressionLengths(stagingWorkflow, 'staging workflow');
@@ -274,6 +295,16 @@ contains(productionCompose, 'REALTIME_LEGACY_JWT_SECRET', 'isolated realtime rol
 contains(productionCompose, 'explicit loopback binding', 'origin loopback gate');
 contains(productionCompose, '/private-media:/data/private-media', 'private media API volume');
 excludes(productionCompose, '/private-media:/srv/', 'private media Caddy exposure');
+contains(
+  productionCompose,
+  '/downloads/help:/app/docs/help:ro',
+  'production API shared Help source',
+);
+excludes(
+  productionCompose,
+  '../../docs/help:/app/docs/help:ro',
+  'immutable production release Help mount',
+);
 
 contains(
   blueGreenCompose,
@@ -288,6 +319,16 @@ contains(
 contains(blueGreenCompose, 'external: true', 'blue-green shared network is pre-created');
 contains(blueGreenCompose, 'cap_drop: [ALL]', 'blue-green candidate capability drop');
 contains(blueGreenCompose, 'read_only: true', 'blue-green candidate read-only root');
+contains(
+  blueGreenCompose,
+  '/downloads/help:/app/docs/help:ro',
+  'blue-green shared Help source',
+);
+excludes(
+  blueGreenCompose,
+  '../../docs/help:/app/docs/help:ro',
+  'immutable blue-green release Help mount',
+);
 contains(
   blueGreenCompose,
   'no-new-privileges:true',
@@ -670,9 +711,165 @@ contains(
   'production coordinated Redis authentication rollout',
 );
 contains(
-  productionWorkflow,
+  productionRollbackRuntime,
   'redis api realtime caddy',
   'production rollback includes Redis configuration',
+);
+contains(
+  productionWorkflow,
+  'OPSHUB_COMPOSE_PROJECT=\'home-server\'',
+  'production existing Compose project identity',
+);
+excludes(
+  productionWorkflow,
+  "COMPOSE_PROJECT_NAME='opshub'",
+  'retired parallel production Compose project identity',
+);
+contains(
+  productionWorkflow,
+  'deploy/home-server/prepare-rollback-env.sh',
+  'production exact-release rollback env preparation',
+);
+contains(
+  productionWorkflow,
+  'deploy/home-server/rollback-runtime.sh',
+  'production coherent runtime rollback helper',
+);
+excludes(
+  productionWorkflow,
+  'prepare-bidv-legacy-rollback.sh',
+  'production deploy must not invoke the BIDV break-glass helper',
+);
+for (const directOriginContract of [
+  'request_content phongvu.work /',
+  'request_content phongvu.work /help',
+  'request_content phongvu.work /download',
+  'request_content api.phongvu.work /v1/health',
+  'request_content opshub.hoanghochoi.com /api/health',
+  'request_status phongvu.work /api/health 404',
+  'request_status api.phongvu.work /health 404',
+  'request_status unknown.phongvu.work /health 404',
+  'Sec-WebSocket-Key:',
+  'temporarily_unavailable',
+  'invalid_client',
+  'invalid_token',
+  'APP_PACKAGE_SHA256',
+  'Served manifest differs from candidate shared manifest.',
+]) {
+  contains(
+    productionOriginVerifier,
+    directOriginContract,
+    'production direct-origin acceptance contract',
+  );
+}
+for (const rollbackAuthorityContract of [
+  'release-manifest.json',
+  'sourceCommit',
+  'release-local env.example differs from exact Git authority',
+  'required_public_keys=',
+  'optional_public_keys=',
+  'remove_value',
+  'PUBLIC_BASE_URL does not match OPSHUB_DOMAIN',
+]) {
+  contains(productionRollbackEnv, rollbackAuthorityContract, 'exact rollback authority contract');
+}
+for (const signalContract of [
+  "trap 'on_signal INT 130' INT",
+  "trap 'on_signal TERM 143' TERM",
+  "trap 'on_signal HUP 129' HUP",
+  "trap 'on_exit $?' EXIT",
+  'recover_coherent_state()',
+]) {
+  contains(productionRollbackRuntime, signalContract, 'signal-safe runtime rollback contract');
+}
+for (const tunnelContract of [
+  'flock -n 9',
+  'baseline_hash',
+  'rendered_hash',
+  'remove_owned_rules()',
+  'Owned production Tunnel rules changed; refusing surgical restore.',
+  'Live Tunnel config changed during restore validation; refusing overwrite.',
+  'live Tunnel config changed during finalize validation; retaining checkpoint',
+  "trap 'on_signal HUP 129' HUP",
+]) {
+  contains(productionCloudflareTransaction, tunnelContract, 'Cloudflare CAS transaction contract');
+}
+contains(productionBaselineVerifier, 'mounted Caddyfile hash differs', 'production baseline Caddy hash proof');
+contains(productionBaselineVerifier, 'advertised package is absent', 'production baseline package proof');
+contains(productionBaselineVerifier, 'com.docker.compose.project.config_files', 'production baseline Compose label proof');
+contains(productionManifestVerifier, 'sha256 mismatch', 'exact release file hash proof');
+contains(productionManifestVerifier, 'critical paths missing', 'exact release critical-path proof');
+contains(productionRuntimeIdentity, 'apiImageId', 'production API image identity proof');
+contains(productionRuntimeIdentity, 'realtimeImageId', 'production realtime image identity proof');
+contains(productionRuntimeIdentity, 'manifestSha256', 'production shared manifest identity proof');
+contains(productionRuntimeIdentity, 'hash_tree()', 'production full web-tree identity proof');
+contains(productionWorkflow, 'verify_previous_baseline()', 'production pre-mutation baseline reconcile');
+contains(productionWorkflow, 'reconcile-production-baseline.sh', 'production baseline reconciler invocation');
+contains(productionWorkflow, 'verify-static-response', 'static Help behavior sentinel');
+contains(productionWorkflow, '--force-recreate --wait --wait-timeout 120 api', 'static API Help mount refresh');
+contains(productionWorkflow, 'help-state-before.json', 'complete Help ownership checkpoint');
+contains(
+  productionWorkflow,
+  'dist/src/help-content/help-content-deploy-state.js',
+  'server-side Help ownership probe compiled path',
+);
+excludes(
+  productionWorkflow,
+  'node dist/help-content/help-content-deploy-state.js',
+  'invalid server-side Help ownership probe path',
+);
+excludes(productionWorkflow, '$CURRENT_DIR/docs/help', 'mutable current-release Help path');
+excludes(productionWorkflow, 'opshub_txn_restore_static_current', 'retired mutable Help rollback');
+contains(helpDeployStateProbe, 'editorManagedCount', 'full Help editor ownership count');
+contains(helpDeployStateProbe, 'publicProjectionSha256', 'sanitized Help public projection proof');
+for (const [contract, label] of [
+  [helpProductContract, 'Help product contract'],
+  [backendPlatformContract, 'backend platform contract'],
+]) {
+  contains(contract, '/srv/opshub/downloads/help', `${label} shared Help source`);
+  contains(contract, 'immutable', `${label} immutable release boundary`);
+}
+contains(productionBaselineReconciler, 'No exact previous-release shared checkpoint is available', 'split baseline requires historical shared checkpoint');
+contains(productionBaselineReconciler, 'recover_historical_shared()', 'signal-safe historical shared recovery');
+for (const outerSignal of [
+  "trap 'rollback_on_error 130' INT",
+  "trap 'rollback_on_error 143' TERM",
+  "trap 'rollback_on_error 129' HUP",
+  'trap - ERR INT TERM HUP',
+]) contains(productionWorkflow, outerSignal, 'production outer SSH signal rollback');
+contains(
+  productionWorkflow,
+  'DIRECT_ORIGIN_ACCEPTED',
+  'production direct-origin acceptance marker',
+);
+const productionDirectOriginIndex = productionWorkflow.indexOf(
+  'bash deploy/home-server/verify-production-origin.sh',
+);
+const productionTunnelActivateIndex = productionWorkflow.indexOf(
+  'name: Activate production Cloudflare ingress after direct-origin acceptance',
+);
+const productionPublicVerifyIndex = productionWorkflow.indexOf(
+  'name: Verify public health and version metadata',
+);
+const productionTunnelRestoreIndex = productionWorkflow.indexOf(
+  'name: Restore production Tunnel after failed public verification',
+);
+assert.ok(
+  productionDirectOriginIndex >= 0 &&
+    productionDirectOriginIndex < productionTunnelActivateIndex &&
+    productionTunnelActivateIndex < productionPublicVerifyIndex &&
+    productionPublicVerifyIndex < productionTunnelRestoreIndex,
+  'production Tunnel transaction ordering is unsafe',
+);
+contains(
+  productionWorkflow,
+  'restore /etc/cloudflared/config.yml "$tunnel_snapshot"',
+  'production Tunnel restoration after public failure',
+);
+contains(
+  productionWorkflow,
+  'the directly verified dual-domain candidate foundation and rollback checkpoint were retained',
+  'production public failure retains accepted dual-domain foundation',
 );
 const productionBackendDeployIndex = productionWorkflow.indexOf(
   'name: Deploy backend and publish version metadata',

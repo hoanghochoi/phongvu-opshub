@@ -163,6 +163,8 @@ opshub_txn_stage_shared() {
   opshub_txn_run tar --no-same-owner -xzf "$TXN_INPUT_DIR/help-assets.tar.gz" -C "$OPSHUB_TXN_SHARED_STAGE/help"
   opshub_txn_run test -s "$OPSHUB_TXN_SHARED_STAGE/web/index.html" || opshub_txn_die "staged web bundle is incomplete"
   opshub_txn_run test -d "$OPSHUB_TXN_SHARED_STAGE/help/assets" || opshub_txn_die "staged help bundle is incomplete"
+  opshub_txn_run test -s "$OPSHUB_TXN_SHARED_STAGE/help/navigation.json" || opshub_txn_die "staged Help navigation is missing"
+  opshub_txn_run test -d "$OPSHUB_TXN_SHARED_STAGE/help/content" || opshub_txn_die "staged Help content is missing"
   local name staged
   for name in latest.json download.html opshub-icon-192.png; do
     opshub_txn_run install -m 0644 "$TXN_INPUT_DIR/$name" "$OPSHUB_TXN_SHARED_STAGE/downloads/$name"
@@ -194,62 +196,27 @@ opshub_txn_stage_shared() {
   opshub_txn_run install -m 0600 /dev/null "$OPSHUB_TXN_SHARED_SNAPSHOT/PROMOTED"
 }
 
-opshub_txn_snapshot_static_current() {
-  : "${CURRENT_DIR:?CURRENT_DIR is required}"
-  local static_snapshot="$OPSHUB_TXN_SHARED_SNAPSHOT/static"
-  opshub_txn_run install -d -m 0700 "$static_snapshot"
-  opshub_txn_run test -f "$CURRENT_DIR/deploy/home-server/Caddyfile" ||
-    opshub_txn_die "current Caddyfile is unavailable"
-  opshub_txn_run cp -a -- "$CURRENT_DIR/deploy/home-server/Caddyfile" "$static_snapshot/Caddyfile"
-  if opshub_txn_run test -e "$CURRENT_DIR/docs/help"; then
-    opshub_txn_run test -d "$CURRENT_DIR/docs/help" && ! opshub_txn_run test -L "$CURRENT_DIR/docs/help" ||
-      opshub_txn_die "current runtime Help path is not a real directory"
-    opshub_txn_run cp -a -- "$CURRENT_DIR/docs/help" "$static_snapshot/docs-help"
-  fi
-  opshub_txn_run install -m 0600 /dev/null "$static_snapshot/SNAPSHOT_READY"
-}
-
 opshub_txn_promote_static() {
   : "${TXN_INPUT_DIR:?TXN_INPUT_DIR is required}"
   opshub_txn_snapshot_shared
-  opshub_txn_snapshot_static_current
-  local static_stage="$OPSHUB_TXN_SHARED_STAGE/static"
-  opshub_txn_run install -d -m 0755 "$static_stage/docs-help"
-  opshub_txn_run tar --no-same-owner -xzf "$TXN_INPUT_DIR/docs-help.tar.gz" -C "$static_stage/docs-help"
+  opshub_txn_run tar --no-same-owner -xzf "$TXN_INPUT_DIR/docs-help.tar.gz" -C "$OPSHUB_TXN_SHARED_STAGE/help"
   opshub_txn_run test -s "$TXN_INPUT_DIR/latest.json" || opshub_txn_die "staged static manifest is missing"
   opshub_txn_run test -s "$TXN_INPUT_DIR/download.html" || opshub_txn_die "staged download page is missing"
   opshub_txn_run test -s "$TXN_INPUT_DIR/opshub-icon-192.png" || opshub_txn_die "staged download icon is missing"
-  opshub_txn_run test -s "$TXN_INPUT_DIR/Caddyfile" || opshub_txn_die "staged Caddyfile is missing"
-  opshub_txn_run test -d "$static_stage/docs-help/assets" || opshub_txn_die "staged Help assets are missing"
-  opshub_txn_run install -m 0644 "$TXN_INPUT_DIR/Caddyfile" "$CURRENT_DIR/deploy/home-server/Caddyfile"
-  opshub_txn_run install -d -m 0755 "$CURRENT_DIR/docs" "$DOWNLOADS_DIR"
+  opshub_txn_run test -d "$OPSHUB_TXN_SHARED_STAGE/help/assets" || opshub_txn_die "staged Help assets are missing"
+  opshub_txn_run test -s "$OPSHUB_TXN_SHARED_STAGE/help/navigation.json" || opshub_txn_die "staged Help navigation is missing"
+  opshub_txn_run test -d "$OPSHUB_TXN_SHARED_STAGE/help/content" || opshub_txn_die "staged Help content is missing"
+  opshub_txn_run install -d -m 0755 "$DOWNLOADS_DIR"
   opshub_txn_run install -m 0644 "$TXN_INPUT_DIR/latest.json" "$OPSHUB_TXN_SHARED_STAGE/downloads/latest.json"
   opshub_txn_run install -m 0644 "$TXN_INPUT_DIR/download.html" "$OPSHUB_TXN_SHARED_STAGE/downloads/download.html"
   opshub_txn_run install -m 0644 "$TXN_INPUT_DIR/opshub-icon-192.png" "$OPSHUB_TXN_SHARED_STAGE/downloads/opshub-icon-192.png"
   opshub_txn_run rm -rf -- "$DOWNLOADS_DIR/help"
-  opshub_txn_run rm -rf -- "$CURRENT_DIR/docs/help"
-  opshub_txn_run cp -a -- "$static_stage/docs-help" "$CURRENT_DIR/docs/help"
-  opshub_txn_run install -d -m 0755 "$DOWNLOADS_DIR/help"
-  opshub_txn_run cp -a -- "$static_stage/docs-help/assets/." "$DOWNLOADS_DIR/help/assets"
+  opshub_txn_run mv -T -- "$OPSHUB_TXN_SHARED_STAGE/help" "$DOWNLOADS_DIR/help"
   local name
   for name in latest.json download.html opshub-icon-192.png; do
     opshub_txn_run mv -Tf -- "$OPSHUB_TXN_SHARED_STAGE/downloads/$name" "$DOWNLOADS_DIR/$name"
   done
   opshub_txn_run install -m 0600 /dev/null "$OPSHUB_TXN_SHARED_SNAPSHOT/PROMOTED"
-}
-
-opshub_txn_restore_static_current() {
-  local static_snapshot="$OPSHUB_TXN_SHARED_SNAPSHOT/static"
-  opshub_txn_run test -e "$static_snapshot/SNAPSHOT_READY" || { opshub_txn_die "static snapshot is incomplete"; return 1; }
-  opshub_txn_run cp -a -- "$static_snapshot/Caddyfile" "$CURRENT_DIR/deploy/home-server/Caddyfile" || return 1
-  opshub_txn_run rm -rf -- "$CURRENT_DIR/docs/help" || return 1
-  if opshub_txn_run test -e "$static_snapshot/docs-help"; then
-    opshub_txn_run cp -a -- "$static_snapshot/docs-help" "$CURRENT_DIR/docs/help" || return 1
-  fi
-  opshub_txn_run test -f "$CURRENT_DIR/deploy/home-server/Caddyfile" || return 1
-  if opshub_txn_run test -e "$static_snapshot/docs-help"; then
-    opshub_txn_run test -d "$CURRENT_DIR/docs/help/assets" || return 1
-  fi
 }
 
 opshub_txn_restore_shared() {
@@ -285,6 +252,45 @@ opshub_txn_restore_shared() {
   if opshub_txn_run test -e "$OPSHUB_TXN_SHARED_SNAPSHOT/downloads/help"; then
     opshub_txn_run test -d "$DOWNLOADS_DIR/help" || return 1
   fi
+}
+
+opshub_txn_verify_shared_snapshot() {
+  : "${DOWNLOADS_DIR:?DOWNLOADS_DIR is required}"
+  : "${WEB_DIR:?WEB_DIR is required}"
+  opshub_txn_run test -e "$OPSHUB_TXN_SHARED_SNAPSHOT/SNAPSHOT_READY" || {
+    opshub_txn_die "shared snapshot is incomplete"
+    return 1
+  }
+  if opshub_txn_run test -e "$OPSHUB_TXN_SHARED_SNAPSHOT/web"; then
+    opshub_txn_run test -d "$WEB_DIR" &&
+      opshub_txn_run diff -qr -- "$OPSHUB_TXN_SHARED_SNAPSHOT/web" "$WEB_DIR" >/dev/null || return 1
+  else
+    ! opshub_txn_run test -e "$WEB_DIR" || return 1
+  fi
+  if opshub_txn_run test -e "$OPSHUB_TXN_SHARED_SNAPSHOT/downloads/help"; then
+    opshub_txn_run test -d "$DOWNLOADS_DIR/help" &&
+      opshub_txn_run diff -qr -- "$OPSHUB_TXN_SHARED_SNAPSHOT/downloads/help" "$DOWNLOADS_DIR/help" >/dev/null || return 1
+  else
+    ! opshub_txn_run test -e "$DOWNLOADS_DIR/help" || return 1
+  fi
+  local name live backup
+  for name in latest.json download.html opshub-icon-192.png; do
+    live="$DOWNLOADS_DIR/$name"; backup="$OPSHUB_TXN_SHARED_SNAPSHOT/downloads/$name"
+    if opshub_txn_run test -e "$backup"; then
+      opshub_txn_run cmp -s -- "$backup" "$live" || return 1
+    else
+      ! opshub_txn_run test -e "$live" || return 1
+    fi
+  done
+  for name in "${APK_NAME:-}" "${WINDOWS_ZIP_NAME:-}" "${WINDOWS_INSTALLER_NAME:-}" "${WINDOWS_CHECKSUM_NAME:-}"; do
+    [[ -n "$name" ]] || continue
+    live="$DOWNLOADS_DIR/$name"; backup="$OPSHUB_TXN_SHARED_SNAPSHOT/versioned/$name"
+    if opshub_txn_run test -e "$backup"; then
+      opshub_txn_run cmp -s -- "$backup" "$live" || return 1
+    else
+      ! opshub_txn_run test -e "$live" || return 1
+    fi
+  done
 }
 
 opshub_txn_restore_env() {

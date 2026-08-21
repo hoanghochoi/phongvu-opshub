@@ -51,10 +51,20 @@ permission.
   runtime pages still come from docs, the backend auto-syncs them from
   `docs/help/*` on the next load. Once a Super Admin edits a runtime page, that
   page leaves the docs-managed path until `Khôi phục từ docs` is used.
-- Production `help-content` static-only deploys still publish `/help/assets/*`
-  and sync `docs/help/*` onto the current release as the short rollback/source
-  path for runtime help. They do not rebuild app packages or change
-  app-version metadata.
+- Production `help-content` static-only deploys atomically publish the complete
+  `navigation.json`, `content/`, and `assets/` tree to the shared
+  `/srv/opshub/downloads/help` source. The API mounts that directory read-only
+  at `/app/docs/help`, and Caddy serves its `assets/` subtree. Static deploys
+  recreate only the API service after promote/rollback so the directory bind
+  mount cannot retain a stale inode. They keep current-release bytes immutable
+  and never rebuild app packages or change app-version metadata.
+- Static Help verification classifies ownership from the complete database
+  state inside the API container. If all pages remain docs-managed, the public
+  response must match the new navigation and Markdown. If any public, private,
+  or draft page is editor-managed, that ownership remains authoritative and
+  must not be replaced by the docs bundle. Verification retries a bounded
+  server-state/public-response sample so a legitimate concurrent editor update
+  does not become a false deployment failure.
 - Non-Super Admin must not see the editor entry and backend must reject direct
   runtime-editor API calls from non-Super Admin accounts.
 - Opening the help page from the app logs route-open states through
@@ -73,7 +83,7 @@ permission.
 - Use `Quản trị -> Quản lý hướng dẫn` when the runtime copy must change
   immediately.
 - Use `Khôi phục từ docs` when the runtime copy needs to realign with the
-  current `docs/help/*` source after a rollback or `help-content` deploy.
+  current shared `docs/help/*` source after a rollback or `help-content` deploy.
 - Add images to `docs/help/assets/`.
 - Use `Tải ảnh và chèn` inside `Quản lý hướng dẫn` when a Super Admin needs a
   public image URL quickly without touching the static repo assets first.
