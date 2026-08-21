@@ -58,3 +58,14 @@ published the runtime, then failed the direct-origin gate because canonical
 failure is reproducible at the release boundary, while the public rollback
 state remains healthy. This follow-up makes the `/help` SPA entrypoint explicit
 in Caddy and adds a static contract assertion before the next staging attempt.
+
+The next exact-SHA attempt (`32490005811`, `bcd4c281`) reproduced the same
+`/help` 404 even though the candidate Caddyfile contained the explicit handler;
+an isolated candidate Caddy container served `/help` correctly. The remaining
+boundary was the full deploy transaction: shared web/Caddyfile paths are
+replaced by inode and the full staging workflow did not explicitly recreate and
+reload Caddy before the direct-origin gate. The follow-up now forces a Caddy
+recreate, reloads the config, compares the mounted Caddyfile SHA to the active
+release and verifies `/srv/web/index.html` is mounted before probing routes.
+The production full deploy receives the same guard because it uses the same
+bind-mount topology.

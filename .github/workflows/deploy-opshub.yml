@@ -942,6 +942,33 @@ jobs:
 
           run_compose_or_rollback up -d --build --force-recreate --wait --wait-timeout 240 api realtime caddy
 
+          # Caddy mounts both the release Caddyfile and the shared web
+          # directory by path. The static transaction replaces those paths by
+          # inode, so explicitly recreate/reload Caddy before probing routes;
+          # otherwise a healthy container can still serve a stale mount.
+          run_compose_or_rollback up -d --no-deps --force-recreate caddy
+          if ! compose_cmd exec -T caddy caddy reload --config /etc/caddy/Caddyfile; then
+            run_compose_or_rollback restart caddy
+          fi
+          expected_caddy_config_hash="$(sha256sum "$CURRENT_DIR/deploy/home-server/Caddyfile" | awk '{print $1}')"
+          actual_caddy_config_hash=''
+          for attempt in {1..12}; do
+            actual_caddy_config_hash="$(
+              compose_cmd exec -T caddy sha256sum /etc/caddy/Caddyfile 2>/dev/null |
+                awk '{print $1}' || true
+            )"
+            if [ "$actual_caddy_config_hash" = "$expected_caddy_config_hash" ] &&
+               compose_cmd exec -T caddy test -s /etc/caddy/Caddyfile &&
+               compose_cmd exec -T caddy test -s /srv/web/index.html; then
+              break
+            fi
+            if [ "$attempt" -eq 12 ]; then
+              echo "Caddy publication mismatch after recreate: expected=$expected_caddy_config_hash actual=${actual_caddy_config_hash:-<empty>}" >&2
+              false
+            fi
+            sleep 2
+          done
+
           expected_app_env="${APP_VERSION}|${APP_BUILD_NUMBER}|${APP_VERSION}|${APP_BUILD_NUMBER}|${APP_VERSION}|${APP_BUILD_NUMBER}|1|false"
           for attempt in {1..12}; do
             current_app_env="$(
