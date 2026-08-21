@@ -348,6 +348,11 @@ test('workflow and policy preserve existing deploy consumers and never force pus
   assert.doesNotMatch(stagingWorkflow, /curl -fIs/);
   assert.match(stagingWorkflow, /<title>Tải ứng dụng PhongVu OpsHub<\/title>/);
   assert.doesNotMatch(stagingWorkflow, /CF-Access-Client-Id:/);
+  assert.match(stagingWorkflow, /compose_cmd up -d --no-deps --force-recreate caddy/);
+  assert.match(stagingWorkflow, /expected_caddy_config_hash/);
+  assert.match(stagingWorkflow, /test -s \/srv\/web\/index\.html/);
+  assert.match(productionWorkflow, /run_compose_or_rollback up -d --no-deps --force-recreate caddy/);
+  assert.match(productionWorkflow, /expected_caddy_config_hash/);
   assert.match(
     stagingWorkflow,
     /action-staging\/\$\{GITHUB_RUN_ID\}\/android/,
