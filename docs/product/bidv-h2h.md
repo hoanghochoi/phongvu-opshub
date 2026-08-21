@@ -6,13 +6,16 @@ OpsHub receives BIDV balance-change batches through a dedicated OAuth 2.0 and
 OpenPGP boundary, persists each validated batch atomically, then projects only
 eligible transactions into the existing payment pipeline.
 
-- UAT: `https://bankapis-staging.hoanghochoi.com`
-- Production: `https://bankapis.hoanghochoi.com`
-- Token: `POST /oauth2/token`
-- Push: `POST /v1/balance-changes`
+- UAT: `https://api-staging.phongvu.work/v1/bidv`
+- Production: `https://api.phongvu.work/v1/bidv`
+- Token: `POST /v1/bidv/oauth2/token`
+- Push: `POST /v1/bidv/balance-changes`
 
-The dedicated host exposes only those two routes and `/health`. It does not
-serve the OpsHub SPA, staff API, WebSocket, upload, download or help routes.
+BIDV uses an exact-path namespace on the environment API hostname. The Caddy
+edge rewrites only these two paths to the existing NestJS BIDV controllers;
+other `/v1/bidv/*` paths return `404`. The API hostname does not serve the
+OpsHub SPA, uploads, downloads or help routes, and the staging and production
+hostnames cannot cross-route.
 
 ## Authentication and cryptography
 

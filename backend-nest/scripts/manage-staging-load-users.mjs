@@ -5,7 +5,7 @@ import path from 'node:path';
 import { createPrismaClient } from './prisma-local.mjs';
 
 const REQUIRED_CONFIRMATION = 'PREPARE_OPSHUB_STAGING_LOAD_USERS';
-const REQUIRED_PUBLIC_URL = 'https://opshub-staging.hoanghochoi.com';
+const REQUIRED_PUBLIC_URL = 'https://staging.phongvu.work';
 const SOURCE_EMAIL = 'staging.staff@phongvu.vn';
 const OUTPUT_ROOT = path.resolve('/output');
 const USER_COUNT = 60;

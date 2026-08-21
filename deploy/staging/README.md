@@ -1,10 +1,19 @@
 # OpsHub Staging On `mementoamoris`
 
-Staging uses `mementoamoris` through Tailscale and exposes the staging API at
-`opshub-staging.hoanghochoi.com` through a dedicated Cloudflare Tunnel. Staging
-client downloads and manifests are served directly from
-`https://opshub-staging.hoanghochoi.com/downloads/`; the public download page
-is `https://opshub-staging.hoanghochoi.com/download`.
+Staging uses `mementoamoris` through Tailscale and exposes the public web surface
+at `https://staging.phongvu.work` and the API at
+`https://api-staging.phongvu.work/v1/*` through the `phongvu.work` Cloudflare
+zone. The current host uses one shared web/API tunnel, `opshub-staging`, and
+both routes remain
+fail closed until the staging release opens their origin routes. The former
+`opshub-staging-api` connector is retained only as an unreferenced OPS-42
+rollback/performance-isolation artifact; it must not own the new API DNS.
+
+The legacy web hostname `opshub-staging.hoanghochoi.com` redirects to the new
+web hostname. Its `/api/*`, `/ws*`, `/downloads/*`, `/uploads/*` and
+`/help/assets/*` paths remain a measured client bridge until 24 continuous
+hours without valid legacy-client traffic. Package metadata initially keeps
+the legacy download URL so installed clients can fetch the bridge update.
 
 ## One-time server setup
 
@@ -34,9 +43,10 @@ is `https://opshub-staging.hoanghochoi.com/download`.
    bash deploy/staging/install-cloudflare-tunnel.sh
    ```
 
-   DNS for `opshub-staging.hoanghochoi.com` must be created in the Cloudflare
-   account that owns the `hoanghochoi.com` zone. If the local cert belongs to
-   that zone, the script can also create the DNS route:
+   DNS for both `staging.phongvu.work` and `api-staging.phongvu.work` must be
+   created in the Cloudflare account that owns the `phongvu.work` zone, and
+   both CNAMEs must target the same `opshub-staging` tunnel. If the local cert
+   belongs to that zone, the script can create both DNS routes:
 
    ```bash
    CLOUDFLARED_ROUTE_DNS=true bash deploy/staging/install-cloudflare-tunnel.sh
@@ -56,60 +66,27 @@ is `https://opshub-staging.hoanghochoi.com/download`.
    experiment with `CLOUDFLARED_PROXY_KEEPALIVE_CONNECTIONS` and
    `CLOUDFLARED_METRICS_ADDRESS`.
 
-### API-only ingress isolation
+### Shared web/API ingress
 
-OPS-42 provides a second, locally managed named tunnel for performance
-isolation. It does not replace or restart `cloudflared-opshub-staging`. The
-installer fixes the following identities so the two routes cannot be confused:
+The `opshub-staging` tunnel carries both exact hostnames to the same loopback
+Caddy listener:
 
-- hostname `api-opshub-staging.hoanghochoi.com`;
-- tunnel `opshub-staging-api`;
-- service `cloudflared-opshub-staging-api`;
-- loopback metrics `127.0.0.1:20243`.
+- `staging.phongvu.work` → `http://127.0.0.1:8090`
+- `api-staging.phongvu.work` → `http://127.0.0.1:8090`
 
-The local ingress config forwards only `/api/*` to the existing loopback Caddy
-origin and returns 404 for every catch-all request. It overrides the origin Host
-to `opshub-staging.hoanghochoi.com`, preserving the current Caddy route,
-trusted-proxy normalization, security headers, throttling and staging Home
-telemetry. The credentials and config are installed root-only; no token is
-printed or stored in the repository.
+Caddy performs the web/API/`/v1`/BIDV/WS isolation. Before the staging release,
+both Cloudflare ingress entries are `http_status:404`; after deploy they are
+changed together in the reviewed cutover step. The old
+`deploy/staging/install-cloudflare-api-tunnel.sh` and OPS-42 API-only connector
+are historical rollback/performance-isolation tooling only and must not be
+used for the new `api-staging.phongvu.work` DNS record.
 
-Before installation, checkpoint the old connector unit/state and confirm the
-new names and metrics port are unused. The normal operator path transfers the
-exact script blob from the clean canonical `staging` checkout to a protected
-host directory and verifies the SHA-256 on both sides; deploy release bundles
-do not contain operator-only `deploy/staging` scripts.
+Verify both CNAMEs target the `opshub-staging` tunnel, then verify
+`https://api-staging.phongvu.work/v1/health` and a non-API path after origin
+unblocking. Stop before synthetic users unless the fixed public health gate has
+zero unexpected responses and p95 below 300 ms.
 
-Start the connector without publishing DNS:
-
-```bash
-CLOUDFLARED_API_TUNNEL_APPROVAL=INSTALL_OPSHUB_STAGING_API_TUNNEL \
-CLOUDFLARED_ROUTE_DNS=false \
-  bash deploy/staging/install-cloudflare-api-tunnel.sh
-```
-
-The installer prints the exact `<tunnel-id>.cfargotunnel.com` target. Create a
-proxied CNAME for `api-opshub-staging.hoanghochoi.com` with credentials that own
-the `hoanghochoi.com` zone. Automatic publication is allowed only with
-`CLOUDFLARED_ROUTE_DNS=true`; before any tunnel or service mutation, the script
-resolves the origin cert's zone through Cloudflare and fails unless it is
-exactly `hoanghochoi.com`. A cert for another zone must never be used because
-`cloudflared tunnel route dns` otherwise treats the requested hostname as a
-relative name inside that other zone.
-
-Verify both services independently, the new tunnel has its own HA connections,
-`https://api-opshub-staging.hoanghochoi.com/api/health` succeeds, and a non-API
-path on the new hostname returns 404. Stop before creating synthetic users
-unless the fixed public health gate has zero unexpected responses and p95 below
-300 ms.
-
-Rollback affects only the new connector: stop and disable
-`cloudflared-opshub-staging-api`, restore its checkpointed unit/config when one
-existed, reload systemd, and verify `cloudflared-opshub-staging` plus the
-original hostname remained healthy. DNS/tunnel deletion is a separate
-Cloudflare cleanup action and is not part of an automatic rollback.
-
-5. Add GitHub staging secrets:
+4. Add GitHub staging secrets:
 
    - `OPSHUB_STAGING_VPS_HOST=100.127.127.89`
    - `OPSHUB_STAGING_VPS_USER=hhh`
@@ -133,10 +110,12 @@ says `push staging` or `deploy staging`, collect the ready local changes on the
 operator-controlled reruns.
 
 The workflow builds staging Android and Windows packages, uploads them to
-`/srv/opshub-staging/downloads`, publishes manifest URLs under
-`https://opshub-staging.hoanghochoi.com/downloads/`, updates app-version metadata
-in `/srv/opshub-staging/env`, runs migrations, and recreates only the staging
-Docker services.
+`/srv/opshub-staging/downloads`, serves the public web/download page from
+`https://staging.phongvu.work`, updates app-version metadata in
+`/srv/opshub-staging/env`, runs migrations, and recreates only the staging
+Docker services. During the bridge window, package URLs in that metadata remain
+on `https://opshub-staging.hoanghochoi.com/downloads/` so old clients can fetch
+the bridge update.
 
 The Windows staging job is fail-closed: PFX/password/pin, valid Authenticode
 signatures and timestamps, a matching signer fingerprint and a clean Defender

@@ -8,7 +8,7 @@ import {
   shouldUpdateExistingCreator,
 } from './migrate-n8n-warranty-metadata.mjs';
 
-const imageBaseUrl = 'https://opshub.hoanghochoi.com/uploads';
+const imageBaseUrl = 'https://phongvu.work/uploads';
 
 test('normalizeImageLinks maps legacy n8n app_images URLs to app upload URLs', () => {
   const links = normalizeImageLinks(
@@ -17,25 +17,25 @@ test('normalizeImageLinks maps legacy n8n app_images URLs to app upload URLs', (
   );
 
   assert.deepEqual(links, [
-    'https://opshub.hoanghochoi.com/uploads/CP62-J12345678/CP62-J12345678-0.jpg',
-    'https://opshub.hoanghochoi.com/uploads/CP62-J12345678/CP62-J12345678-1.png',
+    'https://phongvu.work/uploads/CP62-J12345678/CP62-J12345678-0.jpg',
+    'https://phongvu.work/uploads/CP62-J12345678/CP62-J12345678-1.png',
   ]);
 });
 
 test('mergeImageLinks preserves existing app images and deduplicates migrated links', () => {
   const merged = mergeImageLinks(
-    'https://opshub.hoanghochoi.com/uploads/CP62-J12345678/existing.jpg;https://n8n.hoanghochoi.com/app_images/CP62-J12345678/CP62-J12345678-0.jpg',
+      'https://phongvu.work/uploads/CP62-J12345678/existing.jpg;https://n8n.hoanghochoi.com/app_images/CP62-J12345678/CP62-J12345678-0.jpg',
     [
-      'https://opshub.hoanghochoi.com/uploads/CP62-J12345678/CP62-J12345678-0.jpg',
-      'https://opshub.hoanghochoi.com/uploads/CP62-J12345678/CP62-J12345678-1.jpg',
+      'https://phongvu.work/uploads/CP62-J12345678/CP62-J12345678-0.jpg',
+      'https://phongvu.work/uploads/CP62-J12345678/CP62-J12345678-1.jpg',
     ],
     imageBaseUrl,
   );
 
   assert.deepEqual(merged, [
-    'https://opshub.hoanghochoi.com/uploads/CP62-J12345678/existing.jpg',
-    'https://opshub.hoanghochoi.com/uploads/CP62-J12345678/CP62-J12345678-0.jpg',
-    'https://opshub.hoanghochoi.com/uploads/CP62-J12345678/CP62-J12345678-1.jpg',
+      'https://phongvu.work/uploads/CP62-J12345678/existing.jpg',
+      'https://phongvu.work/uploads/CP62-J12345678/CP62-J12345678-0.jpg',
+      'https://phongvu.work/uploads/CP62-J12345678/CP62-J12345678-1.jpg',
   ]);
 });
 

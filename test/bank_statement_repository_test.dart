@@ -43,7 +43,7 @@ void main() {
       expect(requests, hasLength(1));
       expect(
         requests.single.url.path,
-        '/api/admin/map-vietin/statements/tx-1/order-tracking',
+        '/v1/admin/map-vietin/statements/tx-1/order-tracking',
       );
       expect(requests.single.method, 'PATCH');
       expect(jsonDecode(requests.single.body), {'status': 'UNFOLLOWED'});
@@ -79,7 +79,7 @@ void main() {
     expect(requests, hasLength(1));
     expect(
       requests.single.url.path,
-      '/api/admin/map-vietin/statements/order-tracking/batch',
+      '/v1/admin/map-vietin/statements/order-tracking/batch',
     );
     expect(requests.single.method, 'PATCH');
     expect(jsonDecode(requests.single.body), {

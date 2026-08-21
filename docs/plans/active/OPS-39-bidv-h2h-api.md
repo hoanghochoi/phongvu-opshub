@@ -5,14 +5,31 @@ Date: 2026-07-30
 ## Status
 
 Active - local implementation and executable proof complete; runtime migration,
-staging/UAT and external bank gates remain pending.
+staging/UAT and external bank gates remain pending. The public transport
+hostname/path is superseded by OPS-210; this plan remains authoritative for the
+BIDV wire contract, security, persistence, projection and external-bank gates.
+
+## Current transport authority
+
+OPS-210 owns the OpsHub domain migration and supersedes the dedicated-host
+transport described by older sections of this plan. The current public
+endpoints are:
+
+- staging: `https://api-staging.phongvu.work/v1/bidv/oauth2/token` and
+  `https://api-staging.phongvu.work/v1/bidv/balance-changes`;
+- production: `https://api.phongvu.work/v1/bidv/oauth2/token` and
+  `https://api.phongvu.work/v1/bidv/balance-changes`.
+
+The former `bankapis*.hoanghochoi.com` dedicated-host design is retained only
+as implementation history and rollback evidence. It is not a current public
+contract and is not a compatibility target.
 
 ## Outcome
 
 Deliver a production-ready BIDV H2H boundary that:
 
-- exposes `POST /oauth2/token` and `POST /v1/balance-changes` on the dedicated
-  staging and production hosts;
+- exposes `POST /v1/bidv/oauth2/token` and
+  `POST /v1/bidv/balance-changes` on the environment API hosts;
 - accepts the BIDV revision 1.3 OAuth/OpenPGP wire contract atomically and
   idempotently;
 - records canonical bank ingress without placing Flutter, realtime, speaker,

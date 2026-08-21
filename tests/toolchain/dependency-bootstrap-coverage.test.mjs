@@ -31,10 +31,6 @@ const dependencyConsumers = [
       /(?:flutter\s+(?:analyze|test|build)|npm\s+(?:test|run|ci|install)|npx\s+.*prisma)/i,
   },
   {
-    relativePath: ".github/workflows/build-windows-msix.yml",
-    pattern: /flutter\s+(?:analyze|test|build)/i,
-  },
-  {
     relativePath: ".github/workflows/deploy-opshub-staging.yml",
     pattern: /flutter\s+(?:analyze|test|build)/i,
   },
@@ -418,7 +414,6 @@ test("Docker and remote migration boundaries forbid implicit npx downloads", () 
 
 test("release Flutter builds use the inline boundary and disable the implicit Pub writer", () => {
   for (const relativePath of [
-    ".github/workflows/build-windows-msix.yml",
     ".github/workflows/deploy-opshub-staging.yml",
     ".github/workflows/deploy-opshub.yml",
   ]) {

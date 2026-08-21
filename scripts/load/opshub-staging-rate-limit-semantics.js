@@ -3,7 +3,7 @@ import { check, sleep } from "k6";
 import { SharedArray } from "k6/data";
 import { Counter } from "k6/metrics";
 
-const REQUIRED_BASE_URL = "https://opshub-staging.hoanghochoi.com/api";
+const REQUIRED_BASE_URL = "https://api-staging.phongvu.work/v1";
 const REQUIRED_APPROVAL = "OPSHUB_STAGING_RATE_LIMIT_SEMANTICS_APPROVED";
 const TOKENS_FILE = String(__ENV.TOKENS_FILE || "");
 const manifest = TOKENS_FILE ? JSON.parse(open(TOKENS_FILE)) : null;

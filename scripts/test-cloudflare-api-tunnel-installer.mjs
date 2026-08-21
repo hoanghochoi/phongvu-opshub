@@ -16,6 +16,13 @@ const installerPath = path.join(
   "install-cloudflare-api-tunnel.sh",
 );
 const source = readFileSync(installerPath, "utf8");
+const sharedInstallerPath = path.join(
+  repositoryRoot,
+  "deploy",
+  "staging",
+  "install-cloudflare-tunnel.sh",
+);
+const sharedInstallerSource = readFileSync(sharedInstallerPath, "utf8");
 const bash =
   process.platform === "win32"
     ? path.join(process.env.ProgramFiles, "Git", "bin", "bash.exe")
@@ -46,20 +53,20 @@ test("API-only tunnel installer fails closed without install approval", () => {
 test("API-only tunnel uses isolated deterministic identities", () => {
   assert.match(source, /SERVICE_NAME="cloudflared-opshub-staging-api"/);
   assert.match(source, /TUNNEL_NAME="opshub-staging-api"/);
-  assert.match(source, /EXPECTED_DNS_ZONE="hoanghochoi\.com"/);
+  assert.match(source, /EXPECTED_DNS_ZONE="phongvu\.work"/);
   assert.match(
     source,
-    /TUNNEL_HOSTNAME="api-opshub-staging\.hoanghochoi\.com"/,
+    /TUNNEL_HOSTNAME="api-staging\.phongvu\.work"/,
   );
   assert.match(source, /METRICS_ADDRESS="127\.0\.0\.1:20243"/);
   assert.match(source, /tunnel must not reuse the protected current tunnel/);
 });
 
 test("API-only ingress allows only API paths and rejects the fallback", () => {
-  assert.match(source, /path: "\^\/api\/\.\*\$"/);
+  assert.match(source, /path: "\^\/v1\/\.\*\$"/);
   assert.match(source, /service: "http_status:404"/);
   assert.match(source, /httpHostHeader: "\$ORIGIN_HOST_HEADER"/);
-  assert.match(source, /ORIGIN_HOST_HEADER="opshub-staging\.hoanghochoi\.com"/);
+  assert.match(source, /ORIGIN_HOST_HEADER="api-staging\.phongvu\.work"/);
   assert.match(source, /tunnel --config "\$config_tmp" ingress validate/);
 });
 
@@ -110,4 +117,18 @@ test("invalid DNS mode fails before cloudflared discovery or mutation", () => {
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /CLOUDFLARED_ROUTE_DNS must equal true or false/);
   assert.doesNotMatch(result.stderr, /cloudflared is not installed/);
+});
+
+test("shared staging tunnel publishes both web and API hostnames", () => {
+  assert.match(sharedInstallerSource, /TUNNEL_NAME=.*opshub-staging/);
+  assert.match(
+    sharedInstallerSource,
+    /API_TUNNEL_HOSTNAME=.*api-staging\.phongvu\.work/,
+  );
+  const routeCommands = sharedInstallerSource.match(/tunnel route dns/g) ?? [];
+  assert.equal(routeCommands.length, 2);
+  assert.match(
+    sharedInstallerSource,
+    /Skipping DNS routes\..*TUNNEL_HOSTNAME.*API_TUNNEL_HOSTNAME/s,
+  );
 });

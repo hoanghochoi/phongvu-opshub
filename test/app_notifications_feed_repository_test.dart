@@ -15,7 +15,7 @@ void main() {
         MockClient((request) async {
           requestCount += 1;
           expect(request.method, 'GET');
-          expect(request.url.path, '/api/notifications/feed');
+          expect(request.url.path, '/v1/notifications/feed');
           return http.Response(jsonEncode(_payload), 200);
         }),
       );

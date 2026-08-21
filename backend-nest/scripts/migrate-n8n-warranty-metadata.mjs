@@ -4,7 +4,7 @@ import { pathToFileURL } from 'url';
 import { createPrismaClient } from './prisma-local.mjs';
 
 const DEFAULT_N8N_TABLE = 'data_table_user_hY8m0IrB9V1iDQQw';
-const DEFAULT_IMAGE_BASE_URL = 'https://opshub.hoanghochoi.com/uploads';
+const DEFAULT_IMAGE_BASE_URL = 'https://phongvu.work/uploads';
 const TECHNICAL_DEPARTMENT = {
   code: 'TECHNICAL',
   displayName: 'Technical',

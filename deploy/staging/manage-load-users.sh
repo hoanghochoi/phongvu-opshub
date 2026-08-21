@@ -16,7 +16,7 @@ fail() {
 [[ -f "$ENV_FILE" ]] || fail "runtime env file is missing"
 grep -qx 'OPSHUB_STAGING=true' "$ENV_FILE" || fail "OPSHUB_STAGING=true is missing"
 grep -qx 'OPSHUB_STAGING_SANITIZE_CONFIRM=opshub-staging' "$ENV_FILE" || fail "staging sentinel is missing"
-grep -qx 'PUBLIC_BASE_URL=https://opshub-staging.hoanghochoi.com' "$ENV_FILE" || fail "public hostname is not staging"
+grep -qx 'PUBLIC_BASE_URL=https://staging.phongvu.work' "$ENV_FILE" || fail "public hostname is not staging"
 grep -qx 'OPSHUB_STAGING_LOAD_MAINTENANCE_ENABLED=true' "$ENV_FILE" || fail "load maintenance gate is disabled"
 
 RUNTIME_UID="$(sed -n 's/^OPSHUB_RUNTIME_UID=//p' "$ENV_FILE" | tail -n 1)"

@@ -67,4 +67,30 @@ void main() {
       throwsA(isA<ApiException>()),
     );
   });
+
+  test('keeps the v2 socket under the configured /v1/ws namespace', () async {
+    final oneTimeTicket = List.filled(43, 'b').join();
+    final apiClient = ApiClient.test(
+      MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'ticket': oneTimeTicket,
+            'audience': 'opshub-realtime',
+            'expiresAt': DateTime.now()
+                .toUtc()
+                .add(const Duration(seconds: 45))
+                .toIso8601String(),
+          }),
+          200,
+        ),
+      ),
+    )..setAuthToken('jwt');
+
+    final uri = await RealtimeTicketClient(
+      apiClient: apiClient,
+    ).issueV2ConnectionUri();
+
+    expect(uri.path, '/v1/ws/v2');
+    expect(uri.queryParameters['ticket'], oneTimeTicket);
+  });
 }

@@ -13,11 +13,13 @@ class RealtimeTicketClient {
 
   final ApiClient _apiClient;
 
-  /// Issues a one-time ticket for the shared authenticated v2 gateway. The
-  /// legacy `/ws` URI remains available only for the measured migration window.
+  /// Issues a one-time ticket for the shared authenticated v2 gateway under
+  /// the configured `/v1/ws` namespace. The legacy `/ws` URI remains available
+  /// only for the measured migration window.
   Future<Uri> issueV2ConnectionUri({String? storeCode}) async {
     final uri = await issueConnectionUri(storeCode: storeCode);
-    return uri.replace(path: '/ws/v2');
+    final basePath = uri.path.replaceFirst(RegExp(r'/+$'), '');
+    return uri.replace(path: '${basePath.isEmpty ? '/ws' : basePath}/v2');
   }
 
   Future<Uri> issueConnectionUri({String? storeCode}) async {

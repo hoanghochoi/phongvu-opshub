@@ -48,7 +48,7 @@ void main() {
       expect(requests, hasLength(1));
       expect(
         requests.single.url.path,
-        '/api/offset-adjustments/batch-complete',
+        '/v1/offset-adjustments/batch-complete',
       );
       expect(requests.single.method, 'POST');
       expect(jsonDecode(requests.single.body), {

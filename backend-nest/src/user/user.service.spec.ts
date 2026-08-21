@@ -3037,10 +3037,10 @@ describe('UserService admin store management', () => {
     );
     const welcomeEmailText = mailService.sendMail.mock.calls[0][0].text;
     expect(welcomeEmailText).toContain(
-      'Windows và Android tải tại: https://opshub.hoanghochoi.com/download',
+      'Windows và Android tải tại: https://phongvu.work/download',
     );
     expect(welcomeEmailText).toContain(
-      'iOS: Mở trang https://opshub.hoanghochoi.com bằng trình duyệt Safari -> Share -> Add to Home Screen',
+      'iOS: Mở trang https://phongvu.work bằng trình duyệt Safari -> Share -> Add to Home Screen',
     );
   });
 

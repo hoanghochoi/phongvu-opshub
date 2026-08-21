@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const port = Number(process.env.PORT || 8765);
 const host = process.env.HOST || '127.0.0.1';
-const upstreamHost = process.env.OPSHUB_SMOKE_HOST || 'opshub.hoanghochoi.com';
+const upstreamHost = process.env.OPSHUB_SMOKE_HOST || 'phongvu.work';
 const upstreamProtocol = process.env.OPSHUB_SMOKE_PROTOCOL || 'https:';
 const upstreamPort = Number(
   process.env.OPSHUB_SMOKE_PORT || (upstreamProtocol === 'https:' ? 443 : 80),

@@ -358,15 +358,27 @@ describe('env validation', () => {
         BIDV_H2H_ENVIRONMENT: 'staging',
         BIDV_H2H_PUBLIC_BASE_URL: 'https://wrong.example.com',
       }),
-    ).toThrow('bankapis-staging.hoanghochoi.com');
+    ).toThrow('api-staging.phongvu.work/v1/bidv');
     expect(
       getBidvH2hConfig({
         BIDV_H2H_INGEST_ENABLED: 'true',
         BIDV_H2H_KEK_BASE64: key,
         BIDV_H2H_ENVIRONMENT: 'production',
-        BIDV_H2H_PUBLIC_BASE_URL: 'https://bankapis.hoanghochoi.com',
+        BIDV_H2H_PUBLIC_BASE_URL: 'https://api.phongvu.work/v1/bidv',
       }).publicBaseUrl,
-    ).toBe('https://bankapis.hoanghochoi.com');
+    ).toBe('https://api.phongvu.work/v1/bidv');
+  });
+
+  it('rejects BIDV URLs that escape the exact /v1/bidv namespace', () => {
+    const key = Buffer.alloc(32, 3).toString('base64');
+    expect(() =>
+      getBidvH2hConfig({
+        BIDV_H2H_INGEST_ENABLED: 'true',
+        BIDV_H2H_KEK_BASE64: key,
+        BIDV_H2H_ENVIRONMENT: 'production',
+        BIDV_H2H_PUBLIC_BASE_URL: 'https://api.phongvu.work/v1',
+      }),
+    ).toThrow('https://api.phongvu.work/v1/bidv');
   });
 
   it('blocks projection when ingest master is off', () => {

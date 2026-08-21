@@ -182,13 +182,13 @@ function assertStagingTarget() {
   }
   if (
     parsedPublicBaseUrl.protocol !== 'https:' ||
-    parsedPublicBaseUrl.hostname !== 'opshub-staging.hoanghochoi.com' ||
+    parsedPublicBaseUrl.hostname !== 'staging.phongvu.work' ||
     parsedPublicBaseUrl.port !== '' ||
     parsedPublicBaseUrl.username !== '' ||
     parsedPublicBaseUrl.password !== ''
   ) {
     fail(
-      'Refusing to run. PUBLIC_BASE_URL must point to opshub-staging.hoanghochoi.com.',
+      'Refusing to run. PUBLIC_BASE_URL must point to staging.phongvu.work.',
     );
   }
 }

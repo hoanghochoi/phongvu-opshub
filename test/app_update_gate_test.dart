@@ -229,7 +229,7 @@ void main() {
     await tester.pump();
 
     expect(manualUpdateUri?.scheme, 'https');
-    expect(manualUpdateUri?.host, 'opshub.hoanghochoi.com');
+    expect(manualUpdateUri?.host, 'phongvu.work');
     expect(manualUpdateUri?.path, '/download');
 
     await tester.tap(find.text('Thử lại'));
@@ -327,7 +327,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('Có bản cập nhật mới'), findsNothing);
-    expect(connectedUri?.path, '/ws/app-updates');
+    expect(connectedUri?.path, '/v1/ws/app-updates');
     expect(connectedUri?.query, isEmpty);
 
     updateAvailable = true;

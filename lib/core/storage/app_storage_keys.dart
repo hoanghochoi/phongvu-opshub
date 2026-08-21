@@ -25,10 +25,17 @@ class AppStorageKeys {
     final host = (uri?.host.isNotEmpty == true ? uri!.host : baseUrl)
         .toLowerCase();
     final path = uri?.path.toLowerCase() ?? '';
-    if (host.contains('opshub-staging') || path.contains('staging')) {
+    if (host.contains('opshub-staging') ||
+        host == 'api-staging.phongvu.work' ||
+        host == 'staging.phongvu.work' ||
+        path.contains('staging')) {
       return 'staging';
     }
-    if (host == 'opshub.hoanghochoi.com') return 'production';
+    if (host == 'opshub.hoanghochoi.com' ||
+        host == 'phongvu.work' ||
+        host == 'api.phongvu.work') {
+      return 'production';
+    }
     if (host == 'localhost' ||
         host == '127.0.0.1' ||
         host.startsWith('192.168.') ||

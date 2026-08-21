@@ -4,21 +4,27 @@ Date: 2026-08-01
 
 ## Status
 
-Active
+Superseded for current transport by OPS-210; retained as historical
+implementation and rollback evidence.
 
 ## Authority boundary
 
-This plan owns only the external dedicated-host handoff: DNS, TLS, tunnel
+This plan records the former external dedicated-host handoff: DNS, TLS, tunnel
 routing and default-deny route smoke. The sibling
 `OPS-39-bidv-h2h-api.md` is the canonical authority for the BIDV runtime/API,
 security, data contract, migration and affected-consumer behavior; this file
-must not duplicate or override that contract.
+must not duplicate or override that contract. OPS-210 now owns the current
+transport contract: `/v1/bidv/*` on the environment API hostname. The old
+`bankapis*.hoanghochoi.com` hosts are not a current compatibility target.
 
 ## Outcome
 
-The BIDV H2H boundary uses `https://bankapis-staging.hoanghochoi.com` for UAT
-and `https://bankapis.hoanghochoi.com` for production. Each remains an
-API-only dedicated host.
+The historical BIDV H2H boundary used
+`https://bankapis-staging.hoanghochoi.com` for UAT and
+`https://bankapis.hoanghochoi.com` for production. OPS-210 replaces that
+transport with exact-path namespace isolation on
+`https://api-staging.phongvu.work/v1/bidv/*` and
+`https://api.phongvu.work/v1/bidv/*`.
 
 ## Context
 

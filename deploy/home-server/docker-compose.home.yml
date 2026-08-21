@@ -207,7 +207,8 @@ services:
     user: "${OPSHUB_RUNTIME_UID:?Set OPSHUB_RUNTIME_UID}:${OPSHUB_RUNTIME_GID:?Set OPSHUB_RUNTIME_GID}"
     environment:
       OPSHUB_DOMAIN: ${OPSHUB_DOMAIN:?Set OPSHUB_DOMAIN in the runtime env file}
-      BIDV_H2H_DOMAIN: ${BIDV_H2H_DOMAIN:?Set BIDV_H2H_DOMAIN in the runtime env file}
+      OPSHUB_API_DOMAIN: ${OPSHUB_API_DOMAIN:?Set OPSHUB_API_DOMAIN in the runtime env file}
+      OPSHUB_LEGACY_DOMAIN: ${OPSHUB_LEGACY_DOMAIN:?Set OPSHUB_LEGACY_DOMAIN in the runtime env file}
     depends_on:
       - api
       - realtime

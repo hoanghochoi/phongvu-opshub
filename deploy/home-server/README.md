@@ -69,11 +69,11 @@ dependencies only, non-root); migration/admin jobs use the separate `ops`
 target. Before the first recreate, complete the UID/volume, Redis rotation and
 rollback checklist in `SECURITY_HARDENING_RUNBOOK.md`.
 
-4. Build Flutter clients for production with the home-server API:
+4. Build Flutter clients for production with the new web/API split:
 
 ```bash
-node scripts/run-with-toolchain.mjs --profile flutter -- flutter build apk --release --no-pub --dart-define=API_BASE_URL=https://opshub.hoanghochoi.com/api
-node scripts/run-with-toolchain.mjs --profile flutter -- flutter build web --release --no-pub --no-web-resources-cdn --dart-define=API_BASE_URL=https://opshub.hoanghochoi.com/api
+node scripts/run-with-toolchain.mjs --profile flutter -- flutter build apk --release --no-pub --dart-define=API_BASE_URL=https://api.phongvu.work/v1 --dart-define=PUBLIC_BASE_URL=https://phongvu.work --dart-define=REALTIME_BASE_URL=wss://api.phongvu.work/v1/ws --dart-define=APP_ENV=production
+node scripts/run-with-toolchain.mjs --profile flutter -- flutter build web --release --no-pub --no-web-resources-cdn --dart-define=API_BASE_URL=https://api.phongvu.work/v1 --dart-define=PUBLIC_BASE_URL=https://phongvu.work --dart-define=REALTIME_BASE_URL=wss://api.phongvu.work/v1/ws --dart-define=APP_ENV=production
 ```
 
 Run these commands from the repository root. The toolchain boundary repairs and
@@ -163,7 +163,7 @@ The repository includes `.github/workflows/deploy-opshub.yml`. On every push to
 `main`, it builds an Android APK, a portable Windows ZIP, and a Windows installer
 EXE with:
 
-- `API_BASE_URL=https://opshub.hoanghochoi.com/api`
+- `API_BASE_URL=https://api.phongvu.work/v1`
 - `--build-name <utc-date>.<github-run-number>`
 - `--build-number 100000+<github-run-number>`
 
@@ -213,18 +213,20 @@ Every failed release retains its run/attempt-scoped checkpoint for audit and
 manual cleanup; only a fully verified successful release finalizes it.
 
 Full production deploys also build the Flutter web app with
-`API_BASE_URL=https://opshub.hoanghochoi.com/api`, sync it to
-`/srv/opshub/web/`, and serve it as the SPA root at `/`. Caddy must keep the
-runtime/static routes `/api`, `/ws`, `/download`, `/help`, `/uploads`,
-`/downloads`, `/staging-download`, `/seatalk-support`, and `/health` ahead of
-the SPA fallback. `/seatalk-support` is a short 302 redirect to the current
-Seatalk support-group invite URL.
+`API_BASE_URL=https://api.phongvu.work/v1`,
+`PUBLIC_BASE_URL=https://phongvu.work`, and
+`REALTIME_BASE_URL=wss://api.phongvu.work/v1/ws`, sync it to
+`/srv/opshub/web/`, and serve it as the SPA root at `/`. Caddy keeps `/v1/*`
+(including `/v1/ws` and `/v1/bidv/*`) on the exact API hostname and
+`/download`, `/help`, `/uploads`, `/downloads`, `/staging-download`,
+`/seatalk-support`, and `/health` on the exact web hostname. The legacy web
+hostname remains a redirect/bridge during the measured migration window.
 Staging deploys build the web app with
-`API_BASE_URL=https://opshub-staging.hoanghochoi.com/api` and publish it under
-`/srv/opshub-staging/web/`. Android/Windows metadata and downloads use only the
-same staging origin under
-`https://opshub-staging.hoanghochoi.com/downloads/`; production and the legacy
-cross-origin staging-download path are not valid release targets.
+`API_BASE_URL=https://api-staging.phongvu.work/v1`,
+`PUBLIC_BASE_URL=https://staging.phongvu.work`, and
+`REALTIME_BASE_URL=wss://api-staging.phongvu.work/v1/ws`, and publish it under
+`/srv/opshub-staging/web/`. Package metadata may temporarily use the legacy
+staging download origin while the client bridge is measured.
 
 The public staff download page is served at `/download`. Full deploys publish
 `/srv/opshub/downloads/latest.json` beside the APK, Windows installer, Windows

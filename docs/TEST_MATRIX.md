@@ -488,14 +488,10 @@ entries below are historical evidence and do not replace the OPS-44 gate.
   Platform security checks also prove Bash ERR-trap inheritance for automatic
   rollback; the follow-up PR's staging deploy and QA remain required before
   release readiness.
-- `WINDOWS-DIST-001`, 2026-07-02: the manual MSIX workflow supports an
-  internal signed sideload artifact with the selected Windows signing PFX, plus
-  the existing Store artifact path with Partner Center identity secrets. Runtime
-  distribution remains unchanged: production/staging deploys still publish the
-  Inno EXE, ZIP, checksum, `/download`, and Windows `/app-version` EXE update
-  URL. Validation target: workflow syntax, PowerShell parser, `git diff
---check`, and an MSIX CI run that reaches Microsoft Defender scan plus
-  artifact upload.
+- `WINDOWS-DIST-001`, 2026-07-02 (historical): the former manual MSIX workflow
+  supported an internal signed sideload artifact and a Store artifact path.
+  That workflow was retired on 2026-08-21; current validation covers only the
+  signed Inno EXE/ZIP, checksum, `/download`, and Windows `/app-version` path.
 - `WINDOWS-DIST-001`, 2026-06-24: production setup `v2026.06.23.88+100088`
   was reproduced as `Trojan:Win32/Wacatac.B!ml` while its checksum-matched
   portable ZIP, extracted app, and previous setup `100087` scanned clean.

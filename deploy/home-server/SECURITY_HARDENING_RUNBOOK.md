@@ -39,8 +39,10 @@ Cloudflare, runtime, credential hay dữ liệu production/staging**.
 - [ ] Kiểm tra ít nhất các đường dẫn `/`, `/help`, `/download`, `/api/health`:
 
   ```bash
-  curl -sS -o /dev/null -D - http://opshub.hoanghochoi.com/
-  curl -sS -o /dev/null -D - http://opshub-staging.hoanghochoi.com/
+  curl -sS -o /dev/null -D - http://phongvu.work/
+  curl -sS -o /dev/null -D - http://staging.phongvu.work/
+  curl -sS -o /dev/null -D - http://api.phongvu.work/v1/health
+  curl -sS -o /dev/null -D - http://api-staging.phongvu.work/v1/health
   ```
 
   Kỳ vọng `301` hoặc `308`, `Location` là đúng hostname HTTPS, không có redirect
@@ -161,10 +163,11 @@ hoặc giữ private identity.
   production trước.
 - [ ] Test backup/device-transfer: SharedPreferences/database/token OpsHub không
   được restore sang thiết bị khác.
-- [ ] Self-update production chỉ tải URL HTTPS trên
-  `opshub.hoanghochoi.com/downloads/`; staging chỉ tải URL chuẩn trên
-  `opshub-staging.hoanghochoi.com/downloads/`. Redirect, cross-host và đường dẫn
-  legacy phải bị từ chối; type/size và checksum runtime phải pass. Chữ ký
+- [ ] Self-update production ưu tiên URL HTTPS trên
+  `phongvu.work/downloads/` và staging trên `staging.phongvu.work/downloads/`.
+  Trong bridge window, package URL trên hai hostname cũ vẫn được phép để client
+  đang cài tải bridge; mọi host/path khác phải bị từ chối. Type/size và checksum
+  runtime phải pass. Chữ ký
   Authenticode, timestamp, signer pin và Defender scan vẫn là release gate bắt
   buộc của CI, không còn là client runtime gate.
 - [ ] Cấu hình GitHub Environment production với variable

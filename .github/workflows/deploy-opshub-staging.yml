@@ -26,8 +26,10 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  OPSHUB_PUBLIC_BASE_URL: https://opshub-staging.hoanghochoi.com
-  OPSHUB_API_BASE_URL: https://opshub-staging.hoanghochoi.com/api
+  OPSHUB_PUBLIC_BASE_URL: https://staging.phongvu.work
+  OPSHUB_API_BASE_URL: https://api-staging.phongvu.work/v1
+  OPSHUB_REALTIME_BASE_URL: wss://api-staging.phongvu.work/v1/ws
+  # Keep package metadata on the legacy host until the measured bridge cleanup.
   OPSHUB_DOWNLOAD_PUBLIC_BASE_URL: https://opshub-staging.hoanghochoi.com
   OPSHUB_REMOTE_APP_DIR: /home/hhh/phongvu-opshub-staging
   OPSHUB_ENV_FILE: /srv/opshub-staging/env
@@ -80,7 +82,8 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
-          lfs: true
+          # Android never packages the Windows-only payment audio assets.
+          lfs: false
 
       - name: Set up Flutter
         uses: ./.github/actions/setup-flutter
@@ -128,6 +131,8 @@ jobs:
             --build-name "${{ needs.prepare.outputs.version_name }}" \
             --build-number "${{ needs.prepare.outputs.version_code }}" \
             --dart-define "API_BASE_URL=${OPSHUB_API_BASE_URL}" \
+            --dart-define "PUBLIC_BASE_URL=${OPSHUB_PUBLIC_BASE_URL}" \
+            --dart-define "REALTIME_BASE_URL=${OPSHUB_REALTIME_BASE_URL}" \
             --dart-define "APP_ENV=staging"
 
       - name: Connect Tailscale
@@ -195,7 +200,22 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
-          lfs: true
+          lfs: false
+
+      - name: Restore Windows payment audio LFS cache
+        id: payment_audio_cache
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
+        with:
+          path: windows/assets/payment_audio/local_preset_speaker_v1
+          key: opshub-payment-audio-${{ runner.os }}-${{ hashFiles('windows/assets/payment_audio/local_preset_speaker_v1/**/manifest.json') }}
+
+      - name: Pull Windows payment audio on cache miss
+        if: steps.payment_audio_cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          git lfs version
+          git lfs install --local
+          git lfs pull --include="windows/assets/payment_audio/local_preset_speaker_v1/**" --exclude=""
 
       - name: Set up Flutter
         uses: ./.github/actions/setup-flutter
@@ -215,6 +235,8 @@ jobs:
             --build-name "${{ needs.prepare.outputs.windows_build_name }}" `
             --build-number "${{ needs.prepare.outputs.version_code }}" `
             --dart-define "API_BASE_URL=${env:OPSHUB_API_BASE_URL}" `
+            --dart-define "PUBLIC_BASE_URL=${env:OPSHUB_PUBLIC_BASE_URL}" `
+            --dart-define "REALTIME_BASE_URL=${env:OPSHUB_REALTIME_BASE_URL}" `
             --dart-define "APP_ENV=staging"
 
       - name: Validate local payment audio release presets
@@ -471,6 +493,8 @@ jobs:
             --build-name "${{ needs.prepare.outputs.version_name }}" \
             --build-number "${{ needs.prepare.outputs.version_code }}" \
             --dart-define "API_BASE_URL=${OPSHUB_API_BASE_URL}" \
+            --dart-define "PUBLIC_BASE_URL=${OPSHUB_PUBLIC_BASE_URL}" \
+            --dart-define "REALTIME_BASE_URL=${OPSHUB_REALTIME_BASE_URL}" \
             --dart-define "APP_ENV=staging"
           WEB_CACHE_BUST_TOKEN="${GITHUB_SHA}" node scripts/patch-flutter-web-cache-busting.mjs
 
@@ -998,16 +1022,19 @@ jobs:
 
           upsert_env OPSHUB_STAGING true
           upsert_env COMPOSE_PROJECT_NAME "$COMPOSE_PROJECT_NAME"
-          upsert_env OPSHUB_DOMAIN "opshub-staging.hoanghochoi.com"
-          upsert_env BIDV_H2H_DOMAIN "bankapis-staging.hoanghochoi.com"
-          upsert_env BIDV_H2H_PUBLIC_BASE_URL "https://bankapis-staging.hoanghochoi.com"
+          upsert_env OPSHUB_DOMAIN "staging.phongvu.work"
+          upsert_env OPSHUB_API_DOMAIN "api-staging.phongvu.work"
+          upsert_env OPSHUB_LEGACY_DOMAIN "opshub-staging.hoanghochoi.com"
+          unset_env BIDV_H2H_DOMAIN
+          upsert_env BIDV_H2H_PUBLIC_BASE_URL "https://api-staging.phongvu.work/v1/bidv"
           upsert_env BIDV_H2H_ENVIRONMENT staging
           upsert_env PUBLIC_BASE_URL "$OPSHUB_PUBLIC_BASE_URL"
+          upsert_env PRIVATE_MEDIA_PUBLIC_BASE_URL "https://api-staging.phongvu.work/v1"
           upsert_env OPSHUB_SSD_ROOT "$OPSHUB_SSD_ROOT"
           upsert_env OPSHUB_HTTP_BIND "127.0.0.1:8090"
           upsert_env OPSHUB_HTTPS_BIND "127.0.0.1:8443"
           upsert_env IMAGE_BASE_URL "${OPSHUB_PUBLIC_BASE_URL}/uploads"
-          upsert_env ALLOWED_ORIGINS "$OPSHUB_PUBLIC_BASE_URL"
+          upsert_env ALLOWED_ORIGINS "${OPSHUB_PUBLIC_BASE_URL},https://opshub-staging.hoanghochoi.com"
           upsert_env OPSHUB_STAGING_LOAD_MAINTENANCE_ENABLED true
           upsert_env OPSHUB_STAGING_LOAD_OUTPUT_DIR /srv/opshub-staging/load-output
           upsert_env ERP_ORDER_CACHE_SYNC_ENABLED false
@@ -1302,7 +1329,8 @@ jobs:
 
           verify_direct_origin_route() {
             local slash_path="$1"
-            local canonical_path="$2"
+            local canonical_host="$2"
+            local canonical_path="$3"
             local origin='http://127.0.0.1:8090'
             local host='opshub-staging.hoanghochoi.com'
             local slash_headers canonical_headers canonical_body
@@ -1329,15 +1357,15 @@ jobs:
               awk 'tolower($1) == "location:" { $1=""; sub(/^[[:space:]]+/, ""); sub(/\r$/, ""); print; exit }' \
                 "$slash_headers"
             )"
-            if [ "$location" != "$canonical_path" ]; then
+            if [ "$location" != "https://${canonical_host}${canonical_path}" ]; then
               rm -f "$slash_headers" "$canonical_headers" "$canonical_body"
-              echo "Direct origin ${slash_path} Location was ${location:-<missing>}; expected ${canonical_path}." >&2
+              echo "Direct origin ${slash_path} Location was ${location:-<missing>}; expected https://${canonical_host}${canonical_path}." >&2
               return 1
             fi
 
             if ! canonical_status="$(
               curl -sS -D "$canonical_headers" -o "$canonical_body" -w '%{http_code}' \
-                -H "Host: $host" -H 'X-Forwarded-Proto: https' \
+                -H "Host: $canonical_host" -H 'X-Forwarded-Proto: https' \
                 "${origin}${canonical_path}"
             )"; then
               rm -f "$slash_headers" "$canonical_headers" "$canonical_body"
@@ -1355,8 +1383,8 @@ jobs:
             rm -f "$slash_headers" "$canonical_headers" "$canonical_body"
           }
 
-          verify_direct_origin_route '/download/' '/download'
-          verify_direct_origin_route '/help/' '/help'
+          verify_direct_origin_route '/download/' 'staging.phongvu.work' '/download'
+          verify_direct_origin_route '/help/' 'staging.phongvu.work' '/help'
           compose_cmd ps
           trap - ERR
           REMOTE
@@ -1369,6 +1397,7 @@ jobs:
           set -euo pipefail
           origin='http://127.0.0.1:8090'
           host='opshub-staging.hoanghochoi.com'
+          canonical_host='staging.phongvu.work'
 
           verify_canonical_route() {
             slash_path="$1"
@@ -1391,14 +1420,14 @@ jobs:
               awk 'tolower($1) == "location:" { $1=""; sub(/^[[:space:]]+/, ""); sub(/\r$/, ""); print; exit }' \
                 "$slash_headers"
             )"
-            if [ "$location" != "$canonical_path" ]; then
+            if [ "$location" != "https://${canonical_host}${canonical_path}" ]; then
               echo "Direct origin ${slash_path} Location was ${location:-<missing>}; expected ${canonical_path}." >&2
               return 1
             fi
 
             canonical_status="$(
               curl -sS -D "$canonical_headers" -o "$canonical_body" -w '%{http_code}' \
-                -H "Host: $host" -H 'X-Forwarded-Proto: https' \
+                -H "Host: $canonical_host" -H 'X-Forwarded-Proto: https' \
                 "${origin}${canonical_path}"
             )"
             if [[ "$canonical_status" != 2* ]]; then
@@ -1604,7 +1633,7 @@ jobs:
 
           ws_headers_file="$(mktemp)"
           if ! ws_status="$(
-            public_curl "${OPSHUB_PUBLIC_BASE_URL}/ws/v2" \
+            public_curl "${OPSHUB_API_BASE_URL}/ws/v2" \
               --http1.1 -sS -D "$ws_headers_file" -o /dev/null -w '%{http_code}' \
               -H 'Connection: Upgrade' \
               -H 'Upgrade: websocket' \
@@ -1612,12 +1641,12 @@ jobs:
               -H 'Sec-WebSocket-Key: b3BzaHViLXN0YWdpbmctc21va2U='
           )"; then
             rm -f "$ws_headers_file"
-            echo 'Staging /ws/v2 smoke failed before receiving an HTTP response.' >&2
+            echo 'Staging /v1/ws/v2 smoke failed before receiving an HTTP response.' >&2
             exit 1
           fi
           rm -f "$ws_headers_file"
           if [ "$ws_status" != '401' ]; then
-            echo "Staging /ws/v2 without a one-time ticket returned ${ws_status}; expected 401 from the realtime gateway." >&2
+            echo "Staging /v1/ws/v2 without a one-time ticket returned ${ws_status}; expected 401 from the realtime gateway." >&2
             exit 1
           fi
 
@@ -1769,7 +1798,7 @@ jobs:
             exit 1
           fi
           curl -fsS \
-            -H 'Host: opshub-staging.hoanghochoi.com' \
+            -H 'Host: staging.phongvu.work' \
             -H 'X-Forwarded-Proto: https' \
             'http://127.0.0.1:8090/health' >/dev/null
           if [ "$shared_restored" != true ]; then

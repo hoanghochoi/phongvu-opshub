@@ -1,10 +1,15 @@
 # Windows MSIX Packaging
 
+> **Retired (2026-08-21):** This packaging flow is disabled and is not part of
+> the current release. The GitHub Actions MSIX workflow was deleted; do not run
+> the dispatch commands or PowerShell helpers in this historical reference.
+> OpsHub currently ships only the signed Inno Setup EXE and portable ZIP.
+
 OpsHub keeps the current Windows runtime distribution unchanged: production and
 staging deploys still publish the Inno Setup `.exe`, portable `.zip`, checksum,
 `/download`, and `/app-version?platform=windows` metadata. The MSIX path is
-artifact-only and must not become the runtime update URL until the selected
-MSIX channel has its own smoke proof.
+retained below for historical traceability only and must not become a runtime
+update URL.
 
 ## Internal Sideload MSIX
 
