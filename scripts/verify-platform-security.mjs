@@ -202,8 +202,16 @@ contains(caddy, 'trusted_proxies_strict', 'Caddy strict trusted proxy parsing');
 contains(caddy, 'client_ip_headers CF-Connecting-IP', 'Caddy Cloudflare client IP source');
 contains(caddy, 'header_up X-Forwarded-For {client_ip}', 'Caddy normalized forwarded client IP');
 contains(caddy, 'header_up X-Real-IP {client_ip}', 'Caddy normalized real client IP');
-contains(caddy, 'redir * /download?{query} 308', 'Caddy canonical download redirect preserves query');
-contains(caddy, 'redir * /help?{query} 308', 'Caddy canonical help redirect preserves query');
+assert.match(
+  caddy,
+  /handle \/download\/ \{[\s\S]*?rewrite \* \/download[\s\S]*?redir \* \{uri\} 308/,
+  'Caddy canonical download redirect preserves query',
+);
+assert.match(
+  caddy,
+  /handle \/help\/ \{[\s\S]*?rewrite \* \/help[\s\S]*?redir \* \{uri\} 308/,
+  'Caddy canonical help redirect preserves query',
+);
 contains(caddy, 'Content-Security-Policy "', 'Caddy enforced CSP');
 contains(caddy, "object-src 'none'", 'Caddy CSP object restriction');
 contains(caddy, "frame-ancestors 'self'", 'Caddy CSP frame restriction');

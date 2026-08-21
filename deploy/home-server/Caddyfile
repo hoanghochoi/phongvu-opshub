@@ -54,7 +54,12 @@ http://{$OPSHUB_DOMAIN} {
   }
 
   handle /download/ {
-    redir * /download?{query} 308
+    # Rewrite preserves the original query string; redir then emits the
+    # normalized path without inventing a trailing '?' when no query exists.
+    route {
+      rewrite * /download
+      redir * {uri} 308
+    }
   }
 
   handle /download {
@@ -64,7 +69,10 @@ http://{$OPSHUB_DOMAIN} {
   }
 
   handle /help/ {
-    redir * /help?{query} 308
+    route {
+      rewrite * /help
+      redir * {uri} 308
+    }
   }
 
   handle_path /help/assets/* {
@@ -78,16 +86,12 @@ http://{$OPSHUB_DOMAIN} {
 
   header /help Cache-Control "no-store, no-cache, must-revalidate"
 
-  handle /staging-download/ {
-    redir https://staging.phongvu.work/download?{query} 302
-  }
-
-  handle /staging-download {
-    redir https://staging.phongvu.work/download?{query} 302
-  }
-
-  handle_path /staging-download/* {
-    redir https://staging.phongvu.work/download?{query} 302
+  @staging_download path /staging-download /staging-download/ /staging-download/*
+  handle @staging_download {
+    route {
+      rewrite * /download
+      redir * https://staging.phongvu.work{uri} 302
+    }
   }
 
   handle_path /uploads/* {
@@ -325,12 +329,12 @@ http://{$OPSHUB_LEGACY_DOMAIN} {
     }
   }
 
-  handle /download/ {
-    redir https://{$OPSHUB_DOMAIN}/download?{query} 308
-  }
-
-  handle /download {
-    redir https://{$OPSHUB_DOMAIN}/download?{query} 308
+  @legacy_download path /download /download/
+  handle @legacy_download {
+    route {
+      rewrite * /download
+      redir * https://{$OPSHUB_DOMAIN}{uri} 308
+    }
   }
 
   handle_path /help/assets/* {
@@ -338,12 +342,12 @@ http://{$OPSHUB_LEGACY_DOMAIN} {
     file_server
   }
 
-  handle /help/ {
-    redir https://{$OPSHUB_DOMAIN}/help?{query} 308
-  }
-
-  handle /help {
-    redir https://{$OPSHUB_DOMAIN}/help?{query} 308
+  @legacy_help path /help /help/
+  handle @legacy_help {
+    route {
+      rewrite * /help
+      redir * https://{$OPSHUB_DOMAIN}{uri} 308
+    }
   }
 
   handle_path /uploads/* {
@@ -360,8 +364,12 @@ http://{$OPSHUB_LEGACY_DOMAIN} {
     respond "ok" 200
   }
 
-  handle /staging-download* {
-    redir https://staging.phongvu.work/download 308
+  @legacy_staging_download path /staging-download /staging-download/ /staging-download/*
+  handle @legacy_staging_download {
+    route {
+      rewrite * /download
+      redir * https://staging.phongvu.work{uri} 308
+    }
   }
 
   handle {
