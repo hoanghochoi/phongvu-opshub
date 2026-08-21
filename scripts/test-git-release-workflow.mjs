@@ -316,6 +316,10 @@ test('workflow and policy preserve existing deploy consumers and never force pus
     path.join(repoRoot, 'deploy', 'home-server', 'docker-compose.home.yml'),
     'utf8',
   );
+  const bidvBootstrap = fs.readFileSync(
+    path.join(repoRoot, 'deploy', 'home-server', 'bootstrap-bidv-kek.sh'),
+    'utf8',
+  );
   const policy = fs.readFileSync(path.join(repoRoot, 'AGENTS.md'), 'utf8');
   const playbook = fs.readFileSync(
     path.join(repoRoot, 'docs', 'runbooks', 'git-release-playbook.md'),
@@ -345,6 +349,21 @@ test('workflow and policy preserve existing deploy consumers and never force pus
 
   assert.match(productionWorkflow, /push:\s*\n\s*branches:\s*\n\s*- main/);
   assert.match(stagingWorkflow, /push:\s*\n\s*branches:\s*\n\s*- staging/);
+  for (const [environment, workflow] of [
+    ['staging', stagingWorkflow],
+    ['production', productionWorkflow],
+  ]) {
+    assert.match(
+      workflow,
+      /bash deploy\/home-server\/bootstrap-bidv-kek\.sh "\$OPSHUB_ENV_FILE"/,
+      `${environment} deploy must run the BIDV KEK bootstrap`,
+    );
+  }
+  assert.match(
+    bidvBootstrap,
+    /docker compose --env-file "\$ENV_FILE" -f "\$COMPOSE_FILE" "\$@" < \/dev\/null/,
+    'BIDV bootstrap must isolate Compose from the remote SSH heredoc stdin',
+  );
   assert.match(stagingWorkflow, /verify_download_artifact\(\)/);
   assert.match(stagingWorkflow, /public_curl "\$url"/);
   assert.match(stagingWorkflow, /Range: bytes=0-0/);
