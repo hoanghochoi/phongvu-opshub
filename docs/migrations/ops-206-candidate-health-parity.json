@@ -102,7 +102,7 @@
     { "path": "scripts/load/opshub-home-phase1-contract.mjs", "sha256": "0c4dbfdcaff8457195e4e98161e06da00f8aaba69f868699e05d68054efe9384" },
     { "path": "scripts/load/opshub-home-phase1-http-proof.js", "sha256": "c32825346111b9b3eb8334340de03b96215652b63a40f2e80a547800927bfbab" },
     { "path": "scripts/load/opshub-staging-targets.mjs", "sha256": "129cf16afcfc0afe491c2a78102964dc503172d24d1a0314187a53072aec1f06" },
-    { "path": "docs/migrations/ops-204-migration-home-preflight.json", "sha256": "2c0b59f31634373339fd93b2950071c2d0649dc28edd9f6e6f548876c735bad0" }
+    { "path": "docs/migrations/ops-204-migration-home-preflight.json", "sha256": "ab04adf9cf0f0428b5a3e6e2568a2d5deaa00b7f087c73624ced21ed226321af" }
   ],
   "nextAction": "OPS-78 requires an operationally approved candidate-start slice before any live staging mutation; keep this offline preflight promotion-ineligible.",
   "rollback": "One squash revert; no runtime, traffic, migration, load or production rollback is required."

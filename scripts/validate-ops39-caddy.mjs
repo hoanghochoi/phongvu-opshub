@@ -42,6 +42,8 @@ assert.match(legacySite, /handle @legacy_api/);
 assert.match(legacySite, /uri strip_prefix \/api/);
 assert.match(legacySite, /handle \/ws\*/);
 assert.match(legacySite, /redir https:\/\/\{\$OPSHUB_DOMAIN\}\{uri\} 308/);
+assert.match(legacySite, /redir https:\/\/\{\$OPSHUB_DOMAIN\}\/download\?\{query\} 308/);
+assert.match(legacySite, /redir https:\/\/\{\$OPSHUB_DOMAIN\}\/help\?\{query\} 308/);
 assert.equal(caddy.includes('BIDV_H2H_DOMAIN'), false);
 assert.match(compose, /OPSHUB_API_DOMAIN: \$\{OPSHUB_API_DOMAIN:\?/);
 assert.match(compose, /OPSHUB_LEGACY_DOMAIN: \$\{OPSHUB_LEGACY_DOMAIN:\?/);
