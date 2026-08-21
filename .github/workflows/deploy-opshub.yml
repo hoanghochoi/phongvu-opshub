@@ -774,19 +774,17 @@ jobs:
             POSTGRES_DB
             DATABASE_URL
             JWT_SECRET
-            OPSHUB_DOMAIN
-            OPSHUB_API_DOMAIN
-            OPSHUB_LEGACY_DOMAIN
             OPSHUB_HTTP_BIND
             OPSHUB_RUNTIME_UID
             OPSHUB_RUNTIME_GID
             REDIS_PASSWORD
             BACKUP_AGE_RECIPIENT
             UPLOAD_BASE_DIR
-            IMAGE_BASE_URL
             PRIVATE_MEDIA_BASE_DIR
-            PRIVATE_MEDIA_PUBLIC_BASE_URL
           )
+          # Domain and public publication keys are owned by this release
+          # transaction below. The existing production env may predate the
+          # domain migration, so validate these keys after upserting them.
           for key in "${required_runtime_env_keys[@]}"; do
             value="$(sudo sed -n "s/^${key}=//p" "$OPSHUB_ENV_FILE" | head -n 1)"
             if [ -z "$value" ]; then
@@ -894,6 +892,24 @@ jobs:
           upsert_env APP_WEB_APP_UPDATE_URL ""
           upsert_env APP_WEB_APP_RELEASE_NOTES "$APP_RELEASE_NOTES"
           upsert_env APP_WEB_APP_FORCE_UPDATE false
+
+          managed_runtime_env_keys=(
+            OPSHUB_DOMAIN
+            OPSHUB_API_DOMAIN
+            OPSHUB_LEGACY_DOMAIN
+            PUBLIC_BASE_URL
+            IMAGE_BASE_URL
+            PRIVATE_MEDIA_PUBLIC_BASE_URL
+            ALLOWED_ORIGINS
+            BIDV_H2H_PUBLIC_BASE_URL
+          )
+          for key in "${managed_runtime_env_keys[@]}"; do
+            value="$(sudo sed -n "s/^${key}=//p" "$OPSHUB_ENV_FILE" | head -n 1)"
+            if [ -z "$value" ]; then
+              echo "Managed production env key was not published: $key" >&2
+              exit 1
+            fi
+          done
 
           docker run --rm \
             --env-file "$OPSHUB_ENV_FILE" \
