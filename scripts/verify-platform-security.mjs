@@ -618,8 +618,13 @@ contains(productionWorkflow, 'lfs: false', 'production checkout avoids Android L
 contains(productionWorkflow, 'actions/cache@caa296126883cff596d87d8935842f9db880ef25', 'production Windows payment audio cache');
 contains(productionWorkflow, "hashFiles('windows/assets/payment_audio/local_preset_speaker_v1/**/manifest.json')", 'production payment audio manifest cache key');
 contains(productionWorkflow, 'actions: read', 'production workflow artifact read permission');
-contains(productionWorkflow, 'gh run download', 'production staging payment audio artifact restore');
+contains(productionWorkflow, 'actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093', 'production staging payment audio artifact restore');
+contains(productionWorkflow, 'run-id: ${{ steps.payment_audio_artifact.outputs.run_id }}', 'production staging payment audio artifact run selection');
+contains(productionWorkflow, 'github-token: ${{ github.token }}', 'production staging payment audio artifact token');
+contains(productionWorkflow, 'path: .ci-payment-audio-artifact', 'production staging payment audio empty extraction directory');
+contains(productionWorkflow, 'Install Windows payment audio staging artifact', 'production staging payment audio artifact installation');
 contains(productionWorkflow, 'opshub-payment-audio-$sha', 'production staging payment audio artifact name');
+excludes(productionWorkflow, 'gh run download', 'production staging artifact restore avoids CLI download');
 contains(productionWorkflow, 'git lfs pull --include="windows/assets/payment_audio/local_preset_speaker_v1/**"', 'production scoped Windows LFS pull');
 contains(stagingWorkflow, 'lfs: false', 'staging checkout avoids Android LFS download');
 contains(stagingWorkflow, 'actions/cache@caa296126883cff596d87d8935842f9db880ef25', 'staging Windows payment audio cache');
