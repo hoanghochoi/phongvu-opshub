@@ -1384,6 +1384,7 @@ jobs:
           }
 
           verify_direct_origin_route '/download/' 'staging.phongvu.work' '/download'
+          verify_direct_origin_route '/download/?probe=1' 'staging.phongvu.work' '/download?probe=1'
           verify_direct_origin_route '/help/' 'staging.phongvu.work' '/help'
           compose_cmd ps
           trap - ERR

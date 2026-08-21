@@ -54,7 +54,7 @@ http://{$OPSHUB_DOMAIN} {
   }
 
   handle /download/ {
-    redir * /download 308
+    redir * /download?{query} 308
   }
 
   handle /download {
@@ -64,7 +64,7 @@ http://{$OPSHUB_DOMAIN} {
   }
 
   handle /help/ {
-    redir * /help 308
+    redir * /help?{query} 308
   }
 
   handle_path /help/assets/* {
@@ -79,15 +79,15 @@ http://{$OPSHUB_DOMAIN} {
   header /help Cache-Control "no-store, no-cache, must-revalidate"
 
   handle /staging-download/ {
-    redir https://staging.phongvu.work/download 302
+    redir https://staging.phongvu.work/download?{query} 302
   }
 
   handle /staging-download {
-    redir https://staging.phongvu.work/download 302
+    redir https://staging.phongvu.work/download?{query} 302
   }
 
   handle_path /staging-download/* {
-    redir https://staging.phongvu.work/download 302
+    redir https://staging.phongvu.work/download?{query} 302
   }
 
   handle_path /uploads/* {
@@ -326,11 +326,11 @@ http://{$OPSHUB_LEGACY_DOMAIN} {
   }
 
   handle /download/ {
-    redir https://{$OPSHUB_DOMAIN}/download 308
+    redir https://{$OPSHUB_DOMAIN}/download?{query} 308
   }
 
   handle /download {
-    redir https://{$OPSHUB_DOMAIN}/download 308
+    redir https://{$OPSHUB_DOMAIN}/download?{query} 308
   }
 
   handle_path /help/assets/* {
@@ -339,11 +339,11 @@ http://{$OPSHUB_LEGACY_DOMAIN} {
   }
 
   handle /help/ {
-    redir https://{$OPSHUB_DOMAIN}/help 308
+    redir https://{$OPSHUB_DOMAIN}/help?{query} 308
   }
 
   handle /help {
-    redir https://{$OPSHUB_DOMAIN}/help 308
+    redir https://{$OPSHUB_DOMAIN}/help?{query} 308
   }
 
   handle_path /uploads/* {
