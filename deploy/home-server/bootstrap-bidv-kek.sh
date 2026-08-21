@@ -8,6 +8,13 @@ COMPOSE_FILE="${2:-$SCRIPT_DIR/docker-compose.home.yml}"
 
 [[ -f "$ENV_FILE" ]] || { echo "Missing runtime env file." >&2; exit 1; }
 
+# This script runs inside the staging and production SSH heredocs. Compose
+# subcommands inherit stdin by default even with -T and would otherwise consume
+# the remaining remote deployment transaction.
+compose_cmd() {
+  docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@" < /dev/null
+}
+
 env_value() {
   local key="$1"
   local line
@@ -43,7 +50,7 @@ POSTGRES_USER="${POSTGRES_USER:-opshub}"
 POSTGRES_DB="$(env_value POSTGRES_DB)"
 POSTGRES_DB="${POSTGRES_DB:-opshub}"
 table_exists="$({
-  docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T postgres \
+  compose_cmd exec -T postgres \
     psql -Atq -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
     -c "SELECT CASE WHEN to_regclass('\"BankPgpKey\"') IS NULL THEN 0 ELSE 1 END;"
 } 2>/dev/null || true)"
@@ -52,8 +59,7 @@ table_exists="$({
 verify_candidate_against_database() {
   local candidate="$1"
   [[ "$table_exists" == "1" ]] || return 0
-  docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" \
-    --profile maintenance run --rm -T --build \
+  compose_cmd --profile maintenance run --rm -T --build \
     -v "$candidate:/run/secrets/bidv-h2h-kek:ro" \
     maintenance node scripts/verify-bidv-kek.mjs
 }
@@ -82,7 +88,7 @@ fi
 evidence_count=0
 if [[ "$table_exists" == "1" ]]; then
   evidence_count="$({
-    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T postgres \
+    compose_cmd exec -T postgres \
       psql -Atq -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
       -c 'SELECT (SELECT count(*) FROM "BankPgpKey") + (SELECT count(*) FROM "BankTransaction");'
   } 2>/dev/null || true)"

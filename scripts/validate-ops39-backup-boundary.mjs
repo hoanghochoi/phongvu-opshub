@@ -23,6 +23,20 @@ assert.match(restore, /sha256sum -c SHA256SUMS/);
 assert.match(restore, /grep -qx 'encryption=age'/);
 assert.match(restore, /gzip -t/);
 assert.match(restore, /tar -tzf/);
+const composeWrapper = bootstrap.match(
+  /compose_cmd\(\) \{[\s\S]*?docker compose --env-file "\$ENV_FILE" -f "\$COMPOSE_FILE" "\$@" < \/dev\/null[\s\S]*?\n\}/,
+);
+assert.ok(
+  composeWrapper,
+  'BIDV bootstrap must close Compose stdin so it cannot consume the remote deploy heredoc',
+);
+assert.doesNotMatch(
+  bootstrap.replace(composeWrapper[0], ''),
+  /\bdocker compose\b/,
+  'all BIDV bootstrap Compose calls must use the stdin-safe wrapper',
+);
+assert.match(bootstrap, /compose_cmd exec -T postgres/);
+assert.match(bootstrap, /compose_cmd --profile maintenance run --rm -T --build/);
 assert.match(bootstrap, /verify_candidate_against_database "\$CANDIDATE_FILE"/);
 assert.ok(
   bootstrap.indexOf('verify_candidate_against_database "$CANDIDATE_FILE"') <

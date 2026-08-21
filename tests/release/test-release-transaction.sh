@@ -230,4 +230,76 @@ test "${#cleanup_lines[@]}" -eq 2
 test "$finalize_full_line" -lt "${cleanup_lines[0]}"
 test "$finalize_static_line" -lt "${cleanup_lines[1]}"
 
-echo 'release transaction snapshot, fail-closed retention, and static rollback contract passed'
+# The KEK bootstrap is called from an SSH `bash -s` heredoc by both deploy
+# workflows. A nested Compose process that inherits stdin can drain every
+# deployment command after the bootstrap while still exiting zero.
+bootstrap_fixture="$temp/bootstrap-stdin"
+bootstrap_mock_bin="$bootstrap_fixture/bin"
+bootstrap_ssd_root="$bootstrap_fixture/ssd"
+bootstrap_marker="$bootstrap_fixture/after-bootstrap"
+mkdir -p "$bootstrap_mock_bin" "$bootstrap_ssd_root/secrets"
+printf '%s\n' \
+  "OPSHUB_SSD_ROOT=$bootstrap_ssd_root" \
+  'OPSHUB_RUNTIME_GID=1000' \
+  'POSTGRES_USER=opshub' \
+  'POSTGRES_DB=opshub' > "$bootstrap_fixture/env"
+: > "$bootstrap_fixture/compose.yml"
+printf '%s\n' 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' \
+  > "$bootstrap_ssd_root/secrets/bidv-h2h-kek"
+
+printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'set -euo pipefail' \
+  'while IFS= read -r _; do :; done' \
+  'case " $* " in' \
+  '  *" exec -T postgres "*) printf "1\\n" ;;' \
+  '  *" --profile maintenance run "*) printf "BIDV KEK preflight passed protectedKeyCount=1\\n" ;;' \
+  '  *) echo "Unexpected mocked docker invocation: $*" >&2; exit 64 ;;' \
+  'esac' > "$bootstrap_mock_bin/docker"
+
+printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'set -euo pipefail' \
+  'command_name="$1"' \
+  'shift' \
+  'case "$command_name" in' \
+  '  install)' \
+  '    args=()' \
+  '    while (($#)); do' \
+  '      case "$1" in' \
+  '        -m|-o|-g) shift 2 ;;' \
+  '        *) args+=("$1"); shift ;;' \
+  '      esac' \
+  '    done' \
+  '    command install "${args[@]}"' \
+  '    ;;' \
+  '  chown|chmod) exit 0 ;;' \
+  '  *) command "$command_name" "$@" ;;' \
+  'esac' > "$bootstrap_mock_bin/sudo"
+chmod +x "$bootstrap_mock_bin/docker" "$bootstrap_mock_bin/sudo"
+
+unsafe_bootstrap="$bootstrap_fixture/bootstrap-with-inherited-stdin.sh"
+sed 's/"\$@" < \/dev\/null/"\$@"/' \
+  "$root/deploy/home-server/bootstrap-bidv-kek.sh" > "$unsafe_bootstrap"
+chmod +x "$unsafe_bootstrap"
+PATH="$bootstrap_mock_bin:$PATH" bash -s -- \
+  "$unsafe_bootstrap" \
+  "$bootstrap_fixture/env" \
+  "$bootstrap_fixture/compose.yml" \
+  "$bootstrap_marker" <<'REMOTE'
+bash "$1" "$2" "$3"
+printf 'unsafe-remote-transaction-continued\n' > "$4"
+REMOTE
+test ! -e "$bootstrap_marker"
+
+PATH="$bootstrap_mock_bin:$PATH" bash -s -- \
+  "$root/deploy/home-server/bootstrap-bidv-kek.sh" \
+  "$bootstrap_fixture/env" \
+  "$bootstrap_fixture/compose.yml" \
+  "$bootstrap_marker" <<'REMOTE'
+bash "$1" "$2" "$3"
+printf 'remote-transaction-continued\n' > "$4"
+REMOTE
+grep -Fxq 'remote-transaction-continued' "$bootstrap_marker"
+
+echo 'release transaction snapshot, stdin boundary, fail-closed retention, and static rollback contract passed'

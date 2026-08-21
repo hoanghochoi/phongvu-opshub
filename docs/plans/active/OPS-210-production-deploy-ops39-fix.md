@@ -87,3 +87,21 @@ and production, and waits for direct-origin `/health` before canonical route
 verification. Retained-owner evidence refresh commit `0ffff21a` binds the
 changed release workflows to that implementation SHA. A new staging deploy
 from the resulting exact SHA is required before production promotion.
+
+## SSH stdin boundary follow-up
+
+Exact-SHA staging run `32503013705` built Windows and Android successfully, but
+the remote deploy output stopped immediately after the BIDV KEK preflight. The
+subsequent migration, runtime recreation, mounted Caddy hash checks and
+direct-origin verification never ran; the remote step nevertheless exited `0`,
+and the next job-level `/help` probe correctly failed against the unchanged old
+Caddy before controlled rollback completed.
+
+The cause is `bootstrap-bidv-kek.sh` invoking `docker compose exec/run -T`
+while inheriting stdin from the parent SSH heredoc. `-T` disables a TTY but does
+not close stdin, so Compose consumed the remaining remote transaction. Both
+staging and production call this bootstrap from `bash -s`; no other helper
+script is invoked that way in either deploy heredoc. The repair routes every
+bootstrap Compose call through one wrapper with `< /dev/null`, adds static
+guards against bypassing the wrapper, and adds a dynamic regression whose mock
+Compose drains stdin and proves the command after the bootstrap still runs.
