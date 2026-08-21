@@ -217,3 +217,71 @@ The workflow must execute the actual Nest build output at
 `dist/src/help-content/help-content-deploy-state.js`; verification must bind the
 workflow command to that compiled path and reject the shorter non-existent
 `dist/help-content/*` path.
+
+## Cloudflare Bot Fight Mode public-probe follow-up
+
+Exact-SHA staging run `32527557089` deployed merge SHA
+`d029b6215be5b1daf5d3825d708a28e40413e73d`, passed Windows, Android, backend,
+container health and direct-origin canonical-route proof, then retried
+`https://staging.phongvu.work/health` twelve times from `21:29:54Z` through
+`21:30:49Z` without receiving a 2xx response. Controlled rollback completed and
+restored the previous public staging release.
+
+The origin and Tunnel were not the failing boundary. Post-rollback web/API and
+legacy health checks returned `200` from SIN and HKG; the staging Tunnel had one
+connector with four healthy QUIC connections and exact version-7 ingress for
+`staging.phongvu.work` and `api-staging.phongvu.work` to
+`http://127.0.0.1:8090`. Cloudflare Security Events recorded eleven matching
+requests from GitHub runner IP `64.236.135.2`, every five seconds from
+`04:29:54` through `04:30:49` GMT+7, each receiving `Managed Challenge` from
+`Bot fight mode`. No corresponding request reached the Tunnel, which explains
+why direct origin passed while runner-side public verification failed.
+
+Free-plan Bot Fight Mode cannot be skipped by a WAF custom rule. Disabling it
+zone-wide would weaken the accepted public protection boundary. Full and
+static-only release verification therefore run curl from the target environment
+host over the public URL while requiring both `Server: cloudflare` and a
+non-empty `CF-Ray` on successful responses. This preserves DNS, TLS, edge,
+Tunnel and exact-host proof without classifying GitHub's known automated egress
+as application failure. Failed retries report sanitized URL, HTTP status,
+CF-Ray and edge server without logging response bodies. Regression guards bind
+both staging and production workflows to the remote-egress plus Cloudflare-edge
+contract, including baseline and rollback/static Help probes.
+
+Independent review then found two fail-open risks in the first implementation.
+Production response capture used an `&&` chain whose failed status/header check
+could still fall through to `cat` under Bash `set -e`, and artifact verification
+searched every redirect header block instead of the final response. A shared
+`cloudflare-public-probe.sh` now emits bodies only after an exact 2xx plus final
+`Server: cloudflare` and `CF-Ray`, and artifact proof additionally requires a
+positive final `Content-Length`, `%{url_effective}`, and an explicit
+per-environment final-host allowlist: `phongvu.work` plus
+`opshub.hoanghochoi.com` for production, and `staging.phongvu.work` plus
+`opshub-staging.hoanghochoi.com` for staging. Authority parsing rejects
+userinfo, non-HTTPS URLs and ports other than the implicit/default `443`. The
+runtime release allowlist includes this helper, while pre-deploy/static-only
+jobs stream the reviewed checkout copy over SSH.
+
+A second correctness review reproduced that the streamed `bash -s` path could
+define functions and exit zero without dispatching because `BASH_SOURCE[0]` is
+empty for stdin scripts. The CLI guard now explicitly treats an empty
+`BASH_SOURCE[0]` as direct stdin execution while ordinary `source` use remains
+definition-only. Executable fixtures exercise both direct-file and exact stdin
+`body`/`artifact` invocation, assert curl executes exactly once, reject 403 and
+missing edge headers without body output, reject a Cloudflare redirect ending
+at a non-Cloudflare response, reject cross-environment/userinfo/non-contract
+port targets, and accept only an allowlisted Cloudflare final response. Focused
+workflow, security, transaction, YAML, shell and whitespace
+proof pass. Full verification is intentionally pending the implementation
+commit and retained-owner evidence refresh; production remains unchanged.
+
+The final review pass also removed an accidental host-Node dependency created
+when the full public verification moved behind SSH. JSON checks now use the
+shared `opshub_api_node` boundary, which executes Node inside the already
+running API container with the exact Compose project/env/current release and
+stdin closed. BIDV response files remain host-local: the workflow reads and
+removes them on the host, then passes only the JSON strings to the container;
+containerized validation never receives host `/tmp` paths. Executable mock
+proof covers the Compose argv and closed-stdin boundary, and structural guards
+reject bare host `node -e`, removed `public_curl` calls, and host-file reads in
+the remote verification blocks.

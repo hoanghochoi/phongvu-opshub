@@ -181,6 +181,9 @@ const backendPlatformContract = await text('docs/product/backend-platform.md');
 const helpDeployStateProbe = await text(
   'backend-nest/src/help-content/help-content-deploy-state.ts',
 );
+const cloudflarePublicProbe = await text(
+  'deploy/home-server/cloudflare-public-probe.sh',
+);
 
 assertWorkflowRunExpressionLengths(productionWorkflow, 'production workflow');
 assertWorkflowRunExpressionLengths(stagingWorkflow, 'staging workflow');
@@ -861,6 +864,91 @@ assert.ok(
     productionPublicVerifyIndex < productionTunnelRestoreIndex,
   'production Tunnel transaction ordering is unsafe',
 );
+const productionPublicVerification = productionWorkflow.slice(
+  productionPublicVerifyIndex,
+  productionTunnelRestoreIndex,
+);
+contains(
+  productionPublicVerification,
+  'Cloudflare Bot Fight Mode challenges GitHub-hosted runner egress',
+  'production Bot Fight Mode verification boundary',
+);
+contains(
+  productionPublicVerification,
+  'ssh opshub-vps',
+  'production public verification remote egress',
+);
+contains(
+  productionPublicVerification,
+  'verify_cloudflare_edge_headers()',
+  'production public verification Cloudflare edge proof',
+);
+contains(
+  productionPublicVerification,
+  "'^cf-ray:[[:space:]]*[[:alnum:]-]+'",
+  'production public verification CF-Ray proof',
+);
+contains(
+  productionPublicVerification,
+  'source "$PUBLIC_PROBE_SCRIPT"',
+  'production full deploy shared Cloudflare response validator',
+);
+contains(
+  productionPublicVerification,
+  'opshub_api_node -e',
+  'production public validation containerized Node boundary',
+);
+excludes(
+  productionPublicVerification,
+  '          node -e ',
+  'production public validation host Node dependency',
+);
+excludes(
+  productionPublicVerification,
+  "require('fs')",
+  'production containerized validation host-filesystem dependency',
+);
+contains(
+  productionPublicVerification,
+  'JSON.parse(payload).error',
+  'production BIDV response argv validation',
+);
+contains(
+  productionWorkflow,
+  '< deploy/home-server/cloudflare-public-probe.sh',
+  'production static deploy streams current validator over SSH',
+);
+excludes(
+  productionWorkflow,
+  '[[ "$status" == 2* ]] &&',
+  'public probe conditional-chain body leak',
+);
+contains(cloudflarePublicProbe, '%{url_effective}', 'artifact effective URL proof');
+contains(
+  cloudflarePublicProbe,
+  'opshub_cloudflare_final_headers()',
+  'final response header isolation',
+);
+contains(
+  cloudflarePublicProbe,
+  'opshub_cloudflare_artifact_host_allowed()',
+  'environment-specific artifact host allowlist',
+);
+contains(
+  cloudflarePublicProbe,
+  '^([[:alnum:].-]+)(:443)?$',
+  'restricted effective URL authority parser',
+);
+contains(
+  productionWorkflow,
+  "'phongvu.work' 'opshub.hoanghochoi.com'",
+  'production artifact host allowlist',
+);
+contains(
+  productionWorkflow,
+  "'phongvu.work' 'api.phongvu.work' 'opshub.hoanghochoi.com'",
+  'production body host allowlist',
+);
 contains(
   productionWorkflow,
   'restore /etc/cloudflared/config.yml "$tunnel_snapshot"',
@@ -976,6 +1064,50 @@ const stagingCheckpointCleanupIndex = stagingWorkflow.indexOf(
 const stagingRuntimeTransaction = stagingWorkflow.slice(
   stagingRuntimeCheckpointIndex,
   stagingPublicVerificationIndex,
+);
+const stagingPublicVerification = stagingWorkflow.slice(
+  stagingPublicVerificationIndex,
+  stagingVerificationRollbackIndex,
+);
+contains(
+  stagingPublicVerification,
+  'Cloudflare Bot Fight Mode challenges GitHub-hosted runner egress',
+  'staging Bot Fight Mode verification boundary',
+);
+contains(
+  stagingPublicVerification,
+  'ssh opshub-staging',
+  'staging public verification remote egress',
+);
+contains(
+  stagingPublicVerification,
+  'source "$PUBLIC_PROBE_SCRIPT"',
+  'staging shared Cloudflare response validator',
+);
+contains(
+  stagingPublicVerification,
+  'opshub_api_node -e',
+  'staging public validation containerized Node boundary',
+);
+excludes(
+  stagingPublicVerification,
+  '          node -e ',
+  'staging public validation host Node dependency',
+);
+contains(
+  stagingPublicVerification,
+  "'staging.phongvu.work' 'opshub-staging.hoanghochoi.com'",
+  'staging artifact host allowlist',
+);
+contains(
+  stagingPublicVerification,
+  "'staging.phongvu.work' 'api-staging.phongvu.work' 'opshub-staging.hoanghochoi.com'",
+  'staging body host allowlist',
+);
+excludes(
+  stagingPublicVerification,
+  'public_curl ',
+  'removed staging inline curl wrapper reference',
 );
 contains(
   stagingRuntimeTransaction,
@@ -1122,7 +1254,11 @@ for (const [workflow, label] of [
   excludes(workflow, 'actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5', `${label} deprecated checkout pin`);
   excludes(workflow, 'actions/checkout@v', `${label} floating checkout version`);
 }
-contains(stagingWorkflow, '[[ "$status" == 2* ]]', 'staging public 2xx verification gate');
+contains(
+  cloudflarePublicProbe,
+  '[[ ! "$status" =~ ^2[0-9][0-9]$ ]]',
+  'shared public exact 2xx verification gate',
+);
 contains(
   stagingWorkflow,
   'OPSHUB_DOWNLOAD_PUBLIC_BASE_URL: https://opshub-staging.hoanghochoi.com',

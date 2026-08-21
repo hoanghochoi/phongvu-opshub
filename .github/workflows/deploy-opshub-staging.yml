@@ -568,19 +568,22 @@ jobs:
             < deploy/staging/release-fingerprint.sh \
             > dist/staging-rollback-baseline/runtime.txt
 
-          public_curl() {
-            curl -fsS "$1"
+          remote_public_curl() {
+            local quoted_url url="$1"
+            printf -v quoted_url '%q' "$url"
+            ssh opshub-staging "bash -s -- body $quoted_url staging.phongvu.work api-staging.phongvu.work opshub-staging.hoanghochoi.com" \
+              < deploy/home-server/cloudflare-public-probe.sh
           }
-          public_curl "${OPSHUB_PUBLIC_BASE_URL}/health" >/dev/null
-          public_curl "${OPSHUB_API_BASE_URL}/app-version?platform=android" \
+          remote_public_curl "${OPSHUB_PUBLIC_BASE_URL}/health" >/dev/null
+          remote_public_curl "${OPSHUB_API_BASE_URL}/app-version?platform=android" \
             > dist/staging-rollback-baseline/android.json
-          public_curl "${OPSHUB_API_BASE_URL}/app-version?platform=windows" \
+          remote_public_curl "${OPSHUB_API_BASE_URL}/app-version?platform=windows" \
             > dist/staging-rollback-baseline/windows.json
-          public_curl "${OPSHUB_API_BASE_URL}/app-version?platform=web" \
+          remote_public_curl "${OPSHUB_API_BASE_URL}/app-version?platform=web" \
             > dist/staging-rollback-baseline/web.json
-          public_curl "${OPSHUB_API_BASE_URL}/help-content/public" \
+          remote_public_curl "${OPSHUB_API_BASE_URL}/help-content/public" \
             > dist/staging-rollback-baseline/help.json
-          public_curl "${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}/downloads/latest.json" \
+          remote_public_curl "${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}/downloads/latest.json" \
             > dist/staging-rollback-baseline/manifest.json
 
       - name: Rehearse shared static transaction (staging-only)
@@ -1509,48 +1512,52 @@ jobs:
           STAGING_FAILURE_INJECTION: ${{ inputs.failure_injection || 'none' }}
         run: |
           set -euo pipefail
-          public_curl() {
-            local url="$1"
-            shift
-            curl "$@" "$url"
-          }
+          # Cloudflare Bot Fight Mode challenges GitHub-hosted runner egress.
+          # Probe from the staging host but require CF-Ray/Server edge evidence.
+          ssh opshub-staging \
+            "OPSHUB_PUBLIC_BASE_URL='$OPSHUB_PUBLIC_BASE_URL' \
+             OPSHUB_API_BASE_URL='$OPSHUB_API_BASE_URL' \
+             OPSHUB_DOWNLOAD_PUBLIC_BASE_URL='$OPSHUB_DOWNLOAD_PUBLIC_BASE_URL' \
+             OPSHUB_ENV_FILE='$OPSHUB_ENV_FILE' \
+             CURRENT_DIR='${OPSHUB_REMOTE_APP_DIR}/current' \
+             COMPOSE_PROJECT_NAME='$COMPOSE_PROJECT_NAME' \
+             OPSHUB_COMPOSE_PROJECT='$COMPOSE_PROJECT_NAME' \
+             PUBLIC_PROBE_SCRIPT='${OPSHUB_REMOTE_APP_DIR}/current/deploy/home-server/cloudflare-public-probe.sh' \
+             GITHUB_SHA='$GITHUB_SHA' \
+             EXPECTED_VERSION='${{ needs.prepare.outputs.version_name }}' \
+             EXPECTED_BUILD='${{ needs.prepare.outputs.version_code }}' \
+             STAGING_FAILURE_INJECTION='$STAGING_FAILURE_INJECTION' \
+             bash -s" <<'REMOTE'
+          set -euo pipefail
+          source "$PUBLIC_PROBE_SCRIPT"
           retry_curl() {
             local url="$1"
             local attempt
-            local response_file
-            local status
             for attempt in {1..12}; do
-              response_file="$(mktemp)"
-            if status="$(public_curl "$url" -sS -o "$response_file" -w '%{http_code}')"; then
-                if [[ "$status" == 2* ]]; then
-                  cat "$response_file"
-                  rm -f "$response_file"
-                  return 0
-                fi
+              if opshub_cloudflare_public_body "$url" \
+                'staging.phongvu.work' 'api-staging.phongvu.work' 'opshub-staging.hoanghochoi.com'; then
+                return 0
               fi
-              rm -f "$response_file"
+              echo "Staging public verification attempt ${attempt}/12 failed: ${url%%\?*}." >&2
               sleep 5
             done
-            echo "Staging verification did not receive a 2xx response from ${url}." >&2
+            echo "Staging public verification did not receive a Cloudflare-edge 2xx response after 12 attempts: ${url%%\?*}." >&2
             return 1
           }
           verify_download_artifact() {
             local url="$1"
             local attempt
-            local status
             local safe_url="${url%%\?*}"
             for attempt in {1..12}; do
-              if status="$(
-                public_curl "$url" \
-                  -sS -H 'Range: bytes=0-0' -o /dev/null -w '%{http_code}'
-              )" && [[ "$status" == 2* ]]; then
-                echo "Staging artifact verified: ${safe_url} (HTTP ${status})."
+              if opshub_cloudflare_public_artifact "$url" \
+                'staging.phongvu.work' 'opshub-staging.hoanghochoi.com'; then
+                echo "Staging artifact verified through Cloudflare: ${safe_url}."
                 return 0
               fi
-              echo "Staging artifact verification attempt ${attempt}/12 returned HTTP ${status:-transport-error}: ${safe_url}." >&2
+              echo "Staging artifact verification attempt ${attempt}/12 failed: ${safe_url}." >&2
               sleep 5
             done
-            echo "Staging artifact verification did not receive a 2xx response after 12 attempts: ${safe_url}." >&2
+            echo "Staging artifact verification did not receive a Cloudflare-edge 2xx response after 12 attempts: ${safe_url}." >&2
             return 1
           }
           verify_security_headers() {
@@ -1582,8 +1589,9 @@ jobs:
           fi
           main_headers_file="$(mktemp)"
           if ! main_status="$(
-            public_curl "${OPSHUB_PUBLIC_BASE_URL}/main.dart.js?v=${GITHUB_SHA}" \
-              -sS -D "$main_headers_file" -o /dev/null -w '%{http_code}'
+            curl -sS --connect-timeout 10 --max-time 30 \
+              -D "$main_headers_file" -o /dev/null -w '%{http_code}' \
+              "${OPSHUB_PUBLIC_BASE_URL}/main.dart.js?v=${GITHUB_SHA}"
           )"; then
             rm -f "$main_headers_file"
             echo 'Staging main.dart.js request failed before receiving an HTTP response.' >&2
@@ -1595,6 +1603,10 @@ jobs:
             echo "Staging main.dart.js returned HTTP ${main_status}; expected 2xx." >&2
             exit 1
           fi
+          if ! opshub_cloudflare_headers_valid "$main_headers"; then
+            echo "Staging main.dart.js bypassed the required Cloudflare edge ($(opshub_cloudflare_trace "$main_headers"))." >&2
+            exit 1
+          fi
           if ! printf '%s\n' "$main_headers" | grep -qi 'cache-control:.*no-cache'; then
             echo 'Staging main.dart.js is missing the required no-cache policy.' >&2
             exit 1
@@ -1603,7 +1615,7 @@ jobs:
           android_json="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=android")"
           windows_json="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=windows")"
           web_json="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=web")"
-          node -e "
+          opshub_api_node -e "
             const android = JSON.parse(process.argv[1]);
             const windows = JSON.parse(process.argv[2]);
             const web = JSON.parse(process.argv[3]);
@@ -1645,9 +1657,9 @@ jobs:
             if (String(web.updateUrl || '') !== '') throw new Error('Web updateUrl must be empty');
             if (web.forceUpdate !== false) throw new Error('Web forceUpdate must be false');
             if (web.minSupportedBuild !== 1) throw new Error('Web minSupportedBuild must be 1');
-          " "$android_json" "$windows_json" "$web_json" "${{ needs.prepare.outputs.version_code }}" "$OPSHUB_DOWNLOAD_PUBLIC_BASE_URL"
-          verify_download_artifact "$(node -e "console.log(JSON.parse(process.argv[1]).packageUrl)" "$android_json")"
-          verify_download_artifact "$(node -e "console.log(JSON.parse(process.argv[1]).packageUrl)" "$windows_json")"
+          " "$android_json" "$windows_json" "$web_json" "$EXPECTED_BUILD" "$OPSHUB_DOWNLOAD_PUBLIC_BASE_URL"
+          verify_download_artifact "$(opshub_api_node -e "console.log(JSON.parse(process.argv[1]).packageUrl)" "$android_json")"
+          verify_download_artifact "$(opshub_api_node -e "console.log(JSON.parse(process.argv[1]).packageUrl)" "$windows_json")"
           download_page="$(retry_curl "${OPSHUB_PUBLIC_BASE_URL}/download")"
           if ! printf '%s\n' "$download_page" | grep -Fq '<title>Tải ứng dụng PhongVu OpsHub</title>'; then
             echo 'Staging /download did not return the public download landing page.' >&2
@@ -1656,7 +1668,7 @@ jobs:
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/help" >/dev/null
           help_json="$(retry_curl "${OPSHUB_API_BASE_URL}/help-content/public")"
           manifest_json="$(retry_curl "${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}/downloads/latest.json")"
-          node -e "
+          opshub_api_node -e "
             const help = JSON.parse(process.argv[1]);
             const manifest = JSON.parse(process.argv[2]);
             const expectedVersion = process.argv[3];
@@ -1678,8 +1690,8 @@ jobs:
                 throw new Error('Manifest file points to production downloads: ' + key);
               }
             }
-          " "$help_json" "$manifest_json" "${{ needs.prepare.outputs.version_name }}" "${{ needs.prepare.outputs.version_code }}" "$OPSHUB_DOWNLOAD_PUBLIC_BASE_URL"
-          node -e "
+          " "$help_json" "$manifest_json" "$EXPECTED_VERSION" "$EXPECTED_BUILD" "$OPSHUB_DOWNLOAD_PUBLIC_BASE_URL"
+          opshub_api_node -e "
             const manifest = JSON.parse(process.argv[1]);
             for (const file of Object.values(manifest.files)) console.log(file.url);
           " "$manifest_json" | while IFS= read -r url; do
@@ -1688,22 +1700,29 @@ jobs:
 
           ws_headers_file="$(mktemp)"
           if ! ws_status="$(
-            public_curl "${OPSHUB_API_BASE_URL}/ws/v2" \
-              --http1.1 -sS -D "$ws_headers_file" -o /dev/null -w '%{http_code}' \
+            curl --http1.1 -sS --connect-timeout 10 --max-time 10 \
+              -D "$ws_headers_file" -o /dev/null -w '%{http_code}' \
               -H 'Connection: Upgrade' \
               -H 'Upgrade: websocket' \
               -H 'Sec-WebSocket-Version: 13' \
-              -H 'Sec-WebSocket-Key: b3BzaHViLXN0YWdpbmctc21va2U='
+              -H 'Sec-WebSocket-Key: b3BzaHViLXN0YWdpbmctc21va2U=' \
+              "${OPSHUB_API_BASE_URL}/ws/v2"
           )"; then
             rm -f "$ws_headers_file"
             echo 'Staging /v1/ws/v2 smoke failed before receiving an HTTP response.' >&2
             exit 1
           fi
+          ws_headers="$(cat "$ws_headers_file")"
           rm -f "$ws_headers_file"
           if [ "$ws_status" != '401' ]; then
             echo "Staging /v1/ws/v2 without a one-time ticket returned ${ws_status}; expected 401 from the realtime gateway." >&2
             exit 1
           fi
+          if ! opshub_cloudflare_headers_valid "$ws_headers"; then
+            echo "Staging /v1/ws/v2 bypassed the required Cloudflare edge ($(opshub_cloudflare_trace "$ws_headers"))." >&2
+            exit 1
+          fi
+          REMOTE
 
       - name: Roll back staging after failed release verification
         if: ${{ (failure() || cancelled()) && steps.deploy_runtime.outcome == 'success' }}
@@ -1894,15 +1913,18 @@ jobs:
             > "$baseline_dir/runtime-after.txt"
           diff -u "$baseline_dir/runtime.txt" "$baseline_dir/runtime-after.txt"
 
-          public_curl() {
-            curl -fsS "$1"
+          remote_public_curl() {
+            local quoted_url url="$1"
+            printf -v quoted_url '%q' "$url"
+            ssh opshub-staging "bash -s -- body $quoted_url staging.phongvu.work api-staging.phongvu.work opshub-staging.hoanghochoi.com" \
+              < deploy/home-server/cloudflare-public-probe.sh
           }
-          public_curl "${OPSHUB_PUBLIC_BASE_URL}/health" >/dev/null
-          public_curl "${OPSHUB_API_BASE_URL}/app-version?platform=android" > "$baseline_dir/android-after.json"
-          public_curl "${OPSHUB_API_BASE_URL}/app-version?platform=windows" > "$baseline_dir/windows-after.json"
-          public_curl "${OPSHUB_API_BASE_URL}/app-version?platform=web" > "$baseline_dir/web-after.json"
-          public_curl "${OPSHUB_API_BASE_URL}/help-content/public" > "$baseline_dir/help-after.json"
-          public_curl "${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}/downloads/latest.json" > "$baseline_dir/manifest-after.json"
+          remote_public_curl "${OPSHUB_PUBLIC_BASE_URL}/health" >/dev/null
+          remote_public_curl "${OPSHUB_API_BASE_URL}/app-version?platform=android" > "$baseline_dir/android-after.json"
+          remote_public_curl "${OPSHUB_API_BASE_URL}/app-version?platform=windows" > "$baseline_dir/windows-after.json"
+          remote_public_curl "${OPSHUB_API_BASE_URL}/app-version?platform=web" > "$baseline_dir/web-after.json"
+          remote_public_curl "${OPSHUB_API_BASE_URL}/help-content/public" > "$baseline_dir/help-after.json"
+          remote_public_curl "${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}/downloads/latest.json" > "$baseline_dir/manifest-after.json"
 
           node - "$baseline_dir" <<'NODE'
           const fs = require('node:fs');
