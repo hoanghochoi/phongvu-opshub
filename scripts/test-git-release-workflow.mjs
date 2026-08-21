@@ -312,6 +312,10 @@ test('workflow and policy preserve existing deploy consumers and never force pus
     path.join(repoRoot, '.github', 'workflows', 'deploy-opshub-staging.yml'),
     'utf8',
   );
+  const homeCompose = fs.readFileSync(
+    path.join(repoRoot, 'deploy', 'home-server', 'docker-compose.home.yml'),
+    'utf8',
+  );
   const policy = fs.readFileSync(path.join(repoRoot, 'AGENTS.md'), 'utf8');
   const playbook = fs.readFileSync(
     path.join(repoRoot, 'docs', 'runbooks', 'git-release-playbook.md'),
@@ -348,11 +352,15 @@ test('workflow and policy preserve existing deploy consumers and never force pus
   assert.doesNotMatch(stagingWorkflow, /curl -fIs/);
   assert.match(stagingWorkflow, /<title>Tải ứng dụng PhongVu OpsHub<\/title>/);
   assert.doesNotMatch(stagingWorkflow, /CF-Access-Client-Id:/);
-  assert.match(stagingWorkflow, /compose_cmd up -d --no-deps --force-recreate caddy/);
+  assert.match(stagingWorkflow, /compose_cmd up -d --no-deps --force-recreate --wait --wait-timeout 120 caddy/);
+  assert.match(stagingWorkflow, /wait_for_caddy_ready\(\)/);
   assert.match(stagingWorkflow, /expected_caddy_config_hash/);
   assert.match(stagingWorkflow, /test -s \/srv\/web\/index\.html/);
-  assert.match(productionWorkflow, /run_compose_or_rollback up -d --no-deps --force-recreate caddy/);
+  assert.match(productionWorkflow, /run_compose_or_rollback up -d --no-deps --force-recreate --wait --wait-timeout 120 caddy/);
   assert.match(productionWorkflow, /expected_caddy_config_hash/);
+  assert.match(homeCompose, /healthcheck:/);
+  assert.match(homeCompose, /wget -qO- --header="Host: \$\$OPSHUB_DOMAIN"/);
+  assert.match(homeCompose, /http:\/\/127\.0\.0\.1\/health \| grep -qx ok/);
   assert.match(
     stagingWorkflow,
     /action-staging\/\$\{GITHUB_RUN_ID\}\/android/,
