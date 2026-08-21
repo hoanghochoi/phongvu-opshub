@@ -75,6 +75,15 @@ http://{$OPSHUB_DOMAIN} {
     }
   }
 
+  # Keep the exact Help entrypoint on the SPA host. The direct-origin release
+  # gate probes /help without a trailing slash; make that contract explicit
+  # instead of relying on the catch-all SPA fallback during a static swap.
+  handle /help {
+    root * /srv/web
+    rewrite * /index.html
+    file_server
+  }
+
   handle_path /help/assets/* {
     root * /srv/downloads/help/assets
     file_server
