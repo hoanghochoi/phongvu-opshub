@@ -54,6 +54,7 @@ BACKUP_RETENTION_DAYS="$(read_env_value BACKUP_RETENTION_DAYS 30)"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 DEST="$BACKUP_ROOT/$STAMP"
 PARTIAL_DEST="$BACKUP_ROOT/.${STAMP}.partial"
+BIDV_KEK_FILE="$SSD_ROOT/secrets/bidv-h2h-kek"
 
 case "$BACKUP_ROOT" in
   ""|"/")
@@ -61,6 +62,42 @@ case "$BACKUP_ROOT" in
     exit 1
     ;;
 esac
+
+validate_bidv_kek_file() {
+  local file="$1"
+  local normalized decoded canonical
+  normalized="$(tr -d '\r\n' < "$file")"
+  [[ "$normalized" =~ ^[A-Za-z0-9+/]{43}=$ ]] || return 1
+  decoded="$(printf '%s' "$normalized" | openssl base64 -d -A | wc -c | tr -d ' ')"
+  [[ "$decoded" == "32" ]] || return 1
+  canonical="$(printf '%s' "$normalized" | openssl base64 -d -A | openssl base64 -A)"
+  [[ "$canonical" == "$normalized" ]]
+}
+
+export OPSHUB_ENV_FILE="$ENV_FILE"
+bidv_tables_exist="$(docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T postgres \
+  psql -Atq -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+  -c "SELECT CASE WHEN to_regclass('\"BankPgpKey\"') IS NULL THEN 0 ELSE 1 END;" \
+  2>/dev/null || true)"
+[[ "$bidv_tables_exist" =~ ^[01]$ ]] || { echo "Cannot verify BIDV protected data; backup stopped." >&2; exit 1; }
+bidv_protected_count=0
+if [[ "$bidv_tables_exist" == "1" ]]; then
+  bidv_protected_count="$(docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T postgres \
+    psql -Atq -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+    -c 'SELECT (SELECT count(*) FROM "BankPgpKey") + (SELECT count(*) FROM "BankTransaction");' \
+    2>/dev/null || true)"
+fi
+[[ "$bidv_protected_count" =~ ^[0-9]+$ ]] || { echo "Cannot count BIDV protected data; backup stopped." >&2; exit 1; }
+
+if [[ -f "$BIDV_KEK_FILE" ]]; then
+  validate_bidv_kek_file "$BIDV_KEK_FILE" || { echo "BIDV KEK is unreadable or invalid; backup stopped." >&2; exit 1; }
+  [[ -n "$BACKUP_AGE_RECIPIENT" ]] || { echo "BIDV database and KEK require an age-encrypted backup." >&2; exit 1; }
+  docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" \
+    --profile maintenance run --rm -T maintenance node scripts/verify-bidv-kek.mjs
+elif [[ "$bidv_protected_count" != "0" ]]; then
+  echo "BIDV protected data exists but its KEK is missing; backup stopped." >&2
+  exit 1
+fi
 
 if [[ -n "$BACKUP_AGE_RECIPIENT" ]]; then
   if ! command -v age >/dev/null 2>&1; then
@@ -117,6 +154,7 @@ write_backup_stream() {
 POSTGRES_ARCHIVE="postgres.sql.gz${BACKUP_SUFFIX}"
 UPLOADS_ARCHIVE="none"
 PRIVATE_MEDIA_ARCHIVE="none"
+BIDV_KEK_ARCHIVE="none"
 
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T postgres \
   pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" | gzip -c | \
@@ -134,12 +172,19 @@ if [[ -d "$SSD_ROOT/private-media" ]]; then
     write_backup_stream "$PARTIAL_DEST/$PRIVATE_MEDIA_ARCHIVE"
 fi
 
+if [[ -f "$BIDV_KEK_FILE" ]]; then
+  BIDV_KEK_ARCHIVE="bidv-h2h-kek.tar.gz${BACKUP_SUFFIX}"
+  tar -C "$SSD_ROOT/secrets" -czf - bidv-h2h-kek | \
+    write_backup_stream "$PARTIAL_DEST/$BIDV_KEK_ARCHIVE"
+fi
+
 cat > "$PARTIAL_DEST/manifest.txt" <<EOF
 created_at=$STAMP
 encryption=$([[ -n "$BACKUP_AGE_RECIPIENT" ]] && printf 'age' || printf 'none-explicitly-approved')
 postgres_dump=$POSTGRES_ARCHIVE
 uploads_archive=$UPLOADS_ARCHIVE
 private_media_archive=$PRIVATE_MEDIA_ARCHIVE
+bidv_kek_archive=$BIDV_KEK_ARCHIVE
 source_ssd_root=$SSD_ROOT
 EOF
 chmod 0600 "$PARTIAL_DEST/manifest.txt"
@@ -154,6 +199,9 @@ chmod 0600 "$PARTIAL_DEST/.opshub-backup"
   fi
   if [[ "$PRIVATE_MEDIA_ARCHIVE" != "none" ]]; then
     checksum_files+=("$PRIVATE_MEDIA_ARCHIVE")
+  fi
+  if [[ "$BIDV_KEK_ARCHIVE" != "none" ]]; then
+    checksum_files+=("$BIDV_KEK_ARCHIVE")
   fi
   sha256sum "${checksum_files[@]}" > SHA256SUMS
   chmod 0600 SHA256SUMS

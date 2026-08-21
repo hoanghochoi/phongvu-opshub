@@ -385,7 +385,8 @@ export const PROFILES = Object.freeze([
     pathPatterns: [
       /^deploy\//,
       /^docker-compose\.yml$/,
-      /^scripts\/(?:build-runtime-release|validate-ops39-caddy|verify-platform-security)\.mjs$/,
+      /^scripts\/(?:build-runtime-release|validate-ops39-(?:backup-boundary|caddy|local-boundary)|verify-platform-security)\.mjs$/,
+      /^scripts\/generate-bidv-h2h-playbook-pdf\.py$/,
       /^scripts\/load\/opshub-staging-(?:home-100qps|rate-limit-semantics|targets(?:\.test)?)\.(?:js|mjs)$/,
       /^scripts\/(?:opshub-web-visual-smoke|test-cloudflare-api-tunnel-installer)\.mjs$/,
     ],

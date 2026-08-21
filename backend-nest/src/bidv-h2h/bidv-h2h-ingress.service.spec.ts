@@ -44,6 +44,7 @@ describe('BidvH2hIngressService', () => {
       prisma as any,
       crypto as any,
       { parsePayload: jest.fn() } as any,
+      policy() as any,
     );
 
     await expect(
@@ -73,6 +74,7 @@ describe('BidvH2hIngressService', () => {
       prisma as any,
       crypto as any,
       { parsePayload: jest.fn() } as any,
+      policy() as any,
     );
 
     await expect(
@@ -128,18 +130,19 @@ describe('BidvH2hIngressService', () => {
         maskAccount: jest.fn((value?: string) => value ?? null),
       } as any,
       { parsePayload: jest.fn().mockReturnValue(rows) } as any,
+      policy(true) as any,
     );
 
     await expect(
       service.ingest(principal(), 'request-1', 'BIDV', 'ciphertext'),
     ).resolves.toEqual({ errorCode: '000', errorDesc: 'Success' });
 
-    expect(executeRaw).toHaveBeenCalledTimes(3);
-    expect(executeRaw.mock.calls[1][1]).toBe('bidv-identity:identity-a');
-    expect(executeRaw.mock.calls[2][1]).toBe('bidv-identity:identity-b');
+    expect(executeRaw).toHaveBeenCalledTimes(4);
+    expect(executeRaw.mock.calls[2][1]).toBe('bidv-identity:identity-a');
+    expect(executeRaw.mock.calls[3][1]).toBe('bidv-identity:identity-b');
     expect(
       tx.bankIngressReceipt.create.mock.invocationCallOrder[0],
-    ).toBeGreaterThan(executeRaw.mock.invocationCallOrder[2]);
+    ).toBeGreaterThan(executeRaw.mock.invocationCallOrder[3]);
   });
 });
 
@@ -149,6 +152,17 @@ function principal() {
     clientId: 'client-1',
     bankCode: 'BIDV',
     scope: 'balance-changes:write',
+  };
+}
+
+function policy(lock = false) {
+  return {
+    assertIngress: jest.fn().mockResolvedValue({
+      effectiveMode: 'UAT_INGEST_ONLY',
+    }),
+    lock: jest.fn((tx: any) =>
+      lock ? tx.$executeRaw(['control-lock'] as any) : undefined,
+    ),
   };
 }
 

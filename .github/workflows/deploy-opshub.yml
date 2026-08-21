@@ -611,6 +611,7 @@ jobs:
           else
             echo "origin/${OPSHUB_HELP_CONTENT_BRANCH} not found; using docs/help from ${GITHUB_REF_NAME}."
           fi
+          node scripts/validate-ops39-local-boundary.mjs
           node scripts/build-runtime-release.mjs
           tar -C docs/help -czf dist/help-assets.tar.gz assets
           tar -C build/web -czf dist/web.tar.gz .
@@ -651,6 +652,7 @@ jobs:
              OPSHUB_SSD_ROOT='/srv/opshub' \
              DOWNLOADS_DIR='/srv/opshub/downloads' \
              WEB_DIR='/srv/opshub/web' \
+             OPSHUB_PUBLIC_BASE_URL='${OPSHUB_PUBLIC_BASE_URL}' \
              APK_NAME='${{ needs.prepare.outputs.apk_name }}' \
              WINDOWS_ZIP_NAME='${{ needs.prepare.outputs.windows_zip_name }}' \
              WINDOWS_INSTALLER_NAME='${{ needs.prepare.outputs.windows_installer_name }}' \
@@ -839,20 +841,11 @@ jobs:
           upsert_env OPSHUB_DOMAIN "phongvu.work"
           upsert_env OPSHUB_API_DOMAIN "api.phongvu.work"
           upsert_env OPSHUB_LEGACY_DOMAIN "opshub.hoanghochoi.com"
-          unset_env BIDV_H2H_DOMAIN
           upsert_env PUBLIC_BASE_URL "$OPSHUB_PUBLIC_BASE_URL"
           upsert_env PRIVATE_MEDIA_PUBLIC_BASE_URL "https://api.phongvu.work/v1"
           upsert_env IMAGE_BASE_URL "${OPSHUB_PUBLIC_BASE_URL}/uploads"
           upsert_env ALLOWED_ORIGINS "${OPSHUB_PUBLIC_BASE_URL},https://opshub.hoanghochoi.com"
           upsert_env APP_VERSION "$APP_VERSION"
-          upsert_env BIDV_H2H_PUBLIC_BASE_URL "https://api.phongvu.work/v1/bidv"
-          upsert_env BIDV_H2H_ENVIRONMENT production
-          if ! sudo grep -q '^BIDV_H2H_INGEST_ENABLED=' "$OPSHUB_ENV_FILE"; then
-            upsert_env BIDV_H2H_INGEST_ENABLED false
-          fi
-          if ! sudo grep -q '^BIDV_H2H_PROJECTION_ENABLED=' "$OPSHUB_ENV_FILE"; then
-            upsert_env BIDV_H2H_PROJECTION_ENABLED false
-          fi
           upsert_env APP_BUILD_NUMBER "$APP_BUILD_NUMBER"
           upsert_env APP_MIN_SUPPORTED_BUILD "$APP_BUILD_NUMBER"
           upsert_env APP_UPDATE_URL "$ANDROID_UPDATE_URL"
@@ -929,6 +922,8 @@ jobs:
           }
 
           compose_cmd config >/dev/null
+          run_compose_or_rollback up -d --no-recreate --wait postgres
+          bash deploy/home-server/bootstrap-bidv-kek.sh "$OPSHUB_ENV_FILE"
 
           # The first hardened production rollout enables Redis authentication.
           # Recreate Redis in the same guarded maintenance transaction so API and
@@ -941,6 +936,9 @@ jobs:
               20260614130000_flatten_store_cash_org_tree
 
           run_compose_or_rollback --profile migrate run --rm -T --build migrate
+
+          run_compose_or_rollback --profile maintenance run --rm -T --build maintenance \
+            node scripts/verify-bidv-kek.mjs
 
           run_compose_or_rollback up -d --build --force-recreate --wait --wait-timeout 240 api realtime caddy
 

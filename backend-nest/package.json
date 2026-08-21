@@ -45,6 +45,7 @@
     "verify:ops41:postgres": "npm run run:nest-command -- node scripts/verify-ops41-postgres-concurrency.mjs",
     "preverify:ops39:migration": "node ../scripts/run-with-toolchain.mjs --root .. --profile nestjs --preflight-only",
     "verify:ops39:migration": "npm run run:nest-command -- node scripts/verify-ops39-migration-static.mjs",
+    "verify:ops39:postgres-mode": "npm run run:nest-command -- node scripts/verify-ops39-postgres-mode.mjs",
     "preverify:ops40:migration": "node ../scripts/run-with-toolchain.mjs --root .. --profile nestjs --preflight-only",
     "verify:ops40:migration": "npm run run:nest-command -- node scripts/verify-ops40-migration-static.mjs",
     "preverify:ops209:migration": "node ../scripts/run-with-toolchain.mjs --root .. --profile nestjs --preflight-only",

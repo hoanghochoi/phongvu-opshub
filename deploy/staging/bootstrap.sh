@@ -21,6 +21,7 @@ sudo mkdir -p \
   "$SSD_ROOT/import" \
   "$SSD_ROOT/load-output" \
   "$SSD_ROOT/payment-audio" \
+  "$SSD_ROOT/secrets" \
   "$SSD_ROOT/backups" \
   "$SSD_ROOT/caddy/data" \
   "$SSD_ROOT/caddy/config" \
@@ -37,6 +38,7 @@ sudo chown -R "$RUNTIME_UID:$RUNTIME_GID" \
   "$SSD_ROOT/load-output"
 sudo chmod 755 "$SSD_ROOT/uploads"
 sudo chmod 700 "$SSD_ROOT/private-media" "$SSD_ROOT/payment-audio" "$SSD_ROOT/load-output"
+sudo chmod 750 "$SSD_ROOT/secrets"
 
 if [[ ! -e "$ENV_FILE" ]]; then
   sudo install -m 0640 -o root -g "$GROUP_NAME" deploy/staging/env.example "$ENV_FILE"

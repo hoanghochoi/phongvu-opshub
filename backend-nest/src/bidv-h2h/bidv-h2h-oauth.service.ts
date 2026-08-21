@@ -1,9 +1,15 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { compare } from 'bcrypt';
 import { createHash, randomBytes } from 'crypto';
 import { getBidvH2hConfig } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
 import { safeLogError } from '../common/log-sanitizer';
+import { BidvH2hOperatingPolicy } from './bidv-h2h-operating-policy';
 
 export type BidvClientPrincipal = {
   id: string;
@@ -16,13 +22,17 @@ export type BidvClientPrincipal = {
 export class BidvH2hOauthService {
   private readonly logger = new Logger(BidvH2hOauthService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly operatingPolicy: BidvH2hOperatingPolicy,
+  ) {}
 
   async issueToken(authorization: unknown) {
     const startedAt = Date.now();
-    const credentials = this.parseBasicAuthorization(authorization);
     this.logger.log('BIDV OAuth token request started');
     try {
+      await this.operatingPolicy.assertIngress();
+      const credentials = this.parseBasicAuthorization(authorization);
       const client = await (this.prisma as any).bankApiClient.findUnique({
         where: { clientId: credentials.clientId },
       });
@@ -37,13 +47,21 @@ export class BidvH2hOauthService {
       const token = randomBytes(32).toString('base64url');
       const config = getBidvH2hConfig();
       const expiresAt = new Date(Date.now() + config.tokenTtlSeconds * 1000);
-      await (this.prisma as any).bankAccessToken.create({
-        data: {
-          clientRefId: client.id,
-          tokenHash: this.hashToken(token),
-          scope: client.scope,
-          expiresAt,
-        },
+      await this.prisma.$transaction(async (tx) => {
+        await this.operatingPolicy.lock(tx);
+        await this.operatingPolicy.assertIngress(tx);
+        const currentClient = await (tx as any).bankApiClient.findUnique({
+          where: { id: client.id },
+        });
+        if (!this.clientUsable(currentClient)) throw this.invalidClient();
+        await (tx as any).bankAccessToken.create({
+          data: {
+            clientRefId: client.id,
+            tokenHash: this.hashToken(token),
+            scope: client.scope,
+            expiresAt,
+          },
+        });
       });
       this.logger.log(
         `BIDV OAuth token request succeeded clientRef=${client.id} durationMs=${Date.now() - startedAt}`,
@@ -58,7 +76,11 @@ export class BidvH2hOauthService {
       this.logger.warn(
         `BIDV OAuth token request failed durationMs=${Date.now() - startedAt} error=${safeLogError(error)}`,
       );
-      if (error instanceof UnauthorizedException) throw error;
+      if (
+        error instanceof UnauthorizedException ||
+        error instanceof ServiceUnavailableException
+      )
+        throw error;
       throw this.invalidClient();
     }
   }
@@ -66,6 +88,7 @@ export class BidvH2hOauthService {
   async authenticateBearer(
     authorization: unknown,
   ): Promise<BidvClientPrincipal> {
+    await this.operatingPolicy.assertIngress();
     const token = this.parseBearerAuthorization(authorization);
     const stored = await (this.prisma as any).bankAccessToken.findUnique({
       where: { tokenHash: this.hashToken(token) },

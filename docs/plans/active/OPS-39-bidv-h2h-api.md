@@ -4,10 +4,22 @@ Date: 2026-07-30
 
 ## Status
 
-Active - local implementation and executable proof complete; runtime migration,
-staging/UAT and external bank gates remain pending. The public transport
+Active - the approved three-state backend, environment-local KEK and promotion
+boundary are being implemented. The OPS-39 Figma proposal is now approved and
+its exact responsive revision/node map is the UI source of truth. Runtime migration,
+staging UI-only activation, restore drill, UAT fixture and external bank gates
+remain pending. The public transport
 hostname/path is superseded by OPS-210; this plan remains authoritative for the
 BIDV wire contract, security, persistence, projection and external-bank gates.
+
+During the bounded rollback compatibility window, a platform owner may run the
+local breakglass script `deploy/home-server/prepare-bidv-legacy-rollback.sh`.
+It copies the environment-local file KEK and the synchronized legacy boolean
+pair into the protected local runtime env so the pre-mode backend can start
+without changing database state. No workflow invokes this script and no secret
+leaves the server. After recovery returns to the current backend, the owner runs
+the script with action `clear`; normal Super Admin operation never uses this
+bridge.
 
 ## Current transport authority
 
@@ -38,9 +50,10 @@ Deliver a production-ready BIDV H2H boundary that:
   once into the existing payment pipeline while retaining non-eligible rows for
   90-day audit;
 - lets Super Admin create, rotate, revoke and audit OAuth clients and OpenPGP
-  keys through the current OpsHub Admin UI without re-exposing secrets; and
-- produces a sanitized Markdown and visually verified PDF connection playbook
-  that Dai Ca can send to BIDV.
+  keys without re-exposing secrets, then select `STOPPED`,
+  `UAT_INGEST_ONLY` or `LIVE` after readiness checks; and
+- keeps operational runbooks and the bank-facing PDF only in the ignored local
+  `output/bidv-private/` boundary, outside source promotion and CI artifacts.
 
 ## Context
 
@@ -425,9 +438,28 @@ wrapper or plan fingerprint changes.
 - [x] Run final local affected-consumer, render and repository proof. Runtime
       PostgreSQL migration, real Caddy, load and external BIDV proof remain
       explicitly pending.
+- [x] Extend the Flutter API-connection model/repository with the three-state
+      operating-mode contract, readiness/blockers/backlog fields and
+      optimistic-version writes while keeping the legacy boolean request path
+      available during the compatibility window. Focused model/repository and
+      Admin screen tests, targeted Flutter analysis, and focused NestJS proof
+      pass on the current checkpoint.
+- [x] Receive Đại Ca's approval for the exact OPS-39 Figma proposal revision
+      (`2450:6`, `2450:68`, `2451:5`, `2451:67`, `2451:129`, `2451:191`,
+      `2451:256`, `2451:318`, `2451:338`) and mark the proposal page as
+      `ĐÃ DUYỆT`; Flutter visual implementation is now unblocked.
 - [x] Record factual implementation/proof in Linear comment
       `dc03f05a-805b-4b1c-b72e-6c74c7169258`; read back the comment and verify
       OPS-39 remains `In Progress` with no lifecycle transition.
+- [x] Implement the approved Figma Admin surface for the three operating modes,
+      including compact/medium/expanded/wide geometry, centered readiness chips
+      and action buttons, loading/failure/emergency states, backlog confirmation,
+      and compatibility-safe `emergencyDisabled` parsing. Targeted Admin tests
+      and Flutter analysis pass.
+- [x] Re-run the affected-consumer wrapper after the UI correction: 15 Nest
+      suites/304 tests, Flutter Admin/router/platform/consumer tests, Go realtime,
+      migration/static, Caddy isolation, local-only promotion, backup/KEK and
+      whitespace guards all pass.
 
 ## Decisions
 
