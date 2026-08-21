@@ -228,7 +228,9 @@ function validateSourceFiles(sourceFiles, repositoryRoot) {
     entries.set(entry.path, entry.sha256);
     const absolute = resolveInsideRoot(repositoryRoot, entry.path, "sourceFiles.path");
     requireCondition(existsSync(absolute), `source file is missing: ${entry.path}`);
-    const actual = sha256(readFileSync(absolute));
+    // Tracked text can be materialized with CRLF on Windows or LF in CI/Linux.
+    // Keep source evidence stable across worktrees just like migration SQL.
+    const actual = textSha256(readFileSync(absolute));
     requireCondition(actual === entry.sha256, `source file digest mismatch: ${entry.path}`);
   }
   for (const required of REQUIRED_SOURCE_PATHS) {
@@ -242,7 +244,7 @@ function validateTopologyEvidence(repositoryRoot, sourceDigests, baseRevision) {
   const topologyPath = "docs/migrations/ops-201-blue-green-topology-evidence.json";
   const absolute = resolveInsideRoot(repositoryRoot, topologyPath, "topology evidence path");
   const topology = JSON.parse(readFileSync(absolute, "utf8"));
-  requireCondition(sourceDigests.get(topologyPath) === sha256(readFileSync(absolute)), "topology evidence digest is stale");
+  requireCondition(sourceDigests.get(topologyPath) === textSha256(readFileSync(absolute)), "topology evidence digest is stale");
   requireCondition(topology.issue === "OPS-201", "topology evidence issue must be OPS-201");
   requireCondition(topology.scope === "opt-in no-traffic-mutation blue-green topology harness", "unexpected topology evidence scope");
   requireCondition(topology.safety?.trafficSwitchAllowed === false, "topology evidence allows traffic switching");
