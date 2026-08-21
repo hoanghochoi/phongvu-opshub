@@ -34,6 +34,17 @@ explicit production promotion.
 - Validate workflow YAML, release workflow regression tests, platform security,
   OPS-39 local-only/backup/Caddy boundaries, Nest, Flutter, Go, and affected
   consumers from this exact worktree.
+- Commits `e7b76b8685504943ef985a33bce9b2fda8ec2b6b` (implementation) and
+  `88e8cb6a` (evidence refresh) are the local release candidate. The retained
+  owner manifest now binds to the implementation commit and records normalized
+  SHA/byte metadata for the changed release workflows.
+- `node scripts/verify-retained-owner-review.mjs --input
+  docs/migrations/ops-73-retained-owner-review.json` passed with 4 candidates
+  and 19 retained paths.
+- `node scripts/verify-task.mjs --full` passed every selected repository
+  profile, including Nest/Flutter/Go, deployment/Caddy, OPS-39 affected
+  consumers, platform security, and lifecycle verification. The worktree is
+  clean and `git diff --check` passes.
 - Confirm the production deploy passes its remote runtime step before changing
   the production Tunnel from fail-closed routing.
 - If staging deploy fails, keep production on the prior healthy release and
