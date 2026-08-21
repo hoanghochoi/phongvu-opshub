@@ -10,7 +10,7 @@ altering the original OPS-39 worktree.
 
 ## Checkpoint
 
-- Base: `origin/staging` `f9ff9141a0240bb78501b1c697c3da4ad2d06c74`.
+- Base: `origin/staging` `500c3e955ff762a228c96d5ff53f51f86d04f8e9`.
 - Production promotion reached the same SHA, but Deploy OpsHub run
   `32479258037` failed before runtime health verification.
 - The original `codex/ops-39-ui-only-bank-operations` worktree remains intact;
@@ -69,3 +69,21 @@ recreate, reloads the config, compares the mounted Caddyfile SHA to the active
 release and verifies `/srv/web/index.html` is mounted before probing routes.
 The production full deploy receives the same guard because it uses the same
 bind-mount topology.
+
+## Readiness follow-up
+
+The next exact-SHA staging deploy (`32496859461`, SHA
+`500c3e955ff762a228c96d5ff53f51f86d04f8e9`) still failed closed at the direct
+origin `/help` probe and rolled back. The candidate Caddyfile, mounted web
+bundle, exact host routing and an isolated Compose reproduction all served
+`/help` successfully; the deployment Compose service had no Caddy healthcheck,
+so `--wait` did not prove that Caddy had finished serving the newly recreated
+bind mounts before the probe. Staging was restored to the prior release and
+public `/health` plus API health were rechecked at 200 afterward.
+
+Implementation commit `b1825c7d6873911b3838cf90fe216ccfe6c78178` adds a Caddy
+HTTP healthcheck, waits after every runtime/static Caddy recreate in staging
+and production, and waits for direct-origin `/health` before canonical route
+verification. Retained-owner evidence refresh commit `0ffff21a` binds the
+changed release workflows to that implementation SHA. A new staging deploy
+from the resulting exact SHA is required before production promotion.
