@@ -1310,9 +1310,10 @@ jobs:
           # directory by path. The static transaction replaces those paths by
           # inode, so explicitly recreate/reload Caddy before probing routes;
           # otherwise a healthy container can still serve a stale mount.
-          compose_cmd up -d --no-deps --force-recreate caddy
+          compose_cmd up -d --no-deps --force-recreate --wait --wait-timeout 120 caddy
           if ! compose_cmd exec -T caddy caddy reload --config /etc/caddy/Caddyfile; then
             compose_cmd restart caddy
+            compose_cmd up -d --no-deps --wait --wait-timeout 120 caddy
           fi
           expected_caddy_config_hash="$(sha256sum "$CURRENT_DIR/deploy/home-server/Caddyfile" | awk '{print $1}')"
           actual_caddy_config_hash=''
@@ -1431,6 +1432,25 @@ jobs:
           origin='http://127.0.0.1:8090'
           host='opshub-staging.hoanghochoi.com'
           canonical_host='staging.phongvu.work'
+
+          wait_for_caddy_ready() {
+            local status
+            for attempt in {1..24}; do
+              status="$(
+                curl -sS -o /dev/null -w '%{http_code}' \
+                  -H "Host: $canonical_host" -H 'X-Forwarded-Proto: https' \
+                  "${origin}/health" || true
+              )"
+              if [ "$status" = '200' ]; then
+                return 0
+              fi
+              sleep 1
+            done
+            echo "Direct origin Caddy readiness failed; /health returned ${status:-<no-response>}." >&2
+            return 1
+          }
+
+          wait_for_caddy_ready
 
           verify_canonical_route() {
             slash_path="$1"

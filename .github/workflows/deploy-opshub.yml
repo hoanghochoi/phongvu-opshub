@@ -946,9 +946,10 @@ jobs:
           # directory by path. The static transaction replaces those paths by
           # inode, so explicitly recreate/reload Caddy before probing routes;
           # otherwise a healthy container can still serve a stale mount.
-          run_compose_or_rollback up -d --no-deps --force-recreate caddy
+          run_compose_or_rollback up -d --no-deps --force-recreate --wait --wait-timeout 120 caddy
           if ! compose_cmd exec -T caddy caddy reload --config /etc/caddy/Caddyfile; then
             run_compose_or_rollback restart caddy
+            run_compose_or_rollback up -d --no-deps --wait --wait-timeout 120 caddy
           fi
           expected_caddy_config_hash="$(sha256sum "$CURRENT_DIR/deploy/home-server/Caddyfile" | awk '{print $1}')"
           actual_caddy_config_hash=''
@@ -1355,7 +1356,7 @@ jobs:
               export OPSHUB_ENV_FILE
               compose=(docker compose --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
               compose_cmd() { "${compose[@]}" "$@" < /dev/null; }
-              if compose_cmd up -d --no-deps --force-recreate caddy; then
+              if compose_cmd up -d --no-deps --force-recreate --wait --wait-timeout 120 caddy; then
                 caddy_restored=true
               fi
             fi
@@ -1377,9 +1378,10 @@ jobs:
 
           # The Caddyfile is a file bind mount. Recreate Caddy so replacing
           # the host file also refreshes the container's mounted inode.
-          compose_cmd up -d --no-deps --force-recreate caddy
+          compose_cmd up -d --no-deps --force-recreate --wait --wait-timeout 120 caddy
           if ! compose_cmd exec -T caddy caddy reload --config /etc/caddy/Caddyfile; then
             compose_cmd restart caddy
+            compose_cmd up -d --no-deps --wait --wait-timeout 120 caddy
           fi
           compose_cmd ps caddy
           trap - ERR
@@ -1467,7 +1469,7 @@ jobs:
           export OPSHUB_ENV_FILE
           compose=(docker compose --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
           compose_cmd() { "${compose[@]}" "$@" < /dev/null; }
-          compose_cmd up -d --no-deps --force-recreate caddy
+          compose_cmd up -d --no-deps --force-recreate --wait --wait-timeout 120 caddy
           echo 'Static-only publication rolled back; checkpoint retained because public verification failed.' >&2
           REMOTE
 
