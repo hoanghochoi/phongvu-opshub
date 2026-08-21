@@ -43,6 +43,18 @@ class AppColors {
   static const Color errorSurface = Color(0xFFFFEDD5);
   static const Color infoSurface = Color(0xFFDBEAFE);
 
+  // BIDV operating-mode control tokens from the approved OPS-39 Figma
+  // revision. Keep these in the shared palette so the screen does not invent
+  // feature-local colours for selected, muted, warning, or emergency states.
+  static const Color apiModeSelectedSurface = Color(0xFFEDF2FF);
+  static const Color apiMutedSurface = Color(0xFFF4F6FA);
+  static const Color apiReadySurface = Color(0xFFDCF8E6);
+  static const Color apiWarningSurface = Color(0xFFFFF4DA);
+  static const Color apiEmergencySurface = Color(0xFFFFEBEB);
+  static const Color apiReadyText = Color(0xFF0A8F4E);
+  static const Color apiWarningText = Color(0xFFB05F05);
+  static const Color apiEmergencyText = Color(0xFFC72626);
+
   /// Figma `report-progress-panel` surface and border.
   static const Color infoSurfaceSubtle = Color(0xFFEFF6FF);
   static const Color infoBorderSubtle = Color(0xFFBFDBFE);
@@ -132,6 +144,14 @@ class AppColors {
   static const Color darkWarningSurface = Color(0xFF3A2604);
   static const Color darkErrorSurface = Color(0xFF3B0A03);
   static const Color darkInfoSurface = Color(0xFF061D3A);
+  static const Color darkApiModeSelectedSurface = Color(0xFF071D33);
+  static const Color darkApiMutedSurface = darkNeutral100;
+  static const Color darkApiReadySurface = darkSuccessSurface;
+  static const Color darkApiWarningSurface = darkWarningSurface;
+  static const Color darkApiEmergencySurface = darkErrorSurface;
+  static const Color darkApiReadyText = darkSuccess;
+  static const Color darkApiWarningText = darkWarning;
+  static const Color darkApiEmergencyText = darkError;
   static const Color darkSurface = Color(0xFF111827);
   static const Color darkCard = Color(0xFF172033);
   static const Color darkRaised = Color(0xFF1F2937);
@@ -311,6 +331,30 @@ class AppColors {
 
   static Color infoSurfaceOf(BuildContext context) =>
       isDark(context) ? darkInfoSurface : infoSurface;
+
+  static Color apiModeSelectedSurfaceOf(BuildContext context) =>
+      isDark(context) ? darkApiModeSelectedSurface : apiModeSelectedSurface;
+
+  static Color apiMutedSurfaceOf(BuildContext context) =>
+      isDark(context) ? darkApiMutedSurface : apiMutedSurface;
+
+  static Color apiReadySurfaceOf(BuildContext context) =>
+      isDark(context) ? darkApiReadySurface : apiReadySurface;
+
+  static Color apiWarningSurfaceOf(BuildContext context) =>
+      isDark(context) ? darkApiWarningSurface : apiWarningSurface;
+
+  static Color apiEmergencySurfaceOf(BuildContext context) =>
+      isDark(context) ? darkApiEmergencySurface : apiEmergencySurface;
+
+  static Color apiReadyTextOf(BuildContext context) =>
+      isDark(context) ? darkApiReadyText : apiReadyText;
+
+  static Color apiWarningTextOf(BuildContext context) =>
+      isDark(context) ? darkApiWarningText : apiWarningText;
+
+  static Color apiEmergencyTextOf(BuildContext context) =>
+      isDark(context) ? darkApiEmergencyText : apiEmergencyText;
 
   static Color homeOverviewSurfaceOf(BuildContext context) =>
       isDark(context) ? darkHomeOverviewSurface : homeOverviewSurface;

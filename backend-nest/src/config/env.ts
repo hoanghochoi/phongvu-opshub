@@ -1,4 +1,5 @@
 import * as path from 'path';
+import { readFileSync } from 'fs';
 import { resolveMapVietinBigQueryConfig } from '../map-vietin-bigquery/map-vietin-bigquery.config';
 
 type EnvMap = Record<string, string | undefined>;
@@ -101,6 +102,8 @@ export type BidvH2hConfig = {
   publicBaseUrl: string | null;
   ingestMasterEnabled: boolean;
   projectionMasterEnabled: boolean;
+  emergencyDisabled: boolean;
+  infrastructureReady: boolean;
   tokenTtlSeconds: number;
   maxEncodedBodyBytes: number;
   maxTransactionsPerBatch: number;
@@ -111,48 +114,46 @@ export type BidvH2hConfig = {
 };
 
 export function getBidvH2hConfig(env: EnvMap = process.env): BidvH2hConfig {
-  const ingestMasterEnabled = parseBooleanEnv(
+  const emergencyDisabled = parseBooleanEnv(
     env,
-    'BIDV_H2H_INGEST_ENABLED',
+    'BIDV_H2H_EMERGENCY_DISABLED',
     false,
   );
-  const projectionMasterEnabled = parseBooleanEnv(
-    env,
-    'BIDV_H2H_PROJECTION_ENABLED',
-    false,
-  );
-  if (projectionMasterEnabled && !ingestMasterEnabled) {
-    throw new Error(
-      'BIDV_H2H_PROJECTION_ENABLED=true requires BIDV_H2H_INGEST_ENABLED=true',
-    );
-  }
-
-  const kekText = getEnvValue(env, 'BIDV_H2H_KEK_BASE64');
-  const kek = kekText ? decodeExactBase64Key(kekText) : null;
-  if ((ingestMasterEnabled || projectionMasterEnabled) && !kek) {
-    throw new Error('BIDV_H2H_KEK_BASE64 is required when BIDV H2H is enabled');
-  }
-
-  const environmentValue = getEnvValue(env, 'BIDV_H2H_ENVIRONMENT') ?? 'local';
+  const apiBaseUrl = getEnvValue(env, 'PRIVATE_MEDIA_PUBLIC_BASE_URL');
+  const inferredEnvironment = apiBaseUrl?.includes('api-staging.phongvu.work')
+    ? 'staging'
+    : apiBaseUrl?.includes('api.phongvu.work')
+      ? 'production'
+      : 'local';
+  const environmentValue =
+    getEnvValue(env, 'BIDV_H2H_ENVIRONMENT') ?? inferredEnvironment;
   if (!['local', 'staging', 'production'].includes(environmentValue)) {
     throw new Error(`Invalid BIDV_H2H_ENVIRONMENT value: ${environmentValue}`);
   }
   const environment = environmentValue as BidvH2hConfig['environment'];
-  const publicBaseUrlValue = getEnvValue(env, 'BIDV_H2H_PUBLIC_BASE_URL');
-  if ((ingestMasterEnabled || projectionMasterEnabled) && !publicBaseUrlValue) {
-    throw new Error(
-      'BIDV_H2H_PUBLIC_BASE_URL is required when BIDV H2H is enabled',
-    );
-  }
+  const derivedApiBaseUrl =
+    apiBaseUrl &&
+    (apiBaseUrl.includes('api-staging.phongvu.work') ||
+      apiBaseUrl.includes('api.phongvu.work'))
+      ? `${apiBaseUrl.replace(/\/+$/, '')}/bidv`
+      : null;
+  const publicBaseUrlValue =
+    derivedApiBaseUrl ?? getEnvValue(env, 'BIDV_H2H_PUBLIC_BASE_URL');
   const publicBaseUrl = publicBaseUrlValue
     ? validateBidvPublicBaseUrl(publicBaseUrlValue, environment)
     : null;
+  const kek = resolveBidvKek(env, environment);
+  const infrastructureReady = Boolean(
+    publicBaseUrl && kek && !emergencyDisabled,
+  );
 
   return {
     environment,
     publicBaseUrl,
-    ingestMasterEnabled,
-    projectionMasterEnabled,
+    ingestMasterEnabled: !emergencyDisabled,
+    projectionMasterEnabled: !emergencyDisabled,
+    emergencyDisabled,
+    infrastructureReady,
     tokenTtlSeconds: positiveInteger(
       env,
       'BIDV_H2H_TOKEN_TTL_SECONDS',
@@ -186,6 +187,27 @@ export function getBidvH2hConfig(env: EnvMap = process.env): BidvH2hConfig {
     retentionDays: positiveInteger(env, 'BIDV_H2H_RETENTION_DAYS', 90, 365),
     kek,
   };
+}
+
+function resolveBidvKek(
+  env: EnvMap,
+  environment: BidvH2hConfig['environment'],
+): Buffer | null {
+  const filePath =
+    getEnvValue(env, 'BIDV_H2H_KEK_FILE') ?? '/run/secrets/bidv-h2h-kek';
+  try {
+    const value = readFileSync(filePath, 'utf8').trim();
+    return decodeExactBase64Key(value);
+  } catch (error: any) {
+    if (error?.code !== 'ENOENT') throw error;
+  }
+  // Local development/tests retain a non-production compatibility path. Server
+  // bootstrap migrates this value to the mounted secret before deployment.
+  if (environment === 'local') {
+    const legacy = getEnvValue(env, 'BIDV_H2H_KEK_BASE64');
+    return legacy ? decodeExactBase64Key(legacy) : null;
+  }
+  return null;
 }
 
 function validateBidvPublicBaseUrl(

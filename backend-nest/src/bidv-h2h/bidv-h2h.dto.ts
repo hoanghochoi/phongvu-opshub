@@ -1,10 +1,12 @@
 import {
   IsBoolean,
   IsIn,
+  IsInt,
   IsOptional,
   IsString,
   Length,
   MaxLength,
+  Min,
 } from 'class-validator';
 
 export class BidvTokenDto {
@@ -60,9 +62,20 @@ export class RevokeBankConnectionDto {
 }
 
 export class UpdateBankConnectionControlDto {
-  @IsBoolean()
-  ingressEnabled!: boolean;
+  @IsOptional()
+  @IsIn(['STOPPED', 'UAT_INGEST_ONLY', 'LIVE'])
+  operatingMode?: 'STOPPED' | 'UAT_INGEST_ONLY' | 'LIVE';
 
+  @IsOptional()
   @IsBoolean()
-  projectionEnabled!: boolean;
+  ingressEnabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  projectionEnabled?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  expectedVersion?: number;
 }

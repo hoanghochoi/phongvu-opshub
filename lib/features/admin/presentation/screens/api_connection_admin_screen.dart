@@ -43,6 +43,7 @@ class _ApiConnectionAdminScreenState extends State<ApiConnectionAdminScreen> {
   String? _error;
   bool _loading = true;
   bool _mutating = false;
+  ApiOperatingMode? _pendingOperatingMode;
 
   bool get _supported =>
       widget.platformSupported ??
@@ -80,6 +81,7 @@ class _ApiConnectionAdminScreenState extends State<ApiConnectionAdminScreen> {
       setState(() {
         _snapshot = snapshot;
         _loading = false;
+        _pendingOperatingMode = null;
       });
       await AppLogger.instance.info(
         'ApiConnectionAdmin',
@@ -385,30 +387,65 @@ class _ApiConnectionAdminScreenState extends State<ApiConnectionAdminScreen> {
     );
   }
 
-  Future<void> _updateControls({
-    required bool ingressEnabled,
-    required bool projectionEnabled,
-  }) async {
-    final enabling = ingressEnabled || projectionEnabled;
+  void _selectOperatingMode(ApiOperatingMode mode) {
+    final snapshot = _snapshot;
+    if (snapshot == null || _mutating || snapshot.controls.emergencyDisabled) {
+      return;
+    }
+    if (mode != ApiOperatingMode.stopped &&
+        !snapshot.controls.canEnableIngestOrLive) {
+      return;
+    }
+    setState(() => _pendingOperatingMode = mode);
+    unawaited(
+      AppLogger.instance.info(
+        'ApiConnectionAdmin',
+        'Operating mode selected',
+        context: {'mode': mode.wireValue},
+      ),
+    );
+  }
+
+  Future<void> _updateOperatingMode(ApiOperatingMode mode) async {
+    final snapshot = _snapshot;
+    if (snapshot == null || _mutating || snapshot.controls.emergencyDisabled) {
+      return;
+    }
+    final isLive = mode == ApiOperatingMode.live;
+    final pendingCount = snapshot.controls.pendingProjectionCount;
+    final confirmation = isLive && pendingCount > 0
+        ? 'Có $pendingCount giao dịch chưa tạo Tiền vào. Bật chính thức sẽ xử lý các giao dịch đủ điều kiện này.'
+        : switch (mode) {
+            ApiOperatingMode.stopped =>
+              'BIDV sẽ nhận phản hồi tạm thời. Bạn có thể bật lại khi cần.',
+            ApiOperatingMode.uatIngestOnly =>
+              'Hệ thống sẽ tiếp nhận và lưu giao dịch, chưa tạo Tiền vào.',
+            ApiOperatingMode.live =>
+              'Hệ thống sẽ tiếp nhận giao dịch và tạo Tiền vào cho các giao dịch đủ điều kiện.',
+          };
     if (!await _confirm(
-      title: enabling ? 'Xác nhận thay đổi kết nối' : 'Tạm dừng kết nối?',
-      message: projectionEnabled
-          ? 'Đối soát tự động có thể tạo giao dịch Tiền vào và thông báo loa. Chỉ bật sau khi đã đối soát UAT.'
-          : ingressEnabled
-          ? 'Hệ thống chỉ tiếp nhận và lưu dữ liệu; chưa tạo giao dịch Tiền vào.'
-          : 'BIDV sẽ nhận phản hồi lỗi và thực hiện retry theo hợp đồng.',
-      confirmLabel: 'Xác nhận',
-      destructive: !ingressEnabled,
+      title: isLive
+          ? 'Xác nhận bật chính thức'
+          : 'Xác nhận trạng thái vận hành',
+      message: confirmation,
+      confirmLabel: mode == ApiOperatingMode.stopped
+          ? 'Dừng kết nối'
+          : 'Xác nhận',
     )) {
       return;
     }
-    await _runMutation('update_controls', () async {
-      final snapshot = await _repository.updateControls(
-        ingressEnabled: ingressEnabled,
-        projectionEnabled: projectionEnabled,
+    await _runMutation('update_operating_mode', () async {
+      final updated = await _repository.updateOperatingMode(
+        mode: mode,
+        expectedVersion: snapshot.controls.version,
       );
-      if (mounted) setState(() => _snapshot = snapshot);
-    }, successMessage: 'Đã cập nhật trạng thái kết nối.');
+      if (mounted) {
+        setState(() {
+          _snapshot = updated;
+          _pendingOperatingMode = null;
+        });
+      }
+    }, successMessage: 'Đã cập nhật trạng thái vận hành.');
   }
 
   Future<String?> _askName({
@@ -486,22 +523,11 @@ class _ApiConnectionAdminScreenState extends State<ApiConnectionAdminScreen> {
       );
     }
     if (_loading && _snapshot == null) {
-      return const AppResponsiveContent(
-        child: AppStatePanel.loading(
-          title: 'Đang tải kết nối API',
-          message: 'Hệ thống đang đọc trạng thái client và khóa BIDV.',
-        ),
-      );
+      return const AppResponsiveContent(child: _ApiConnectionLoadingState());
     }
     if (_snapshot == null) {
       return AppResponsiveContent(
-        child: AppStatePanel.error(
-          title: 'Chưa tải được kết nối API',
-          message: _error ?? 'Vui lòng thử lại.',
-          actionLabel: 'Thử lại',
-          actionIcon: PhosphorIconsRegular.arrowClockwise,
-          onAction: _load,
-        ),
+        child: _ApiConnectionFailureState(onRetry: _load),
       );
     }
     final snapshot = _snapshot!;
@@ -546,7 +572,9 @@ class _ApiConnectionAdminScreenState extends State<ApiConnectionAdminScreen> {
           _ControlCard(
             controls: snapshot.controls,
             disabled: _mutating,
-            onChange: _updateControls,
+            selectedMode: _pendingOperatingMode ?? snapshot.operatingMode,
+            onSelect: _selectOperatingMode,
+            onSave: _updateOperatingMode,
           ),
           const SizedBox(height: AppLayoutTokens.sectionGap),
           if (snapshot.keys.isEmpty)
@@ -590,6 +618,150 @@ EdgeInsets _apiConnectionPagePadding(BuildContext context) {
 /// `1729:134628`. The platform guard is business behavior; this widget only
 /// supplies the approved unsupported visual path and never invents a
 /// supported mobile/tablet API-connection state.
+class _ApiConnectionLoadingState extends StatelessWidget {
+  const _ApiConnectionLoadingState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.topLeft,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: AppSurfaceCard(
+          key: const Key('api-connection-loading-card'),
+          radius: AppRadius.lg,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Trạng thái vận hành',
+                style: AppTextStyles.pageTitle.copyWith(
+                  color: AppColors.textPrimaryOf(context),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Đang tải trạng thái vận hành…',
+                style: AppTextStyles.bodyS.copyWith(
+                  height: 18 / 13,
+                  color: AppColors.textSecondaryOf(context),
+                ),
+              ),
+              const SizedBox(height: 10),
+              for (var index = 0; index < 3; index++) ...[
+                if (index > 0) const SizedBox(height: 10),
+                Container(
+                  key: ValueKey('api-connection-loading-skeleton-$index'),
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: AppColors.apiMutedSurfaceOf(context),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ApiConnectionFailureState extends StatelessWidget {
+  const _ApiConnectionFailureState({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.topLeft,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: AppSurfaceCard(
+          key: const Key('api-connection-failure-card'),
+          radius: AppRadius.lg,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Trạng thái vận hành',
+                style: AppTextStyles.pageTitle.copyWith(
+                  color: AppColors.textPrimaryOf(context),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Container(
+                height: 40,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.apiEmergencySurfaceOf(context),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: AppColors.apiEmergencyTextOf(context),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Chưa tải được cấu hình kết nối. Vui lòng thử lại.',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.bodyCompact.copyWith(
+                          color: AppColors.apiEmergencyTextOf(context),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 56,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Dữ liệu hiện tại chưa được thay đổi.',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.bodyS.copyWith(
+                          height: 18 / 13,
+                          color: AppColors.textSecondaryOf(context),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 154,
+                      height: 40,
+                      child: AppPrimaryButton(
+                        onPressed: onRetry,
+                        label: 'Thử lại',
+                        height: 40,
+                        radius: 12,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        textStyle: AppTextStyles.labelM,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ApiConnectionUnsupportedState extends StatelessWidget {
   const _ApiConnectionUnsupportedState();
 
@@ -683,71 +855,621 @@ class _ControlCard extends StatelessWidget {
   const _ControlCard({
     required this.controls,
     required this.disabled,
-    required this.onChange,
+    required this.selectedMode,
+    required this.onSelect,
+    required this.onSave,
   });
 
   final ApiConnectionControls controls;
   final bool disabled;
-  final Future<void> Function({
-    required bool ingressEnabled,
-    required bool projectionEnabled,
-  })
-  onChange;
+  final ApiOperatingMode selectedMode;
+  final ValueChanged<ApiOperatingMode> onSelect;
+  final Future<void> Function(ApiOperatingMode mode) onSave;
 
   @override
   Widget build(BuildContext context) {
     return AppSurfaceCard(
       key: const Key('api-connection-controls-card'),
       radius: AppRadius.lg,
-      child: SizedBox(
-        height: 178,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact =
+              constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
+          final ready = controls.canEnableIngestOrLive;
+          final emergency = controls.emergencyDisabled;
+          final canSave =
+              !disabled &&
+              !emergency &&
+              (selectedMode == ApiOperatingMode.stopped || ready);
+          final bannerTone = emergency
+              ? _ApiConnectionBannerTone.error
+              : ready
+              ? _ApiConnectionBannerTone.success
+              : _ApiConnectionBannerTone.warning;
+          final bannerText = emergency
+              ? 'Kênh kết nối đang được nền tảng tạm dừng. Liên hệ kỹ thuật.'
+              : ready
+              ? 'Sẵn sàng để vận hành BIDV.'
+              : 'Hoàn tất các bước chuẩn bị trước khi chuyển sang UAT hoặc chính thức.';
+          final targetContentHeight =
+              constraints.maxWidth < AppLayoutTokens.compactBreakpoint
+              ? 672.0
+              : constraints.maxWidth < AppLayoutTokens.tabletBreakpoint
+              ? 588.0
+              : 438.0;
+          return ConstrainedBox(
+            constraints: BoxConstraints(minHeight: targetContentHeight),
+            child: Column(
+              key: const Key('api-connection-operating-mode-content'),
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Trạng thái vận hành',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.pageTitle.copyWith(
+                    color: AppColors.textPrimaryOf(context),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Hoàn tất 3 bước chuẩn bị, sau đó chọn trạng thái vận hành phù hợp.',
+                  maxLines: compact ? 2 : 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyS.copyWith(
+                    height: 18 / 13,
+                    color: AppColors.textSecondaryOf(context),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                _ApiConnectionReadinessBanner(
+                  tone: bannerTone,
+                  text: bannerText,
+                  compact: compact,
+                  wide: constraints.maxWidth >= 1100,
+                ),
+                const SizedBox(height: 10),
+                _ApiConnectionPreparationChecklist(
+                  readiness: controls.readiness,
+                  forceIncomplete: emergency,
+                ),
+                const SizedBox(height: 10),
+                _ApiConnectionModeOptions(
+                  selectedMode: selectedMode,
+                  canEnableIngestOrLive: ready,
+                  disabled: disabled || emergency,
+                  onSelect: onSelect,
+                ),
+                if (selectedMode == ApiOperatingMode.live &&
+                    controls.pendingProjectionCount > 0) ...[
+                  const SizedBox(height: 10),
+                  _ApiConnectionLiveConfirmation(
+                    pendingProjectionCount: controls.pendingProjectionCount,
+                  ),
+                ],
+                const SizedBox(height: 10),
+                _ApiConnectionModeFooter(
+                  selectedMode: selectedMode,
+                  emergency: emergency,
+                  canSave: canSave,
+                  compact: compact,
+                  onSave: () => onSave(selectedMode),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+enum _ApiConnectionBannerTone { success, warning, error }
+
+class _ApiConnectionReadinessBanner extends StatelessWidget {
+  const _ApiConnectionReadinessBanner({
+    required this.tone,
+    required this.text,
+    required this.compact,
+    required this.wide,
+  });
+
+  final _ApiConnectionBannerTone tone;
+  final String text;
+  final bool compact;
+  final bool wide;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (tone) {
+      _ApiConnectionBannerTone.success => AppColors.apiReadyTextOf(context),
+      _ApiConnectionBannerTone.warning => AppColors.apiWarningTextOf(context),
+      _ApiConnectionBannerTone.error => AppColors.apiEmergencyTextOf(context),
+    };
+    final background = switch (tone) {
+      _ApiConnectionBannerTone.success => AppColors.apiReadySurfaceOf(context),
+      _ApiConnectionBannerTone.warning => AppColors.apiWarningSurfaceOf(
+        context,
+      ),
+      _ApiConnectionBannerTone.error => AppColors.apiEmergencySurfaceOf(
+        context,
+      ),
+    };
+    return Container(
+      key: const Key('api-connection-readiness-banner'),
+      height: wide ? 38 : 40,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      alignment: Alignment.centerLeft,
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              maxLines: compact ? 2 : 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.bodyCompact.copyWith(color: color),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ApiConnectionPreparationChecklist extends StatelessWidget {
+  const _ApiConnectionPreparationChecklist({
+    required this.readiness,
+    required this.forceIncomplete,
+  });
+
+  final ApiConnectionReadiness readiness;
+  final bool forceIncomplete;
+
+  @override
+  Widget build(BuildContext context) {
+    final infrastructureReady = readiness.infrastructure && readiness.kek;
+    final items = [
+      ('1. OAuth client', readiness.client, 'Tạo client trước khi vận hành'),
+      ('2. Khóa OpenPGP', readiness.openPgpKey, 'Tạo khóa trước khi vận hành'),
+      (
+        '3. Hạ tầng kết nối',
+        infrastructureReady,
+        'Liên hệ kỹ thuật để hoàn tất',
+      ),
+    ];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final trailingInset = constraints.maxWidth >= 1100 ? 32.0 : 22.0;
+        final rowWidth = constraints.maxWidth > trailingInset
+            ? constraints.maxWidth - trailingInset
+            : constraints.maxWidth;
+        return SizedBox(
+          width: rowWidth,
+          child: Column(
+            key: const Key('api-connection-preparation-checklist'),
+            children: [
+              for (final item in items)
+                _ApiConnectionChecklistRow(
+                  label: item.$1,
+                  ready: !forceIncomplete && item.$2,
+                  notReadyCopy: item.$3,
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ApiConnectionChecklistRow extends StatelessWidget {
+  const _ApiConnectionChecklistRow({
+    required this.label,
+    required this.ready,
+    required this.notReadyCopy,
+  });
+
+  final String label;
+  final bool ready;
+  final String notReadyCopy;
+
+  @override
+  Widget build(BuildContext context) {
+    final copy = ready ? 'Đã sẵn sàng' : notReadyCopy;
+    final color = ready
+        ? AppColors.apiReadyTextOf(context)
+        : AppColors.textSecondaryOf(context);
+    return SizedBox(
+      key: ValueKey('api-connection-checklist-$label'),
+      height: 44,
+      child: Row(
+        children: [
+          Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              color: ready
+                  ? AppColors.apiReadyTextOf(context)
+                  : AppColors.textMutedOf(context),
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.labelM.copyWith(
+                    color: AppColors.textPrimaryOf(context),
+                  ),
+                ),
+                Text(
+                  copy,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyCompact.copyWith(color: color),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            width: 82,
+            height: 28,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: ready
+                  ? AppColors.apiReadySurfaceOf(context)
+                  : AppColors.apiMutedSurfaceOf(context),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Text(
+              ready ? 'Sẵn sàng' : 'Cần hoàn tất',
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.bodyCompact.copyWith(
+                color: ready
+                    ? AppColors.apiReadyTextOf(context)
+                    : AppColors.textSecondaryOf(context),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ApiConnectionModeOptions extends StatelessWidget {
+  const _ApiConnectionModeOptions({
+    required this.selectedMode,
+    required this.canEnableIngestOrLive,
+    required this.disabled,
+    required this.onSelect,
+  });
+
+  final ApiOperatingMode selectedMode;
+  final bool canEnableIngestOrLive;
+  final bool disabled;
+  final ValueChanged<ApiOperatingMode> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final horizontal =
+            constraints.maxWidth >= AppLayoutTokens.tabletBreakpoint;
+        final options = [
+          ApiOperatingMode.stopped,
+          ApiOperatingMode.uatIngestOnly,
+          ApiOperatingMode.live,
+        ];
+        final children = options
+            .map((mode) {
+              final modeEnabled =
+                  !disabled &&
+                  (mode == ApiOperatingMode.stopped || canEnableIngestOrLive);
+              final option = _ApiConnectionModeOption(
+                mode: mode,
+                selected: mode == selectedMode,
+                enabled: modeEnabled,
+                onTap: () => onSelect(mode),
+              );
+              if (horizontal) return Expanded(child: option);
+              return option;
+            })
+            .toList(growable: false);
+        return Flex(
+          key: const Key('api-connection-mode-options'),
+          direction: horizontal ? Axis.horizontal : Axis.vertical,
+          crossAxisAlignment: horizontal
+              ? CrossAxisAlignment.start
+              : CrossAxisAlignment.stretch,
           children: [
-            Text(
-              'Trạng thái vận hành',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.pageTitle.copyWith(
-                color: AppColors.textPrimaryOf(context),
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'Đối soát chỉ hoạt động sau khi tiếp nhận dữ liệu BIDV được bật.',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.bodyS.copyWith(
-                height: 18 / 13,
-                color: AppColors.textSecondaryOf(context),
-              ),
-            ),
-            const SizedBox(height: 12),
-            _ApiConnectionControlRow(
-              label: 'Tiếp nhận dữ liệu BIDV',
-              support: 'Nhận giao dịch BIDV mới vào OpsHub',
-              value: controls.ingressRequested,
-              enabled: !disabled,
-              onChanged: (value) => onChange(
-                ingressEnabled: value,
-                projectionEnabled: value ? controls.projectionRequested : false,
-              ),
-            ),
-            const SizedBox(height: 12),
-            _ApiConnectionControlRow(
-              label: 'Đối soát sang Tiền vào',
-              support: 'Đưa giao dịch hợp lệ vào khu vực Tiền vào',
-              value: controls.projectionRequested,
-              enabled: !disabled && controls.ingressRequested,
-              onChanged: (value) =>
-                  onChange(ingressEnabled: true, projectionEnabled: value),
-            ),
+            for (var index = 0; index < children.length; index++) ...[
+              if (index > 0)
+                SizedBox(
+                  width: horizontal ? 8 : null,
+                  height: horizontal ? 86 : 8,
+                ),
+              children[index],
+            ],
           ],
+        );
+      },
+    );
+  }
+}
+
+class _ApiConnectionModeOption extends StatelessWidget {
+  const _ApiConnectionModeOption({
+    required this.mode,
+    required this.selected,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final ApiOperatingMode mode;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedVisual = selected && enabled;
+    final background = enabled
+        ? selectedVisual
+              ? AppColors.apiModeSelectedSurfaceOf(context)
+              : AppColors.cardOf(context)
+        : AppColors.apiMutedSurfaceOf(context);
+    final border = selectedVisual
+        ? AppColors.primary500
+        : AppColors.borderOf(context);
+    final textColor = enabled
+        ? AppColors.textPrimaryOf(context)
+        : AppColors.textSecondaryOf(context);
+    return Semantics(
+      key: ValueKey('api-connection-mode-${mode.wireValue}'),
+      button: true,
+      selected: selected,
+      enabled: enabled,
+      label: mode.label,
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          height: 86,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: background,
+            border: Border.all(color: border),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              _ApiConnectionModeRadio(selected: selected, enabled: enabled),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      mode.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.labelM.copyWith(color: textColor),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _modeDescription(mode),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.bodyCompact.copyWith(
+                        color: enabled
+                            ? AppColors.textSecondaryOf(context)
+                            : AppColors.textSecondaryOf(context),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
+
+class _ApiConnectionModeRadio extends StatelessWidget {
+  const _ApiConnectionModeRadio({
+    required this.selected,
+    required this.enabled,
+  });
+
+  final bool selected;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final stroke = selected && enabled
+        ? AppColors.primary500
+        : AppColors.textMutedOf(context);
+    return Container(
+      width: 18,
+      height: 18,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: stroke, width: selected ? 2 : 1),
+      ),
+      child: selected
+          ? Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: enabled ? AppColors.primary500 : stroke,
+                shape: BoxShape.circle,
+              ),
+            )
+          : null,
+    );
+  }
+}
+
+class _ApiConnectionLiveConfirmation extends StatelessWidget {
+  const _ApiConnectionLiveConfirmation({required this.pendingProjectionCount});
+
+  final int pendingProjectionCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('api-connection-live-confirmation'),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: AppColors.apiWarningSurfaceOf(context),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Có $pendingProjectionCount giao dịch chưa tạo Tiền vào.',
+            style: AppTextStyles.labelM.copyWith(
+              color: AppColors.apiWarningTextOf(context),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Bật chính thức sẽ xử lý các giao dịch đủ điều kiện này.',
+            style: AppTextStyles.bodyCompact.copyWith(
+              color: AppColors.apiWarningTextOf(context),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ApiConnectionModeFooter extends StatelessWidget {
+  const _ApiConnectionModeFooter({
+    required this.selectedMode,
+    required this.emergency,
+    required this.canSave,
+    required this.compact,
+    required this.onSave,
+  });
+
+  final ApiOperatingMode selectedMode;
+  final bool emergency;
+  final bool canSave;
+  final bool compact;
+  final VoidCallback onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    final footerText = emergency
+        ? 'Tất cả trạng thái đang tạm dừng.'
+        : switch (selectedMode) {
+            ApiOperatingMode.stopped =>
+              compact
+                  ? 'Đang dừng. Có thể giữ Dừng trong khi hoàn tất chuẩn bị.'
+                  : 'Đang dừng. BIDV sẽ nhận phản hồi tạm thời.',
+            ApiOperatingMode.uatIngestOnly =>
+              'Đang UAT: tiếp nhận giao dịch nhưng chưa tạo Tiền vào.',
+            ApiOperatingMode.live =>
+              'Đang chính thức: tạo Tiền vào cho giao dịch đủ điều kiện.',
+          };
+    final actionLabel = switch (selectedMode) {
+      ApiOperatingMode.stopped => 'Lưu trạng thái',
+      ApiOperatingMode.uatIngestOnly => 'Bật UAT',
+      ApiOperatingMode.live => 'Bật chính thức',
+    };
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final button = SizedBox(
+          key: const Key('api-connection-save-mode'),
+          width: compact ? 154 : 130,
+          height: 40,
+          child: AppPrimaryButton(
+            onPressed: canSave ? onSave : null,
+            label: actionLabel,
+            height: 40,
+            radius: 12,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            textStyle: AppTextStyles.labelM,
+          ),
+        );
+        if (compact) {
+          return Column(
+            key: const Key('api-connection-mode-footer'),
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                footerText,
+                style: AppTextStyles.bodyCompact.copyWith(
+                  color: AppColors.textSecondaryOf(context),
+                ),
+              ),
+              const SizedBox(height: 8),
+              button,
+            ],
+          );
+        }
+        final trailingInset = constraints.maxWidth >= 1100 ? 50.0 : 48.0;
+        final footerWidth = constraints.maxWidth > trailingInset
+            ? constraints.maxWidth - trailingInset
+            : constraints.maxWidth;
+        return SizedBox(
+          key: const Key('api-connection-mode-footer'),
+          width: footerWidth,
+          height: 42,
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  footerText,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyCompact.copyWith(
+                    color: AppColors.textSecondaryOf(context),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              button,
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+String _modeDescription(ApiOperatingMode mode) => switch (mode) {
+  ApiOperatingMode.stopped => 'Không cấp token, không tiếp nhận dữ liệu.',
+  ApiOperatingMode.uatIngestOnly => 'Nhận giao dịch, chưa tạo Tiền vào.',
+  ApiOperatingMode.live => 'Nhận giao dịch và tạo Tiền vào.',
+};
 
 class _ClientCard extends StatelessWidget {
   const _ClientCard({
@@ -1124,123 +1846,6 @@ class _ApiConnectionStatusPanel extends StatelessWidget {
         text,
         style: AppTextStyles.labelSmallSubtle.copyWith(
           color: AppColors.textPrimaryOf(context),
-        ),
-      ),
-    );
-  }
-}
-
-class _ApiConnectionControlRow extends StatelessWidget {
-  const _ApiConnectionControlRow({
-    required this.label,
-    required this.support,
-    required this.value,
-    required this.enabled,
-    required this.onChanged,
-  });
-
-  final String label;
-  final String support;
-  final bool value;
-  final bool enabled;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 48,
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.labelM.copyWith(
-                    color: AppColors.textPrimaryOf(context),
-                  ),
-                ),
-                Text(
-                  support,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.bodyCompact.copyWith(
-                    color: AppColors.textSecondaryOf(context),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          _ApiConnectionSwitch(
-            value: value,
-            enabled: enabled,
-            onChanged: onChanged,
-            label: label,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ApiConnectionSwitch extends StatelessWidget {
-  const _ApiConnectionSwitch({
-    required this.value,
-    required this.enabled,
-    required this.onChanged,
-    required this.label,
-  });
-
-  final bool value;
-  final bool enabled;
-  final ValueChanged<bool> onChanged;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final trackColor = value
-        ? AppColors.primaryOf(context)
-        : AppColors.borderOf(context);
-    return Semantics(
-      button: true,
-      toggled: value,
-      enabled: enabled,
-      label: label,
-      child: InkWell(
-        onTap: enabled ? () => onChanged(!value) : null,
-        borderRadius: AppRadius.allPill,
-        child: SizedBox(
-          width: 48,
-          height: 48,
-          child: Center(
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 160),
-              width: 48,
-              height: 24,
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: enabled ? trackColor : AppColors.subtleBorderOf(context),
-                borderRadius: AppRadius.allPill,
-              ),
-              child: Align(
-                alignment: value ? Alignment.centerRight : Alignment.centerLeft,
-                child: SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: AppColors.cardOf(context),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
         ),
       ),
     );

@@ -323,70 +323,50 @@ describe('env validation', () => {
     ).toBe(false);
   });
 
-  it('keeps BIDV H2H off by default and requires a dedicated 32-byte KEK', () => {
+  it('keeps BIDV H2H unavailable until its local KEK and endpoint are ready', () => {
     expect(getBidvH2hConfig({})).toMatchObject({
-      ingestMasterEnabled: false,
-      projectionMasterEnabled: false,
+      ingestMasterEnabled: true,
+      projectionMasterEnabled: true,
+      infrastructureReady: false,
       tokenTtlSeconds: 300,
       maxTransactionsPerBatch: 100,
     });
-    expect(() => getBidvH2hConfig({ BIDV_H2H_INGEST_ENABLED: 'true' })).toThrow(
-      'BIDV_H2H_KEK_BASE64 is required',
-    );
     expect(() =>
       getBidvH2hConfig({
-        BIDV_H2H_INGEST_ENABLED: 'true',
         BIDV_H2H_KEK_BASE64: Buffer.alloc(31).toString('base64'),
       }),
     ).toThrow('exactly 32 bytes');
     expect(
       getBidvH2hConfig({
-        BIDV_H2H_INGEST_ENABLED: 'true',
         BIDV_H2H_KEK_BASE64: Buffer.alloc(32, 3).toString('base64'),
         BIDV_H2H_ENVIRONMENT: 'local',
         BIDV_H2H_PUBLIC_BASE_URL: 'http://localhost:3000',
-      }).kek,
-    ).toHaveLength(32);
+      }),
+    ).toMatchObject({ infrastructureReady: true });
   });
 
-  it('pins staging and production BIDV public hosts', () => {
-    const key = Buffer.alloc(32, 3).toString('base64');
+  it('derives staging and production BIDV public endpoints from the common API base', () => {
     expect(() =>
       getBidvH2hConfig({
-        BIDV_H2H_INGEST_ENABLED: 'true',
-        BIDV_H2H_KEK_BASE64: key,
         BIDV_H2H_ENVIRONMENT: 'staging',
         BIDV_H2H_PUBLIC_BASE_URL: 'https://wrong.example.com',
       }),
     ).toThrow('api-staging.phongvu.work/v1/bidv');
     expect(
       getBidvH2hConfig({
-        BIDV_H2H_INGEST_ENABLED: 'true',
-        BIDV_H2H_KEK_BASE64: key,
-        BIDV_H2H_ENVIRONMENT: 'production',
-        BIDV_H2H_PUBLIC_BASE_URL: 'https://api.phongvu.work/v1/bidv',
+        PRIVATE_MEDIA_PUBLIC_BASE_URL: 'https://api.phongvu.work/v1',
       }).publicBaseUrl,
     ).toBe('https://api.phongvu.work/v1/bidv');
   });
 
-  it('rejects BIDV URLs that escape the exact /v1/bidv namespace', () => {
-    const key = Buffer.alloc(32, 3).toString('base64');
-    expect(() =>
-      getBidvH2hConfig({
-        BIDV_H2H_INGEST_ENABLED: 'true',
-        BIDV_H2H_KEK_BASE64: key,
-        BIDV_H2H_ENVIRONMENT: 'production',
-        BIDV_H2H_PUBLIC_BASE_URL: 'https://api.phongvu.work/v1',
-      }),
-    ).toThrow('https://api.phongvu.work/v1/bidv');
-  });
-
-  it('blocks projection when ingest master is off', () => {
-    expect(() =>
-      getBidvH2hConfig({
-        BIDV_H2H_PROJECTION_ENABLED: 'true',
-        BIDV_H2H_KEK_BASE64: Buffer.alloc(32, 3).toString('base64'),
-      }),
-    ).toThrow('requires BIDV_H2H_INGEST_ENABLED=true');
+  it('applies the platform emergency disable independently of database mode', () => {
+    expect(
+      getBidvH2hConfig({ BIDV_H2H_EMERGENCY_DISABLED: 'true' }),
+    ).toMatchObject({
+      emergencyDisabled: true,
+      ingestMasterEnabled: false,
+      projectionMasterEnabled: false,
+      infrastructureReady: false,
+    });
   });
 });

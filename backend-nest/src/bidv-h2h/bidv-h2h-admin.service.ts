@@ -5,9 +5,11 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { hash } from 'bcrypt';
 import { createHash, randomBytes } from 'crypto';
+import { safeLogError } from '../common/log-sanitizer';
 import { isSuperAdminRole } from '../common/system-role';
 import { getBidvH2hConfig } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
@@ -16,6 +18,13 @@ import {
   ValidatedPgpKeyPair,
 } from './bidv-h2h-crypto.service';
 import { UpdateBankConnectionControlDto } from './bidv-h2h.dto';
+import {
+  BidvOperatingMode,
+  legacyControlsFromMode,
+  modeFromLegacyControls,
+  normalizedOperatingMode,
+} from './bidv-h2h-operating-mode';
+import { BidvH2hOperatingPolicy } from './bidv-h2h-operating-policy';
 
 const BANK_CODE = 'BIDV';
 const MAX_ACTIVE_VERSIONS = 2;
@@ -27,39 +36,53 @@ export class BidvH2hAdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly crypto: BidvH2hCryptoService,
+    private readonly operatingPolicy: BidvH2hOperatingPolicy,
   ) {}
 
   async snapshot(actor: any) {
     this.assertSuperAdmin(actor, 'snapshot');
-    const [clients, keys, control, audits] = await Promise.all([
-      (this.prisma as any).bankApiClient.findMany({
-        where: { bankCode: BANK_CODE },
-        orderBy: [{ version: 'desc' }, { createdAt: 'desc' }],
-      }),
-      (this.prisma as any).bankPgpKey.findMany({
-        where: { bankCode: BANK_CODE },
-        orderBy: [{ version: 'desc' }, { createdAt: 'desc' }],
-      }),
-      this.getControl(),
-      (this.prisma as any).bankConnectionAudit.findMany({
-        where: { bankCode: BANK_CODE },
-        orderBy: { createdAt: 'desc' },
-        take: 100,
-      }),
-    ]);
+    const [clients, keys, control, audits, pendingProjectionCount] =
+      await Promise.all([
+        (this.prisma as any).bankApiClient.findMany({
+          where: { bankCode: BANK_CODE },
+          orderBy: [{ version: 'desc' }, { createdAt: 'desc' }],
+        }),
+        (this.prisma as any).bankPgpKey.findMany({
+          where: { bankCode: BANK_CODE },
+          orderBy: [{ version: 'desc' }, { createdAt: 'desc' }],
+        }),
+        this.getControl(),
+        (this.prisma as any).bankConnectionAudit.findMany({
+          where: { bankCode: BANK_CODE },
+          orderBy: { createdAt: 'desc' },
+          take: 100,
+        }),
+        (this.prisma as any).bankTransaction.count({
+          where: {
+            bankCode: BANK_CODE,
+            projectionStatus: { in: ['PENDING', 'RETRY', 'PROCESSING'] },
+          },
+        }),
+      ]);
     const config = getBidvH2hConfig();
+    const assessment = await this.operatingPolicy.evaluate();
     return {
       bankCode: BANK_CODE,
       environment: config.environment,
       publicBaseUrl: config.publicBaseUrl,
       controls: {
+        operatingMode: assessment.operatingMode,
+        effectiveMode: assessment.effectiveMode,
         ingressRequested: control.ingressEnabled,
         projectionRequested: control.projectionEnabled,
         ingressMasterEnabled: config.ingestMasterEnabled,
         projectionMasterEnabled: config.projectionMasterEnabled,
-        ingressEffective: config.ingestMasterEnabled && control.ingressEnabled,
-        projectionEffective:
-          config.projectionMasterEnabled && control.projectionEnabled,
+        ingressEffective: assessment.effectiveMode !== 'STOPPED',
+        projectionEffective: assessment.effectiveMode === 'LIVE',
+        pendingProjectionCount,
+        emergencyDisabled: config.emergencyDisabled,
+        readiness: assessment.readiness,
+        blockers: assessment.blockers,
         version: control.version,
         updatedAt: control.updatedAt,
       },
@@ -285,37 +308,56 @@ export class BidvH2hAdminService {
 
   async updateControl(actor: any, input: UpdateBankConnectionControlDto) {
     this.assertSuperAdmin(actor, 'update_control');
-    if (input.projectionEnabled && !input.ingressEnabled) {
+    const nextMode = this.modeFromInput(input);
+    this.logger.log(`BIDV operating mode update started target=${nextMode}`);
+    if (input.projectionEnabled && input.ingressEnabled === false) {
       throw new BadRequestException(
         'Cần bật tiếp nhận trước khi bật đối soát tự động.',
       );
     }
-    const result = await this.prisma.$transaction(async (tx) => {
-      await this.lockControlPlane(tx);
-      const control = await (tx as any).bankConnectionControl.upsert({
-        where: { bankCode: BANK_CODE },
-        create: {
-          bankCode: BANK_CODE,
-          ingressEnabled: input.ingressEnabled,
-          projectionEnabled: input.projectionEnabled,
-          updatedByUserId: actor?.id ?? null,
-        },
-        update: {
-          ingressEnabled: input.ingressEnabled,
-          projectionEnabled: input.projectionEnabled,
-          version: { increment: 1 },
-          updatedByUserId: actor?.id ?? null,
-        },
+    const result = await this.prisma
+      .$transaction(async (tx) => {
+        await this.lockControlPlane(tx);
+        const current = await (tx as any).bankConnectionControl.upsert({
+          where: { bankCode: BANK_CODE },
+          create: { bankCode: BANK_CODE },
+          update: {},
+        });
+        if (
+          input.expectedVersion !== undefined &&
+          current.version !== input.expectedVersion
+        ) {
+          throw new ConflictException(
+            'Trạng thái đã thay đổi trên thiết bị khác. Vui lòng tải lại và thử lại.',
+          );
+        }
+        if (nextMode !== 'STOPPED') await this.assertReadyInTransaction(tx);
+        const legacy = legacyControlsFromMode(nextMode);
+        const control = await (tx as any).bankConnectionControl.update({
+          where: { bankCode: BANK_CODE },
+          data: {
+            operatingMode: nextMode,
+            ...legacy,
+            version: { increment: 1 },
+            updatedByUserId: actor?.id ?? null,
+          },
+        });
+        await this.audit(tx, actor, 'CONTROL_UPDATED', 'CONTROL', BANK_CODE, {
+          previousMode: normalizedOperatingMode(current),
+          operatingMode: nextMode,
+          ...legacy,
+          version: control.version,
+        });
+        return control;
+      })
+      .catch((error) => {
+        this.logger.warn(
+          `BIDV operating mode update failed target=${nextMode} error=${safeLogError(error)}`,
+        );
+        throw error;
       });
-      await this.audit(tx, actor, 'CONTROL_UPDATED', 'CONTROL', BANK_CODE, {
-        ingressEnabled: input.ingressEnabled,
-        projectionEnabled: input.projectionEnabled,
-        version: control.version,
-      });
-      return control;
-    });
-    this.logger.warn(
-      `BIDV connection control updated ingress=${result.ingressEnabled} projection=${result.projectionEnabled} version=${result.version}`,
+    this.logger.log(
+      `BIDV operating mode update succeeded target=${nextMode} version=${result.version}`,
     );
     return this.snapshot(actor);
   }
@@ -396,6 +438,59 @@ export class BidvH2hAdminService {
       create: { bankCode: BANK_CODE },
       update: {},
     });
+  }
+
+  private modeFromInput(
+    input: UpdateBankConnectionControlDto,
+  ): BidvOperatingMode {
+    const hasMode = input.operatingMode !== undefined;
+    const hasIngress = input.ingressEnabled !== undefined;
+    const hasProjection = input.projectionEnabled !== undefined;
+    if (hasMode) {
+      if (hasIngress || hasProjection) {
+        throw new BadRequestException(
+          'Không gửi đồng thời trạng thái vận hành và công tắc tương thích.',
+        );
+      }
+      if (input.expectedVersion === undefined) {
+        throw new BadRequestException(
+          'Vui lòng tải lại trạng thái mới nhất trước khi thay đổi.',
+        );
+      }
+      return input.operatingMode!;
+    }
+    if (hasIngress !== hasProjection || !hasIngress) {
+      throw new BadRequestException('Vui lòng chọn trạng thái vận hành.');
+    }
+    try {
+      return modeFromLegacyControls(
+        input.ingressEnabled!,
+        input.projectionEnabled!,
+      );
+    } catch {
+      throw new BadRequestException(
+        'Cần bật tiếp nhận trước khi bật đối soát tự động.',
+      );
+    }
+  }
+
+  private async assertReadyInTransaction(tx: any) {
+    const assessment = await this.operatingPolicy.evaluate(tx);
+    if (!assessment.readiness.infrastructure || !assessment.readiness.kek) {
+      throw new ServiceUnavailableException(
+        'Hạ tầng kết nối chưa sẵn sàng. Vui lòng liên hệ kỹ thuật.',
+      );
+    }
+    if (!assessment.readiness.client) {
+      throw new ConflictException(
+        'Chưa có OAuth client sẵn sàng. Hãy tạo client trước.',
+      );
+    }
+    if (!assessment.readiness.openPgpKey) {
+      throw new ConflictException(
+        'Chưa có khóa OpenPGP sẵn sàng. Hãy tạo khóa trước.',
+      );
+    }
   }
 
   private serializeClient(client: any) {
@@ -483,7 +578,7 @@ export class BidvH2hAdminService {
   }
 
   private async lockControlPlane(tx: any) {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('opshub:bidv-h2h-control'))`;
+    await this.operatingPolicy.lock(tx);
   }
 
   private audit(

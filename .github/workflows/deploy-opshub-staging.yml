@@ -650,6 +650,7 @@ jobs:
           OPSHUB_INCLUDE_STAGING_LOAD_TOOLS: "true"
         run: |
           set -euo pipefail
+          node scripts/validate-ops39-local-boundary.mjs
           node scripts/build-runtime-release.mjs
           tar -C docs/help -czf dist/help-assets.tar.gz assets
           tar -C build/web -czf dist/web.tar.gz .
@@ -1034,9 +1035,6 @@ jobs:
           upsert_env OPSHUB_DOMAIN "staging.phongvu.work"
           upsert_env OPSHUB_API_DOMAIN "api-staging.phongvu.work"
           upsert_env OPSHUB_LEGACY_DOMAIN "opshub-staging.hoanghochoi.com"
-          unset_env BIDV_H2H_DOMAIN
-          upsert_env BIDV_H2H_PUBLIC_BASE_URL "https://api-staging.phongvu.work/v1/bidv"
-          upsert_env BIDV_H2H_ENVIRONMENT staging
           upsert_env PUBLIC_BASE_URL "$OPSHUB_PUBLIC_BASE_URL"
           upsert_env PRIVATE_MEDIA_PUBLIC_BASE_URL "https://api-staging.phongvu.work/v1"
           upsert_env OPSHUB_SSD_ROOT "$OPSHUB_SSD_ROOT"
@@ -1051,12 +1049,6 @@ jobs:
           upsert_env VIETQR_AUTO_RECONCILE_ENABLED false
           upsert_env MAP_VIETIN_GLOBAL_SYNC_ENABLED false
           upsert_env HOME_SUMMARY_ERP_BACKFILL_ENABLED false
-          if ! sudo grep -q '^BIDV_H2H_INGEST_ENABLED=' "$OPSHUB_ENV_FILE"; then
-            upsert_env BIDV_H2H_INGEST_ENABLED false
-          fi
-          if ! sudo grep -q '^BIDV_H2H_PROJECTION_ENABLED=' "$OPSHUB_ENV_FILE"; then
-            upsert_env BIDV_H2H_PROJECTION_ENABLED false
-          fi
           for smtp_key in SMTP_HOST SMTP_PORT SMTP_SECURE SMTP_USER SMTP_PASS SMTP_FROM; do
             unset_env "$smtp_key"
           done
@@ -1294,6 +1286,7 @@ jobs:
 
           resolve_failed_node_feature_migration
           resolve_failed_quick_actions_migration
+          bash deploy/home-server/bootstrap-bidv-kek.sh "$OPSHUB_ENV_FILE"
 
           run_guarded_migration_and_backend_build() {
             if [ "$STAGING_FAILURE_INJECTION" = after_runtime_switch ]; then
@@ -1304,6 +1297,9 @@ jobs:
           }
 
           run_guarded_migration_and_backend_build
+
+          compose_cmd --profile maintenance run --rm -T --build maintenance \
+            node scripts/verify-bidv-kek.mjs
 
           compose_cmd stop api realtime caddy || true
           compose_cmd rm -f api realtime caddy || true

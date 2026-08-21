@@ -12,6 +12,7 @@ import { BidvH2hIngressService } from './bidv-h2h-ingress.service';
 import { BidvH2hOauthService } from './bidv-h2h-oauth.service';
 import { BidvH2hParser } from './bidv-h2h-parser';
 import { BidvH2hProjectionWorker } from './bidv-h2h-projection.worker';
+import { BidvH2hOperatingPolicy } from './bidv-h2h-operating-policy';
 
 @Module({
   imports: [PrismaModule, FeatureModule, PaymentNotificationsModule],
@@ -23,6 +24,7 @@ import { BidvH2hProjectionWorker } from './bidv-h2h-projection.worker';
     BidvH2hOauthService,
     BidvH2hParser,
     BidvH2hProjectionWorker,
+    BidvH2hOperatingPolicy,
   ],
 })
 export class BidvH2hModule {}

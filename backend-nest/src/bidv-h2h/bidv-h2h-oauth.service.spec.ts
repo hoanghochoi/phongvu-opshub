@@ -1,4 +1,5 @@
 import { hash } from 'bcrypt';
+import { ServiceUnavailableException } from '@nestjs/common';
 import { BidvH2hOauthService } from './bidv-h2h-oauth.service';
 
 describe('BidvH2hOauthService', () => {
@@ -11,12 +12,25 @@ describe('BidvH2hOauthService', () => {
       create: accessTokenCreate,
       findUnique: tokenFindUnique,
     },
+    $transaction: jest.fn((callback: (tx: any) => unknown) => callback(prisma)),
   } as any;
-  const service = new BidvH2hOauthService(prisma);
+  const operatingPolicy = {
+    assertIngress: jest
+      .fn()
+      .mockResolvedValue({ effectiveMode: 'UAT_INGEST_ONLY' }),
+    lock: jest.fn(),
+  };
+  const service = new BidvH2hOauthService(prisma, operatingPolicy as any);
 
   beforeEach(() => {
     jest.clearAllMocks();
+    operatingPolicy.assertIngress.mockResolvedValue({
+      effectiveMode: 'UAT_INGEST_ONLY',
+    });
     process.env.BIDV_H2H_TOKEN_TTL_SECONDS = '300';
+    process.env.BIDV_H2H_ENVIRONMENT = 'local';
+    process.env.BIDV_H2H_PUBLIC_BASE_URL = 'http://localhost:3000';
+    process.env.BIDV_H2H_KEK_BASE64 = Buffer.alloc(32, 6).toString('base64');
   });
 
   it('issues an opaque token and stores only its hash', async () => {
@@ -48,6 +62,16 @@ describe('BidvH2hOauthService', () => {
     await expect(service.issueToken('Basic invalid')).rejects.toMatchObject({
       response: expect.objectContaining({ error: 'invalid_client' }),
     });
+  });
+
+  it('returns temporarily_unavailable before authenticating while stopped', async () => {
+    operatingPolicy.assertIngress.mockRejectedValueOnce(
+      new ServiceUnavailableException({ error: 'temporarily_unavailable' }),
+    );
+    await expect(service.issueToken('Basic invalid')).rejects.toMatchObject({
+      response: expect.objectContaining({ error: 'temporarily_unavailable' }),
+    });
+    expect(clientFindUnique).not.toHaveBeenCalled();
   });
 
   it('rejects a client from another bank or without the fixed BIDV scope', async () => {

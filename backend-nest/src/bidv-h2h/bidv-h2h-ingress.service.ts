@@ -13,6 +13,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BidvH2hCryptoService } from './bidv-h2h-crypto.service';
 import { BidvH2hParser, ParsedBidvTransaction } from './bidv-h2h-parser';
 import { BidvClientPrincipal } from './bidv-h2h-oauth.service';
+import { BidvH2hOperatingPolicy } from './bidv-h2h-operating-policy';
 
 const SUCCESS = { errorCode: '000', errorDesc: 'Success' } as const;
 
@@ -24,6 +25,7 @@ export class BidvH2hIngressService {
     private readonly prisma: PrismaService,
     private readonly crypto: BidvH2hCryptoService,
     private readonly parser: BidvH2hParser,
+    private readonly operatingPolicy: BidvH2hOperatingPolicy,
   ) {}
 
   async ingest(
@@ -50,19 +52,7 @@ export class BidvH2hIngressService {
           'Dữ liệu gửi lên vượt kích thước cho phép.',
         );
       }
-      const control = await (
-        this.prisma as any
-      ).bankConnectionControl.findUnique({
-        where: { bankCode },
-      });
-      if (!config.ingestMasterEnabled || !control?.ingressEnabled) {
-        this.logger.warn(
-          `BIDV ingress disabled requestRef=${this.requestRef(requestId)} master=${config.ingestMasterEnabled} requested=${control?.ingressEnabled === true}`,
-        );
-        throw new ServiceUnavailableException(
-          'Kênh tiếp nhận đang tạm dừng. Vui lòng thử lại sau.',
-        );
-      }
+      await this.operatingPolicy.assertIngress();
 
       const duplicate = await (
         this.prisma as any
@@ -123,6 +113,8 @@ export class BidvH2hIngressService {
   ) {
     return this.prisma.$transaction(
       async (tx) => {
+        await this.operatingPolicy.lock(tx);
+        await this.operatingPolicy.assertIngress(tx);
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${bankCode}:${requestId}`}))`;
         const duplicate = await (tx as any).bankIngressReceipt.findUnique({
           where: { bankCode_requestId: { bankCode, requestId } },

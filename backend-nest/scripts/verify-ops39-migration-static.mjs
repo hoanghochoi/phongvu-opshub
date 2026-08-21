@@ -7,6 +7,10 @@ const rollbackPath =
   'prisma/migrations/20260730153000_ops39_bidv_h2h/rollback.sql';
 const migration = fs.readFileSync(migrationPath, 'utf8');
 const rollback = fs.readFileSync(rollbackPath, 'utf8');
+const modeMigration = fs.readFileSync(
+  'prisma/migrations/20260821090000_ops39_operating_mode/migration.sql',
+  'utf8',
+);
 
 for (const table of [
   'BankApiClient',
@@ -36,5 +40,12 @@ assert.doesNotMatch(
 assert.match(rollback, /"ingressEnabled" = false/);
 assert.match(rollback, /"projectionEnabled" = false/);
 assert.doesNotMatch(rollback, /\bDROP\b|\bDELETE\b|\bTRUNCATE\b/i);
+assert.match(modeMigration, /CREATE TYPE "BankConnectionOperatingMode"/);
+assert.match(modeMigration, /ADD COLUMN "operatingMode"/);
+assert.match(modeMigration, /SET "operatingMode" = 'STOPPED'/);
+assert.match(modeMigration, /"ingressEnabled" = false/);
+assert.match(modeMigration, /"projectionEnabled" = false/);
+assert.match(modeMigration, /BankConnectionControl_sync_mode/);
+assert.doesNotMatch(modeMigration, /SET "operatingMode" = 'LIVE'/);
 
 console.log('OPS-39 migration static/rollback contract: PASS');

@@ -3,9 +3,9 @@ import { Interval } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { safeLogError } from '../common/log-sanitizer';
-import { getBidvH2hConfig } from '../config/env';
 import { PaymentNotificationsService } from '../payment-notifications/payment-notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { BidvH2hOperatingPolicy } from './bidv-h2h-operating-policy';
 
 const MAX_ATTEMPTS = 8;
 
@@ -17,6 +17,7 @@ export class BidvH2hProjectionWorker {
   constructor(
     private readonly prisma: PrismaService,
     private readonly paymentNotifications: PaymentNotificationsService,
+    private readonly operatingPolicy: BidvH2hOperatingPolicy,
   ) {}
 
   @Interval(1000)
@@ -36,14 +37,7 @@ export class BidvH2hProjectionWorker {
   }
 
   private async projectionEnabled() {
-    const config = getBidvH2hConfig();
-    if (!config.projectionMasterEnabled) return false;
-    const control = await (this.prisma as any).bankConnectionControl.findUnique(
-      {
-        where: { bankCode: 'BIDV' },
-      },
-    );
-    return control?.projectionEnabled === true;
+    return (await this.operatingPolicy.evaluate()).effectiveMode === 'LIVE';
   }
 
   private async claimOne() {
@@ -90,7 +84,16 @@ export class BidvH2hProjectionWorker {
   private async process(transaction: any) {
     const startedAt = Date.now();
     try {
+      // Re-check after claiming. A mode downgrade stops new side effects; a
+      // transaction already inside the final database transaction remains
+      // protected by the canonical unique key and idempotent upsert.
+      if (!(await this.projectionEnabled())) {
+        await this.releaseClaim(transaction);
+        return;
+      }
       const outcome = await this.prisma.$transaction(async (tx) => {
+        await this.operatingPolicy.lock(tx);
+        await this.operatingPolicy.assertLive(tx);
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`bidv-identity:${transaction.identityHash}`}))`;
         const current = await (tx as any).bankTransaction.findUnique({
           where: { id: transaction.id },
@@ -151,7 +154,11 @@ export class BidvH2hProjectionWorker {
 
       const projected = outcome.projected;
 
-      await this.paymentNotifications.createForTransaction(projected as any);
+      await this.prisma.$transaction(async (tx) => {
+        await this.operatingPolicy.lock(tx);
+        await this.operatingPolicy.assertLive(tx);
+        await this.paymentNotifications.createForTransaction(projected as any);
+      });
       await this.finish(transaction, 'PROJECTED', null, projected.id);
       this.logger.log(
         `BIDV projection succeeded transactionRef=${transaction.id} projectedRef=${projected.id} store=${outcome.storeCode} durationMs=${Date.now() - startedAt}`,
@@ -162,6 +169,21 @@ export class BidvH2hProjectionWorker {
         `BIDV projection failed transactionRef=${transaction.id} attempt=${transaction.projectionAttempts} durationMs=${Date.now() - startedAt} error=${safeLogError(error)}`,
       );
     }
+  }
+
+  private releaseClaim(transaction: any) {
+    return (this.prisma as any).bankTransaction.updateMany({
+      where: {
+        id: transaction.id,
+        projectionClaimToken: transaction.projectionClaimToken,
+      },
+      data: {
+        projectionStatus: 'PENDING',
+        projectionClaimToken: null,
+        projectionClaimedAt: null,
+        projectionLeaseExpiresAt: null,
+      },
+    });
   }
 
   private async eligibility(
