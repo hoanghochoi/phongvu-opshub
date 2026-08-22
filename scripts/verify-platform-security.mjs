@@ -808,6 +808,18 @@ contains(productionRuntimeIdentity, 'manifestSha256', 'production shared manifes
 contains(productionRuntimeIdentity, 'hash_tree()', 'production full web-tree identity proof');
 contains(productionWorkflow, 'verify_previous_baseline()', 'production pre-mutation baseline reconcile');
 contains(productionWorkflow, 'reconcile-production-baseline.sh', 'production baseline reconciler invocation');
+contains(productionWorkflow, 'recovery_armed=false', 'production preflight recovery disarm');
+contains(productionWorkflow, 'recovery_armed=true', 'production mutation recovery arm');
+contains(
+  productionWorkflow,
+  'Shared state was not mutated.',
+  'production pre-snapshot recovery boundary',
+);
+contains(
+  productionBaselineReconciler,
+  'retained runtime identity was refreshed',
+  'coherent production baseline retained-identity refresh',
+);
 contains(productionWorkflow, 'verify-static-response', 'static Help behavior sentinel');
 contains(productionWorkflow, '--force-recreate --wait --wait-timeout 120 api', 'static API Help mount refresh');
 contains(productionWorkflow, 'help-state-before.json', 'complete Help ownership checkpoint');

@@ -570,11 +570,36 @@ test('workflow and policy preserve existing deploy consumers and never force pus
   const candidateEnvMutationIndex = productionWorkflow.indexOf(
     'upsert_env OPSHUB_DOMAIN "phongvu.work"',
   );
+  const baselineReconcileInvocationIndex = productionWorkflow.indexOf(
+    'bash "$REMOTE_RELEASE_DIR/deploy/home-server/reconcile-production-baseline.sh"',
+  );
+  const recoveryArmIndex = productionWorkflow.indexOf('recovery_armed=true');
   assert.ok(
     baselineReconcileIndex >= 0 &&
       baselineReconcileIndex < candidateEnvMutationIndex,
     'production must reconcile the previous release baseline before candidate env mutation',
   );
+  assert.ok(
+    baselineReconcileInvocationIndex >= 0 &&
+      recoveryArmIndex > baselineReconcileInvocationIndex &&
+      recoveryArmIndex < candidateEnvMutationIndex,
+    'production recovery must remain disarmed through baseline preflight and arm before live env mutation',
+  );
+  assert.match(productionWorkflow, /recovery_armed=false/);
+  assert.match(
+    productionWorkflow,
+    /\[ "\$recovery_disabled" = true \] \|\| \[ "\$recovery_armed" != true \]/,
+  );
+  assert.match(
+    productionWorkflow,
+    /"\$previous_current" "\$rollback_env" "\$OPSHUB_ENV_FILE" "\$CURRENT_DIR" && \\\n\s*\[ "\$shared_restored" = true \] &&/,
+    'runtime identity refresh must require restored or provably unmodified shared publication',
+  );
+  assert.match(
+    productionWorkflow,
+    /test -e "\$OPSHUB_TXN_SHARED_SNAPSHOT\/SNAPSHOT_READY"/,
+  );
+  assert.match(productionWorkflow, /Shared state was not mutated\./);
   assert.match(productionWorkflow, /Production \/v1\/ws\/v2 without a one-time ticket returned/);
   for (const signalTrap of [
     "trap 'rollback_on_error 130' INT",

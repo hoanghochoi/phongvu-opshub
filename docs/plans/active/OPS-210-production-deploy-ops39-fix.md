@@ -330,3 +330,36 @@ work while an unknown host returns `404` before another staging deploy.
 The required PR `Release guard` invokes that pinned-image runtime smoke
 directly; merely registering it in the local affected-consumer profile is not
 sufficient CI evidence.
+
+## Production retained-identity retry follow-up
+
+Production workflow-dispatch run `32556993336` reached the guarded baseline
+preflight at exact SHA `c06f023f0515c03087c98f35bbeb5212f7f9ea04`. Release
+pointer, live env, home-server containers, Caddy, shared web/Help/manifest,
+direct-origin REST/realtime/BIDV and package coherence passed, but the retained
+runtime identity differed in `envSha256`, `apiImageId`, and `realtimeImageId`.
+Source commit, Caddy, web tree, manifest, and Help hashes still matched.
+
+The stale proof was created by an earlier retry boundary: a baseline preflight
+failure occurred before any shared snapshot or candidate mutation, but the
+outer error trap still ran runtime rollback. That rollback normalized the env
+and recreated the exact release images; because shared restoration had no
+snapshot, identity refresh was skipped. Every later run therefore rejected the
+otherwise coherent baseline and repeated the same recovery loop.
+
+The durable fix keeps recovery disarmed throughout baseline preflight and arms
+it immediately before the first live env mutation. A coherent baseline with a
+stale retained identity is not trusted or re-recorded in place: reconciliation
+first proves that source, Caddy, full web, manifest, and Help hashes still match
+the retained record, then force-recreates the exact previous release with the
+prepared rollback env. Only env and API/realtime image identity may change,
+and the candidate identity is committed atomically only after a second behavior
+check, protected-hash comparison, transaction-boundary check, and retained-file
+compare-and-swap guard. Web/Help drift, an untrusted transaction candidate,
+shared publication activity, env snapshot drift, or failed exact recreate all
+leave the retained identity untouched and fail closed. An armed runtime
+rollback refreshes identity only after the shared snapshot was restored, or
+when the missing `SNAPSHOT_READY` marker proves live shared mutation never
+began. Executable cutover proof covers the authorized stale env/image case and
+the protected negative cases, while workflow/security guards bind the
+preflight-disarmed and mutation-armed ordering.
