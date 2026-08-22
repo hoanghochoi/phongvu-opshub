@@ -560,14 +560,73 @@ unset MOCK_EXPECT_OPSHUB_ENV_FILE
 # exact env-bound images but could not refresh the retained proof.
 identity_reconcile_ssd="$temp/identity-reconcile-ssd"
 identity_reconcile_rollback="$identity_reconcile_ssd/rollback"
-mkdir -p "$identity_reconcile_rollback"
-printf '%s\n%s\n' "$identity_release" "$identity_release" > \
+identity_reconcile_candidate="$temp/releases/identity-reconcile-candidate"
+mkdir -p "$identity_reconcile_rollback" "$identity_reconcile_candidate"
+printf '%s\n%s\n' "$identity_release" "$identity_reconcile_candidate" > \
   "$identity_reconcile_rollback/deploy-898-1.state"
 export DEPLOY_RUN_ID=898 DEPLOY_RUN_ATTEMPT=1 OPSHUB_SSD_ROOT="$identity_reconcile_ssd" \
   OPSHUB_ENV_FILE="$temp/identity-reconcile.env" DOWNLOADS_DIR="$origin_fixture/downloads" \
   WEB_DIR="$origin_fixture/web"
 cp "$origin_fixture/baseline.env" "$OPSHUB_ENV_FILE"
 cp "$OPSHUB_ENV_FILE" "$OPSHUB_ENV_FILE.rollback.898-1"
+python3 - "$identity_record" <<'PY'
+import json, pathlib, sys
+
+path = pathlib.Path(sys.argv[1])
+identity = json.loads(path.read_text(encoding='utf-8'))
+identity['envSha256'] = '0' * 64
+path.write_text(json.dumps(identity, sort_keys=True) + '\n', encoding='utf-8')
+PY
+identity_record_guard="$origin_fixture/runtime-identity.before-reconcile.json"
+cp "$identity_record" "$identity_record_guard"
+expect_identity_reconcile_failure() {
+  local label="$1" image_suffix="${2:-}" fail_release="${3:-}"
+  if MOCK_IMAGE_SUFFIX="$image_suffix" MOCK_FAIL_RELEASE="$fail_release" OPSHUB_SUDO='' \
+    bash "$root/deploy/home-server/reconcile-production-baseline.sh" \
+      "$identity_release" "$origin_fixture/baseline.env" "$OPSHUB_ENV_FILE" \
+      "$origin_fixture/current" "$origin_fixture/downloads" "$origin_fixture/web" \
+      "$identity_record" >/dev/null 2>&1; then
+    echo "$label unexpectedly passed retained identity reconciliation" >&2
+    exit 1
+  fi
+  cmp "$identity_record_guard" "$identity_record" || {
+    echo "$label changed the retained identity record on failure" >&2
+    exit 1
+  }
+}
+
+printf 'tampered compiled app\n' >> "$origin_fixture/web/main.dart.js"
+expect_identity_reconcile_failure 'tampered main.dart.js'
+printf 'compiled app\n' > "$origin_fixture/web/main.dart.js"
+
+printf 'tampered nested asset\n' >> "$origin_fixture/web/assets/nested/data.bin"
+expect_identity_reconcile_failure 'tampered nested web asset'
+printf 'nested asset\n' > "$origin_fixture/web/assets/nested/data.bin"
+
+printf 'tampered Help content\n' >> "$origin_fixture/downloads/help/content/help.md"
+expect_identity_reconcile_failure 'tampered Help tree'
+printf 'baseline Help content\n' > "$origin_fixture/downloads/help/content/help.md"
+
+unauthorized_candidate="$temp/unauthorized-identity-candidate"
+mkdir "$unauthorized_candidate"
+printf '%s\n%s\n' "$identity_release" "$unauthorized_candidate" > \
+  "$identity_reconcile_rollback/deploy-898-1.state"
+expect_identity_reconcile_failure 'unauthorized image drift' '-unauthorized'
+printf '%s\n%s\n' "$identity_release" "$identity_reconcile_candidate" > \
+  "$identity_reconcile_rollback/deploy-898-1.state"
+
+mkdir "$identity_reconcile_rollback/deploy-898-1.shared"
+expect_identity_reconcile_failure 'image drift with transaction-owned shared state' '-unauthorized'
+rmdir "$identity_reconcile_rollback/deploy-898-1.shared"
+
+printf '# unauthorized snapshot drift\n' >> "$OPSHUB_ENV_FILE.rollback.898-1"
+expect_identity_reconcile_failure 'image drift with mismatched env snapshot' '-unauthorized'
+cp "$OPSHUB_ENV_FILE" "$OPSHUB_ENV_FILE.rollback.898-1"
+
+expect_identity_reconcile_failure \
+  'image drift with failed exact previous-release recreate' '-unauthorized' "$identity_release"
+
+: > "$MOCK_DOCKER_LOG"
 identity_reconcile_output="$(
   MOCK_IMAGE_SUFFIX=-reconciled OPSHUB_SUDO='' \
     bash "$root/deploy/home-server/reconcile-production-baseline.sh" \
@@ -576,6 +635,10 @@ identity_reconcile_output="$(
       "$identity_record"
 )"
 grep -Fq 'retained runtime identity was refreshed' <<<"$identity_reconcile_output"
+grep -Fq 'envSha256' <<<"$identity_reconcile_output"
+grep -Fq -- \
+  "--env-file $origin_fixture/baseline.env -f $identity_release/deploy/home-server/docker-compose.home.yml up -d --build --force-recreate --wait --wait-timeout 240 redis api realtime caddy" \
+  "$MOCK_DOCKER_LOG"
 MOCK_IMAGE_SUFFIX=-reconciled bash "$root/deploy/home-server/production-runtime-identity.sh" \
   verify "$identity_record" "$identity_release" "$origin_fixture/baseline.env" \
   "$origin_fixture/downloads" "$origin_fixture/web" "$origin_fixture/current"
