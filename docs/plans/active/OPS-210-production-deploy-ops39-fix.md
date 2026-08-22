@@ -391,18 +391,44 @@ staging runtime as proof of mutable production state:
    therefore proves the candidate's production rollback, retained-identity,
    direct-origin and Tunnel transaction contracts.
 3. `Promote OpsHub Production` re-checks that exact live `origin/staging` SHA
-   with read-only repository credentials, then performs a separate read-only
-   production readiness audit. The audit checks sudo access, protected owner/
-   mode, retained-record schema, current baseline, Tunnel config/
-   service and direct-origin health before the write-capable release token is
-   minted. Candidate code never receives production secrets or the release
-   write credential.
+   with read-only repository credentials before the secret-bearing promotion
+   job starts. Candidate code never receives production secrets or the release
+   write credential, and both jobs fail closed unless the workflow ref is
+   exactly `main`.
 
 This deliberately does not activate or rehearse the real production Tunnel on
-staging. Tunnel mutation remains covered by the sandbox transaction fixture;
-the live promotion audit is read-only. Operationally, “ready for production”
-now means exact-SHA staging deploy green **and** exact-SHA production parity
-green **and** live production readiness green. Staging alone cannot guarantee
-external production capacity or provider availability, but a known split
-pointer, corrupt retained identity authority, owner/mode drift, unhealthy origin or invalid
-Tunnel is blocked before `main` changes.
+staging. Tunnel mutation remains covered by the sandbox transaction fixture.
+
+An initial live-readiness design was rejected by security review because the
+existing `OPSHUB_VPS_SSH_KEY` grants a general shell with passwordless sudo;
+read-only commands do not make that credential read-only. A safe live gate must
+first have all of the following externally configured and verified:
+
+- a dedicated `production-promotion` GitHub environment that allows only
+  `main`, requires a reviewer and disables admin/self-review bypass;
+- a dedicated SSH principal whose server-side `authorized_keys` entry forces
+  one root-owned readiness command with `restrict`, without a general shell,
+  Docker-group access or unrestricted sudo;
+- a pinned SSH host key from independent operator evidence, never
+  `ssh-keyscan` during the release; and
+- a negative proof that a requested shell/mutation command is replaced by the
+  forced readiness command while the real read-only audit still passes.
+
+Until that control plane is approved and installed, exact-SHA parity proves the
+candidate's production transaction code but cannot make mutable production
+state identical to staging. The production deploy transaction remains the
+final state gate. The current hotfix must not smuggle a root-capable deploy key
+into promotion under a “read-only” label.
+
+Promotion and production deployment share the repository-wide
+`opshub-production-deploy` concurrency group with cancellation disabled. A
+promotion therefore cannot evaluate/push while another production transaction
+is active, and the downstream deploy queues until the promotion job releases
+the same lock.
+
+The first promotion that carries this workflow still dispatches the older
+workflow definition from the current `main`. Its protection comes from the new
+blocking `Production parity` job in the exact-SHA staging deploy plus the
+existing promotion guard's CI/SHA recheck. After that first promotion, the
+promotion-side exact-SHA parity job and shared lock are active for subsequent
+releases. Do not claim the first promotion used the new default-ref workflow.

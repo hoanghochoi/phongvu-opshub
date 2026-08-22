@@ -337,7 +337,7 @@ test('workflow and policy preserve existing deploy consumers and never force pus
 
   assert.match(promotionWorkflow, /workflow_dispatch:/);
   assert.match(promotionWorkflow, /run-name: Promote origin\/staging to main from workflow ref/);
-  assert.match(promotionWorkflow, /group: production-promotion/);
+  assert.match(promotionWorkflow, /group: opshub-production-deploy/);
   assert.match(promotionWorkflow, /environment: production/);
   assert.match(promotionWorkflow, /actions\/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349/);
   assert.match(promotionWorkflow, /--verify-github-ci/);
@@ -349,6 +349,7 @@ test('workflow and policy preserve existing deploy consumers and never force pus
   )?.[0];
   assert.ok(promotionParityJob, 'promotion must define a production parity job');
   assert.match(promotionParityJob, /name: Production parity/);
+  assert.match(promotionParityJob, /test "\$GITHUB_REF" = 'refs\/heads\/main'/);
   assert.match(promotionParityJob, /ref: \$\{\{ inputs\.staging_sha \}\}/);
   assert.match(
     promotionParityJob,
@@ -370,32 +371,15 @@ test('workflow and policy preserve existing deploy consumers and never force pus
     /\n  promote:[\s\S]*?\n    needs: production_parity\n/,
     'promotion must wait for exact-SHA production parity before minting the release token',
   );
-  const productionReadinessStep = promotionWorkflow.match(
-    /- name: Verify current production readiness without mutation[\s\S]*?(?=\n\s+- name: Mint least-privilege release token)/,
-  )?.[0];
-  assert.ok(productionReadinessStep, 'promotion must verify live production readiness');
-  assert.match(productionReadinessStep, /sudo -n true/);
-  assert.match(productionReadinessStep, /root:700/);
-  assert.match(productionReadinessStep, /root:600/);
-  assert.match(productionReadinessStep, /verify-production-baseline\.sh/);
-  assert.match(productionReadinessStep, /retained identity schema is invalid/);
-  assert.match(productionReadinessStep, /retained identity is not bound to the current release/);
-  assert.doesNotMatch(
-    productionReadinessStep,
-    /production-runtime-identity\.sh[\s\S]*?\bverify\b/,
-    'readiness must permit the bounded stale env/image identity self-heal during deploy',
+  assert.match(
+    promotionWorkflow,
+    /if \[ "\$GITHUB_REF" != 'refs\/heads\/main' \]; then[\s\S]*?Production environment is accepted only from main/,
+    'secret-bearing promotion must fail closed outside main',
   );
-  assert.match(productionReadinessStep, /tunnel ingress validate/);
-  assert.match(productionReadinessStep, /systemctl is-active --quiet cloudflared/);
   assert.doesNotMatch(
-    productionReadinessStep,
-    /reconcile-production-baseline|rollback-runtime|docker compose[^\n]*(?:up|down|restart)|systemctl restart|\bsed -i\b|\bmv\b|\binstall\b/,
-    'pre-promotion production readiness must remain read-only',
-  );
-  assert.ok(
-    promotionWorkflow.indexOf('Verify current production readiness without mutation') <
-      promotionWorkflow.indexOf('Mint least-privilege release token'),
-    'production readiness must pass before the write-capable release token is minted',
+    promotionWorkflow,
+    /OPSHUB_VPS_SSH_KEY|sudo -n true|ssh-keyscan/,
+    'promotion must not label a general-shell production deploy principal as read-only readiness',
   );
 
   assert.match(prWorkflow, /name: Release Guard PR/);
@@ -419,6 +403,7 @@ test('workflow and policy preserve existing deploy consumers and never force pus
   assert.doesNotMatch(prWorkflow, /secrets\.|GH_TOKEN|GITHUB_TOKEN/);
 
   assert.match(productionWorkflow, /push:\s*\n\s*branches:\s*\n\s*- main/);
+  assert.match(productionWorkflow, /group: opshub-production-deploy/);
   assert.match(stagingWorkflow, /push:\s*\n\s*branches:\s*\n\s*- staging/);
   const stagingParityJob = stagingWorkflow.match(
     /\n  production_parity:[\s\S]*?(?=\n  prepare:)/,
