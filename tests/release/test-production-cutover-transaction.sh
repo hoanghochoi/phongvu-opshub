@@ -555,6 +555,32 @@ fi
 cp "$origin_fixture/latest.json" "$origin_fixture/downloads/latest.json"
 unset MOCK_EXPECT_OPSHUB_ENV_FILE
 
+# A coherent baseline with only a stale retained identity is self-healing. This
+# is the production retry case after a previous guarded recovery recreated the
+# exact env-bound images but could not refresh the retained proof.
+identity_reconcile_ssd="$temp/identity-reconcile-ssd"
+identity_reconcile_rollback="$identity_reconcile_ssd/rollback"
+mkdir -p "$identity_reconcile_rollback"
+printf '%s\n%s\n' "$identity_release" "$identity_release" > \
+  "$identity_reconcile_rollback/deploy-898-1.state"
+export DEPLOY_RUN_ID=898 DEPLOY_RUN_ATTEMPT=1 OPSHUB_SSD_ROOT="$identity_reconcile_ssd" \
+  OPSHUB_ENV_FILE="$temp/identity-reconcile.env" DOWNLOADS_DIR="$origin_fixture/downloads" \
+  WEB_DIR="$origin_fixture/web"
+cp "$origin_fixture/baseline.env" "$OPSHUB_ENV_FILE"
+cp "$OPSHUB_ENV_FILE" "$OPSHUB_ENV_FILE.rollback.898-1"
+identity_reconcile_output="$(
+  MOCK_IMAGE_SUFFIX=-reconciled OPSHUB_SUDO='' \
+    bash "$root/deploy/home-server/reconcile-production-baseline.sh" \
+      "$identity_release" "$origin_fixture/baseline.env" "$OPSHUB_ENV_FILE" \
+      "$origin_fixture/current" "$origin_fixture/downloads" "$origin_fixture/web" \
+      "$identity_record"
+)"
+grep -Fq 'retained runtime identity was refreshed' <<<"$identity_reconcile_output"
+MOCK_IMAGE_SUFFIX=-reconciled bash "$root/deploy/home-server/production-runtime-identity.sh" \
+  verify "$identity_record" "$identity_release" "$origin_fixture/baseline.env" \
+  "$origin_fixture/downloads" "$origin_fixture/web" "$origin_fixture/current"
+unset DEPLOY_RUN_ID DEPLOY_RUN_ATTEMPT OPSHUB_SSD_ROOT OPSHUB_ENV_FILE DOWNLOADS_DIR WEB_DIR
+
 # A successful static-only publication updates shared Help/landing metadata,
 # keeps the immutable release manifest valid, and refreshes runtime identity
 # before its rollback checkpoint is removed.

@@ -718,6 +718,7 @@ jobs:
           runtime_identity="${OPSHUB_TXN_ROLLBACK_DIR}/current-runtime-identity.json"
           recovery_started=false
           recovery_disabled=false
+          recovery_armed=false
           bash "$REMOTE_RELEASE_DIR/deploy/home-server/prepare-rollback-env.sh" \
             "$previous_current" "$OPSHUB_TXN_ENV_SNAPSHOT" "$rollback_env" \
             "$REMOTE_RELEASE_DIR/rollback-authority/$rollback_source_commit/env.example" \
@@ -746,7 +747,9 @@ jobs:
           rollback_on_error() {
              local status="$1"
              local shared_restored=false
-             if [ "$recovery_disabled" = true ]; then exit "$status"; fi
+             if [ "$recovery_disabled" = true ] || [ "$recovery_armed" != true ]; then
+               exit "$status"
+             fi
              if [ "$recovery_started" = true ]; then
                echo 'Production recovery re-entry blocked.' >&2
                exit "$status"
@@ -755,7 +758,10 @@ jobs:
              trap - ERR INT TERM HUP
              echo "Deploy failed with status $status" >&2
              dump_deploy_diagnostics
-             if opshub_txn_restore_shared; then
+             if ! sudo test -e "$OPSHUB_TXN_SHARED_SNAPSHOT/SNAPSHOT_READY"; then
+               shared_restored=true
+               echo "Shared state was not mutated." >&2
+             elif opshub_txn_restore_shared; then
                shared_restored=true
              else
                echo "Production shared publication restore failed; rollback evidence retained." >&2
@@ -869,6 +875,7 @@ jobs:
             sudo sed -i "/^${key}=/d" "$OPSHUB_ENV_FILE"
           }
 
+          recovery_armed=true
           contact_grace_until=$(sudo grep '^SALES_REPORT_FOLLOW_UP_CONTACT_GRACE_UNTIL=' "$OPSHUB_ENV_FILE" | tail -n 1 | cut -d= -f2- || true)
           if [ -z "$contact_grace_until" ]; then
             contact_grace_until=$(date -u -d '+14 days' '+%Y-%m-%dT%H:%M:%SZ')

@@ -67,10 +67,23 @@ trap 'on_signal TERM 143' TERM
 trap 'on_signal HUP 129' HUP
 trap 'on_exit $?' EXIT
 
-if verify_behavior && identity_action verify; then
+if verify_behavior; then
+  if identity_action verify; then
+    finished=true
+    trap - EXIT INT TERM HUP
+    echo 'Existing production baseline is identity-bound and coherent.'
+    exit 0
+  fi
+
+  phase='identity-refresh'
+  echo 'Production behavior is coherent but retained runtime identity is stale; refreshing identity.' >&2
+  identity_action write
+  verify_behavior
+  identity_action verify
+  phase='complete'
   finished=true
   trap - EXIT INT TERM HUP
-  echo 'Existing production baseline is identity-bound and coherent.'
+  echo 'Existing production baseline is coherent and retained runtime identity was refreshed.'
   exit 0
 fi
 
