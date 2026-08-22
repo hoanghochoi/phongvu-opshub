@@ -347,6 +347,11 @@ test('workflow and policy preserve existing deploy consumers and never force pus
   assert.match(prWorkflow, /- main/);
   assert.match(prWorkflow, /name: Release guard/);
   assert.match(prWorkflow, /node scripts\/test-git-release-workflow\.mjs/);
+  assert.match(
+    prWorkflow,
+    /name: Run Caddy exact-host isolation contract[\s\S]*?node tests\/release\/test-caddy-host-isolation\.mjs/,
+    'PR release guard must execute the pinned-image Caddy routing contract',
+  );
   assert.match(prWorkflow, /node scripts\/test-task-lifecycle\.mjs/);
   assert.match(prWorkflow, /git diff --check/);
   assert.doesNotMatch(prWorkflow, /secrets\.|GH_TOKEN|GITHUB_TOKEN/);

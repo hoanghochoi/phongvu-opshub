@@ -327,3 +327,6 @@ deploy transaction; staging previously verified canonical/legacy routes but
 did not exercise this production acceptance contract. Static workflow/security
 guards and a live Caddy routing smoke must prove known web/legacy hosts still
 work while an unknown host returns `404` before another staging deploy.
+The required PR `Release guard` invokes that pinned-image runtime smoke
+directly; merely registering it in the local affected-consumer profile is not
+sufficient CI evidence.
