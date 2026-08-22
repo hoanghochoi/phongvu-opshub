@@ -2,8 +2,8 @@
   "formatVersion": 1,
   "issue": "OPS-73",
   "phase": "retained-owner-review",
-  "sourceRevision": "282798adee8481b0e59a40c2063b332dc0be835e",
-  "reviewedAtUtc": "2026-08-22T13:07:07.1628897Z",
+  "sourceRevision": "d310920d625a19b30d960cd8131f3e52628b4eb4",
+  "reviewedAtUtc": "2026-08-22T16:50:17.8213344Z",
   "sourceInventory": "docs/migrations/ops-73-artifact-inventory.json",
   "sourceInventorySha256": "241e54629ffe9d2d12f33b5100a3854f0ed3f8c6daeacdc92195d064440cd713",
   "candidates": [
@@ -187,14 +187,14 @@
         {
           "path": ".github/workflows/release-guard-pr.yml",
           "kind": "file",
-          "sha256": "f87825f7dba1c55559ebe3e3103227f531778518ac69088e198751df8f7d8d2a",
-          "bytes": 1268
+          "sha256": "d14de4a0cb93a7a1f70825a2f6cc7f65b315bcd632feec71623dd8fedfc2fdf5",
+          "bytes": 1336
         },
         {
           "path": ".github/workflows/deploy-opshub-staging.yml",
           "kind": "file",
-          "sha256": "d109ff0fc0aeb858bd74d20dd745958862a460d6c9ac4197db1cc940b96d5854",
-          "bytes": 98366
+          "sha256": "f0e2cc1885cd19f8861b1b45856800c9a842018d61f99d0cab5a3748600061f7",
+          "bytes": 99048
         },
         {
           "path": ".github/workflows/deploy-opshub.yml",
