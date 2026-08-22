@@ -363,3 +363,46 @@ when the missing `SNAPSHOT_READY` marker proves live shared mutation never
 began. Executable cutover proof covers the authorized stale env/image case and
 the protected negative cases, while workflow/security guards bind the
 preflight-disarmed and mutation-armed ordering.
+
+## Staging-to-production parity follow-up
+
+Production run `32577145339` at exact SHA
+`59988199addb64d8a0b399303b578235cf3c2e3b` failed before candidate mutation
+while validating the bounded retained-identity refresh. The retained record is
+correctly protected as root-owned mode `0600`, but
+`validate_safe_identity_refresh` invoked Python outside the existing
+`OPSHUB_SUDO` boundary, so the comparison failed with `Permission denied`.
+Staging passed because its deploy transaction does not execute the production
+retained-identity and baseline-reconciliation path.
+
+The immediate repair runs the preserved-field comparison through
+`privileged`. Its executable regression models an identity record that Python
+may read only after the `OPSHUB_SUDO` wrapper marks the process privileged; the
+old direct call fails that fixture and the repaired full production cutover
+transaction passes.
+
+Parity is now defined as three blocking layers instead of treating a green
+staging runtime as proof of mutable production state:
+
+1. `Release Guard PR` executes the production cutover transaction fixture for
+   every release-affecting PR.
+2. `Deploy OpsHub Staging` runs the same fixture against the exact staging SHA
+   before Android/Windows builds or remote mutation. A green staging deploy
+   therefore proves the candidate's production rollback, retained-identity,
+   direct-origin and Tunnel transaction contracts.
+3. `Promote OpsHub Production` re-checks that exact live `origin/staging` SHA
+   with read-only repository credentials, then performs a separate read-only
+   production readiness audit. The audit checks sudo access, protected owner/
+   mode, retained-record schema, current baseline, Tunnel config/
+   service and direct-origin health before the write-capable release token is
+   minted. Candidate code never receives production secrets or the release
+   write credential.
+
+This deliberately does not activate or rehearse the real production Tunnel on
+staging. Tunnel mutation remains covered by the sandbox transaction fixture;
+the live promotion audit is read-only. Operationally, “ready for production”
+now means exact-SHA staging deploy green **and** exact-SHA production parity
+green **and** live production readiness green. Staging alone cannot guarantee
+external production capacity or provider availability, but a known split
+pointer, corrupt retained identity authority, owner/mode drift, unhealthy origin or invalid
+Tunnel is blocked before `main` changes.

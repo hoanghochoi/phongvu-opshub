@@ -151,6 +151,8 @@ feature nào được bỏ PR. Trình tự:
 - Đại Ca đã QA và ra lệnh `Promote origin/staging vào main ngay bây giờ`;
 - release window khóa, không có merge mới;
 - staging SHA được ghi chính xác; CI/check runs của SHA đó đều đạt;
+- job `Production parity` của đúng staging SHA đã chạy production cutover
+  fixture trước build/deploy staging;
 - `origin/main` là ancestor của `origin/staging`.
 
 Dry-run cục bộ (không push):
@@ -180,10 +182,21 @@ gh workflow run promote-production.yml --ref main `
 2. Nhập `QA-APPROVED`.
 3. Nhập `PROMOTE ORIGIN/STAGING TO MAIN`.
 4. Approve job trong environment `production`.
-5. Workflow dùng GitHub App token, kiểm tra GitHub checks/statuses, chạy guard
-   với `--execute`, push non-force và fetch lại để chứng minh hai SHA bằng nhau.
-6. Push bằng GitHub App token kích hoạt `Deploy OpsHub` trên `main`; không thay
+5. Job parity dùng credential read-only để checkout đúng `staging_sha`, xác
+   minh SHA đó vẫn là live `origin/staging`, rồi chạy production cutover fixture.
+6. Sau environment approval, workflow kiểm tra read-only production readiness:
+   sudo/owner-mode, retained-record schema, baseline, Tunnel và direct origin.
+   Candidate code không nhận production secrets hay release write token.
+7. Chỉ sau hai gate trên workflow mới mint GitHub App token, kiểm tra GitHub
+   checks/statuses, chạy guard với `--execute`, push non-force và fetch lại để
+   chứng minh hai SHA bằng nhau.
+8. Push bằng GitHub App token kích hoạt `Deploy OpsHub` trên `main`; không thay
    bằng `GITHUB_TOKEN`, vì push từ token mặc định không tạo downstream workflow.
+
+Một staging deploy xanh là điều kiện cần, không phải bằng chứng cho state riêng
+của production. Chỉ gọi release “xanh” khi cả exact-SHA staging parity và live
+production readiness cùng pass; nếu readiness fail thì giữ nguyên `main`, sửa
+production baseline bằng một maintenance flow được duyệt rồi chạy lại gate.
 
 CI verification không xem check do chính job `Fast-forward origin/staging to
 main` phát ra là source CI. Bộ lọc chỉ nhận đúng job name, GitHub Actions app và

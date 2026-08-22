@@ -34,6 +34,7 @@ jobs:
         run: |
           bash tests/release/test-release-transaction.sh
           bash tests/release/test-staging-release-fingerprint.sh
+          bash tests/release/test-production-cutover-transaction.sh
 
       - name: Run task lifecycle tests
         run: node scripts/test-task-lifecycle.mjs
