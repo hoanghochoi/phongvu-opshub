@@ -12,6 +12,11 @@ cat > "$mock_bin/docker" <<'MOCK'
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$*" >> "$MOCK_DOCKER_LOG"
+if [ "${1:-}" = compose ] && [ -n "${MOCK_EXPECT_OPSHUB_ENV_FILE:-}" ] && \
+   [ "${OPSHUB_ENV_FILE:-}" != "$MOCK_EXPECT_OPSHUB_ENV_FILE" ]; then
+  echo "Compose did not receive the exact runtime env path: ${OPSHUB_ENV_FILE:-<missing>}" >&2
+  exit 25
+fi
 if [ "${MOCK_BASELINE_MODE:-false}" = true ]; then
   if [[ " $* " == *" ps --status running --services "* ]]; then printf '%s\n' redis api realtime caddy; exit 0; fi
   if [[ " $* " == *" ps -q "* ]]; then printf 'fixture-%s\n' "${*: -1}"; exit 0; fi
@@ -490,6 +495,8 @@ if bash "$root/deploy/home-server/verify-production-baseline.sh" \
 fi
 rm -f "$origin_fixture/current"; ln -s "$baseline_release" "$origin_fixture/current"
 cp "$origin_fixture/baseline.env" "$origin_fixture/live-drift.env"
+unset OPSHUB_ENV_FILE
+export MOCK_EXPECT_OPSHUB_ENV_FILE="$origin_fixture/baseline.env"
 bash "$root/deploy/home-server/verify-production-baseline.sh" \
   "$baseline_release" "$origin_fixture/baseline.env" "$origin_fixture/live-drift.env" \
   "$origin_fixture/current" "$origin_fixture/downloads" "$origin_fixture/web"
@@ -546,6 +553,7 @@ if bash "$root/deploy/home-server/production-runtime-identity.sh" verify "$ident
   echo 'stale manifest unexpectedly passed runtime identity proof' >&2; exit 1
 fi
 cp "$origin_fixture/latest.json" "$origin_fixture/downloads/latest.json"
+unset MOCK_EXPECT_OPSHUB_ENV_FILE
 
 # A successful static-only publication updates shared Help/landing metadata,
 # keeps the immutable release manifest valid, and refreshes runtime identity
@@ -675,6 +683,7 @@ printf 'OPSHUB_DOMAIN=opshub.hoanghochoi.com\nRELEASE=target\n' > "$temp/target.
 ln -s "$candidate_release" "$temp/current"
 
 export MOCK_INVALID_ENV="$temp/live.env"
+export MOCK_EXPECT_OPSHUB_ENV_FILE="$temp/target.env"
 bash "$root/deploy/home-server/rollback-runtime.sh" \
   "$target_release" "$temp/target.env" "$temp/live.env" "$temp/current"
 test "$(readlink -f "$temp/current")" = "$target_release"
@@ -682,7 +691,7 @@ grep -Fxq 'RELEASE=target' "$temp/live.env"
 test "$(grep -Fc -- '--project-name home-server' "$MOCK_DOCKER_LOG")" -ge 3
 ! grep -Fq -- '--project-name opshub' "$MOCK_DOCKER_LOG"
 
-unset MOCK_INVALID_ENV
+unset MOCK_INVALID_ENV MOCK_EXPECT_OPSHUB_ENV_FILE
 rm -f "$temp/current"; ln -s "$candidate_release" "$temp/current"
 printf 'OPSHUB_DOMAIN=phongvu.work\nRELEASE=candidate\n' > "$temp/live.env"
 export MOCK_FAIL_RELEASE="$target_release"

@@ -12,7 +12,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [ "$(readlink -f "$current_link" || true)" = "$release" ] || { echo 'Runtime identity: current pointer differs from release' >&2; exit 1; }
 source_commit="$(bash "$script_dir/verify-release-manifest.sh" "$release")"
 compose=(docker compose --project-name home-server --env-file "$env_file" -f "$compose_file")
-compose_cmd() { "${compose[@]}" "$@" < /dev/null; }
+compose_cmd() { OPSHUB_ENV_FILE="$env_file" "${compose[@]}" "$@" < /dev/null; }
 
 container_image() {
   local service="$1" container

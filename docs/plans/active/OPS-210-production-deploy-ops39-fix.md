@@ -285,3 +285,26 @@ containerized validation never receives host `/tmp` paths. Executable mock
 proof covers the Compose argv and closed-stdin boundary, and structural guards
 reject bare host `node -e`, removed `public_curl` calls, and host-file reads in
 the remote verification blocks.
+
+## Production Compose env-path boundary follow-up
+
+Production promotion run `32542781325` fast-forwarded both remote branches to
+exact staging SHA `0704354537c6de649de44cae831773afb1f905d1`. Downstream deploy
+run `32542937396` built and uploaded all client artifacts, then failed before
+Cloudflare activation while reconciling the previous production baseline.
+The baseline runtime itself became coherent, but
+`production-runtime-identity.sh` invoked Compose after a `sudo env` privilege
+boundary that intentionally discarded the caller environment. The Compose
+file requires `OPSHUB_ENV_FILE` for its `env_file` mounts, while the helper
+accepted that exact path only as a positional argument and did not republish it
+for Compose interpolation. This production-only reconciliation branch is not
+executed by the staging deploy, which is why the exact staging SHA passed.
+
+The hotfix makes every production helper that accepts an env path
+self-contained: baseline verification, runtime identity, and runtime rollback
+bind `OPSHUB_ENV_FILE` to their positional env argument for each Compose call.
+The executable cutover fixture now unsets the ambient variable and rejects any
+Compose invocation that does not receive the exact expected path. Validation
+must include the cutover transaction fixture, release workflow tests, platform
+security checks, YAML/shell parsing, whitespace proof, and the full task gate
+before another staging deploy or production promotion.

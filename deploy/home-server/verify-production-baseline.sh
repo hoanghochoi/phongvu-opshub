@@ -22,7 +22,7 @@ env_value() { privileged sed -n "s/^${2}=//p" "$1" | tail -n 1; }
 [ "$(readlink -f "$current_link" || true)" = "$release" ] || fail 'release pointer is split from expected baseline'
 privileged cmp -s "$expected_env" "$live_env" || fail 'live env is split from expected baseline'
 compose=(docker compose --project-name "$compose_project" --env-file "$expected_env" -f "$compose_file")
-compose_cmd() { "${compose[@]}" "$@" < /dev/null; }
+compose_cmd() { OPSHUB_ENV_FILE="$expected_env" "${compose[@]}" "$@" < /dev/null; }
 compose_cmd config >/dev/null || fail 'expected baseline Compose config is invalid'
 
 running_services="$(compose_cmd ps --status running --services)"
