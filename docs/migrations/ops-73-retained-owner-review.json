@@ -2,8 +2,8 @@
   "formatVersion": 1,
   "issue": "OPS-73",
   "phase": "retained-owner-review",
-  "sourceRevision": "d310920d625a19b30d960cd8131f3e52628b4eb4",
-  "reviewedAtUtc": "2026-08-22T16:50:17.8213344Z",
+  "sourceRevision": "f7278bfd169ca6886464086242628c50f19555a7",
+  "reviewedAtUtc": "2026-08-22T17:11:52.8508012Z",
   "sourceInventory": "docs/migrations/ops-73-artifact-inventory.json",
   "sourceInventorySha256": "241e54629ffe9d2d12f33b5100a3854f0ed3f8c6daeacdc92195d064440cd713",
   "candidates": [
@@ -185,6 +185,12 @@
           "bytes": 9454
         },
         {
+          "path": ".github/workflows/promote-production.yml",
+          "kind": "file",
+          "sha256": "8da0e833b781481ed9ab6ff9b3e4e3404839776ae5c75fdf5a2f400dc556a9fb",
+          "bytes": 4771
+        },
+        {
           "path": ".github/workflows/release-guard-pr.yml",
           "kind": "file",
           "sha256": "d14de4a0cb93a7a1f70825a2f6cc7f65b315bcd632feec71623dd8fedfc2fdf5",
@@ -212,6 +218,7 @@
       "ownerReferences": [
         ".github/workflows/cold-dependency-canary.yml",
         ".github/workflows/verify-task-shadow.yml",
+        ".github/workflows/promote-production.yml",
         ".github/workflows/release-guard-pr.yml",
         ".github/workflows/deploy-opshub-staging.yml",
         ".github/workflows/deploy-opshub.yml",
