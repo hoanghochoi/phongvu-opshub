@@ -151,6 +151,8 @@ feature nào được bỏ PR. Trình tự:
 - Đại Ca đã QA và ra lệnh `Promote origin/staging vào main ngay bây giờ`;
 - release window khóa, không có merge mới;
 - staging SHA được ghi chính xác; CI/check runs của SHA đó đều đạt;
+- job `Production parity` của đúng staging SHA đã chạy production cutover
+  fixture trước build/deploy staging;
 - `origin/main` là ancestor của `origin/staging`.
 
 Dry-run cục bộ (không push):
@@ -180,10 +182,27 @@ gh workflow run promote-production.yml --ref main `
 2. Nhập `QA-APPROVED`.
 3. Nhập `PROMOTE ORIGIN/STAGING TO MAIN`.
 4. Approve job trong environment `production`.
-5. Workflow dùng GitHub App token, kiểm tra GitHub checks/statuses, chạy guard
-   với `--execute`, push non-force và fetch lại để chứng minh hai SHA bằng nhau.
-6. Push bằng GitHub App token kích hoạt `Deploy OpsHub` trên `main`; không thay
+5. Job parity dùng credential read-only để checkout đúng `staging_sha`, xác
+   minh SHA đó vẫn là live `origin/staging`, rồi chạy production cutover fixture.
+6. Sau parity, workflow mới mint GitHub App token, kiểm tra GitHub
+   checks/statuses, chạy guard với `--execute`, push non-force và fetch lại để
+   chứng minh hai SHA bằng nhau.
+7. Push bằng GitHub App token kích hoạt `Deploy OpsHub` trên `main`; không thay
    bằng `GITHUB_TOKEN`, vì push từ token mặc định không tạo downstream workflow.
+
+Workflow promotion và production deploy dùng chung concurrency group
+`opshub-production-deploy`, `cancel-in-progress: false`; deploy phát sinh từ
+push sẽ đợi promotion nhả lock. Ở lần đầu đưa chính gate này lên `main`, workflow
+dispatch vẫn là bản cũ trên default ref; phải dựa vào job `Production parity`
+của exact-SHA staging deploy và existing SHA/CI guard, rồi xác minh workflow mới
+đã hiện diện trên `main` trước release kế tiếp.
+
+Một staging deploy xanh là điều kiện cần, không phải bằng chứng cho mutable
+state riêng của production. Exact-SHA parity làm code path hai môi trường gần
+nhau hơn; production transaction vẫn là state gate cuối. Không thêm SSH
+“readiness” bằng deploy key hiện tại vì key đó có general shell/passwordless
+sudo. Live readiness chỉ được bật sau khi có environment chỉ cho `main`, forced
+command credential thực sự read-only và SSH host key được pin độc lập.
 
 CI verification không xem check do chính job `Fast-forward origin/staging to
 main` phát ra là source CI. Bộ lọc chỉ nhận đúng job name, GitHub Actions app và

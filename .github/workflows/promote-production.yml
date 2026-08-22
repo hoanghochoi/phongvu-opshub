@@ -23,13 +23,57 @@ permissions:
   contents: read
 
 concurrency:
-  group: production-promotion
+  # Serialize the pre-push gate with every production deploy transaction.
+  group: opshub-production-deploy
   cancel-in-progress: false
 
 jobs:
+  production_parity:
+    name: Production parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Validate staging SHA format
+        shell: bash
+        env:
+          EXPECTED_STAGING_SHA: ${{ inputs.staging_sha }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = 'refs/heads/main' || {
+            echo 'Promotion workflow must be dispatched from main.' >&2
+            exit 1
+          }
+          [[ "$EXPECTED_STAGING_SHA" =~ ^[0-9a-fA-F]{40}$ ]] || {
+            echo 'staging_sha must be an exact 40-character commit SHA.' >&2
+            exit 1
+          }
+
+      - name: Check out exact staging candidate
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.staging_sha }}
+
+      - name: Verify and rehearse exact staging candidate
+        shell: bash
+        env:
+          EXPECTED_STAGING_SHA: ${{ inputs.staging_sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin refs/heads/staging:refs/remotes/origin/staging
+          actual_staging_sha="$(git rev-parse refs/remotes/origin/staging)"
+          checked_out_sha="$(git rev-parse HEAD)"
+          if [ "$actual_staging_sha" != "$EXPECTED_STAGING_SHA" ] || \
+             [ "$checked_out_sha" != "$EXPECTED_STAGING_SHA" ]; then
+            echo 'Staging candidate changed or checkout is stale.' >&2
+            exit 1
+          fi
+          bash tests/release/test-production-cutover-transaction.sh
+
   promote:
     name: Fast-forward origin/staging to main
     runs-on: ubuntu-latest
+    needs: production_parity
     environment: production
     steps:
       - name: Validate explicit release confirmation
@@ -39,6 +83,10 @@ jobs:
           RELEASE_CONFIRMATION: ${{ inputs.release_confirmation }}
         run: |
           set -euo pipefail
+          if [ "$GITHUB_REF" != 'refs/heads/main' ]; then
+            echo 'Production environment is accepted only from main.' >&2
+            exit 1
+          fi
           if [ "$QA_CONFIRMATION" != 'QA-APPROVED' ]; then
             echo 'qa_confirmation must be exactly QA-APPROVED.' >&2
             exit 1

@@ -33,7 +33,7 @@ cleanup_identity_candidate() {
 }
 validate_safe_identity_refresh() {
   local retained="$1" candidate="$2"
-  python3 - "$retained" "$candidate" <<'PY'
+  privileged python3 - "$retained" "$candidate" <<'PY'
 import json, pathlib, sys
 
 retained_path, candidate_path = map(pathlib.Path, sys.argv[1:])

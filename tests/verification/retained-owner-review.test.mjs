@@ -13,7 +13,7 @@ test('OPS-73 retained-owner review proves every candidate has an owner and rollb
   const result = validateRetainedOwnerReview(artifact);
   assert.equal(result.status, 'passed');
   assert.equal(result.candidateCount, 4);
-  assert.equal(result.retainedPathCount, 20);
+  assert.equal(result.retainedPathCount, 21);
   assert.equal(result.deletionDecision, 'no-safe-deletion-candidate');
   assert.deepEqual(
     artifact.candidates.map((candidate) => candidate.disposition),
@@ -34,6 +34,18 @@ test('OPS-73 retained-owner review proves every candidate has an owner and rollb
       '.github/workflows/release-guard-pr.yml',
     ),
     'mandatory PR release guard must have an owner reference',
+  );
+  assert.ok(
+    releaseControlPlane.paths.some(
+      (entry) => entry.path === '.github/workflows/promote-production.yml',
+    ),
+    'production promotion workflow must have retained-owner evidence',
+  );
+  assert.ok(
+    releaseControlPlane.ownerReferences.includes(
+      '.github/workflows/promote-production.yml',
+    ),
+    'production promotion workflow must have an owner reference',
   );
 });
 
@@ -71,4 +83,19 @@ test('OPS-73 file evidence is hashed from Git-normalized bytes', () => {
       );
     }
   }
+});
+
+test('OPS-73 retained-owner review rejects stale production promotion evidence', () => {
+  const invalid = structuredClone(artifact);
+  const releaseControlPlane = invalid.candidates.find(
+    (candidate) => candidate.id === 'release-and-shadow-allowlists',
+  );
+  const promotion = releaseControlPlane.paths.find(
+    (entry) => entry.path === '.github/workflows/promote-production.yml',
+  );
+  promotion.sha256 = '0'.repeat(64);
+  assert.throws(
+    () => validateRetainedOwnerReview(invalid),
+    /file SHA-256 mismatch: \.github\/workflows\/promote-production\.yml/,
+  );
 });

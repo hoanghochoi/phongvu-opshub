@@ -4,6 +4,7 @@ set -euo pipefail
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 temp=$(mktemp -d)
 trap 'rm -rf "$temp"' EXIT
+real_python3="$(command -v python3)"
 
 mock_bin="$temp/bin"
 mkdir -p "$mock_bin"
@@ -626,9 +627,50 @@ cp "$OPSHUB_ENV_FILE" "$OPSHUB_ENV_FILE.rollback.898-1"
 expect_identity_reconcile_failure \
   'image drift with failed exact previous-release recreate' '-unauthorized' "$identity_release"
 
+# Model the production owner boundary without requiring root in the fixture.
+# The protected identity records are readable only when Python is launched
+# through OPSHUB_SUDO; this catches a direct unprivileged comparison before a
+# real deploy reaches the root-owned 0600 retained record.
+privileged_bin="$temp/privileged-bin"
+privileged_sudo="$temp/privileged-sudo"
+privileged_log="$temp/privileged.log"
+mkdir -p "$privileged_bin"
+cat > "$privileged_bin/python3" <<'MOCK'
+#!/usr/bin/env bash
+set -euo pipefail
+for argument in "$@"; do
+  case "$argument" in
+    "$MOCK_PROTECTED_IDENTITY"|"$MOCK_PROTECTED_IDENTITY".candidate.*)
+      if [ "${MOCK_PRIVILEGED_CONTEXT:-}" != 1 ]; then
+        echo 'fixture denied unprivileged retained-identity read' >&2
+        exit 77
+      fi
+      ;;
+  esac
+done
+exec "$REAL_PYTHON3" "$@"
+MOCK
+cat > "$privileged_sudo" <<'MOCK'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >> "$MOCK_PRIVILEGED_LOG"
+MOCK_PRIVILEGED_CONTEXT=1 exec "$@"
+MOCK
+chmod +x "$privileged_bin/python3" "$privileged_sudo"
+chmod 0600 "$identity_record"
+if PATH="$privileged_bin:$PATH" REAL_PYTHON3="$real_python3" \
+   MOCK_PROTECTED_IDENTITY="$identity_record" \
+   python3 -c 'import pathlib,sys; pathlib.Path(sys.argv[1]).read_text()' \
+     "$identity_record" >/dev/null 2>&1; then
+  echo 'fixture unexpectedly allowed an unprivileged retained-identity read' >&2
+  exit 1
+fi
+
 : > "$MOCK_DOCKER_LOG"
 identity_reconcile_output="$(
-  MOCK_IMAGE_SUFFIX=-reconciled OPSHUB_SUDO='' \
+  PATH="$privileged_bin:$PATH" REAL_PYTHON3="$real_python3" \
+    MOCK_PROTECTED_IDENTITY="$identity_record" MOCK_PRIVILEGED_LOG="$privileged_log" \
+    MOCK_IMAGE_SUFFIX=-reconciled OPSHUB_SUDO="$privileged_sudo" \
     bash "$root/deploy/home-server/reconcile-production-baseline.sh" \
       "$identity_release" "$origin_fixture/baseline.env" "$OPSHUB_ENV_FILE" \
       "$origin_fixture/current" "$origin_fixture/downloads" "$origin_fixture/web" \
@@ -636,6 +678,9 @@ identity_reconcile_output="$(
 )"
 grep -Fq 'retained runtime identity was refreshed' <<<"$identity_reconcile_output"
 grep -Fq 'envSha256' <<<"$identity_reconcile_output"
+grep -Fq \
+  "python3 - $identity_record ${identity_record}.candidate.898-1" \
+  "$privileged_log"
 grep -Fq -- \
   "--env-file $origin_fixture/baseline.env -f $identity_release/deploy/home-server/docker-compose.home.yml up -d --build --force-recreate --wait --wait-timeout 240 redis api realtime caddy" \
   "$MOCK_DOCKER_LOG"

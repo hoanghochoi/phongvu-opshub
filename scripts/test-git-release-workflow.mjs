@@ -324,6 +324,10 @@ test('workflow and policy preserve existing deploy consumers and never force pus
     path.join(repoRoot, 'deploy', 'home-server', 'bootstrap-bidv-kek.sh'),
     'utf8',
   );
+  const productionBaselineReconciler = fs.readFileSync(
+    path.join(repoRoot, 'deploy', 'home-server', 'reconcile-production-baseline.sh'),
+    'utf8',
+  );
   const policy = fs.readFileSync(path.join(repoRoot, 'AGENTS.md'), 'utf8');
   const playbook = fs.readFileSync(
     path.join(repoRoot, 'docs', 'runbooks', 'git-release-playbook.md'),
@@ -333,13 +337,50 @@ test('workflow and policy preserve existing deploy consumers and never force pus
 
   assert.match(promotionWorkflow, /workflow_dispatch:/);
   assert.match(promotionWorkflow, /run-name: Promote origin\/staging to main from workflow ref/);
-  assert.match(promotionWorkflow, /group: production-promotion/);
+  assert.match(promotionWorkflow, /group: opshub-production-deploy/);
   assert.match(promotionWorkflow, /environment: production/);
   assert.match(promotionWorkflow, /actions\/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349/);
   assert.match(promotionWorkflow, /--verify-github-ci/);
   assert.match(promotionWorkflow, /--execute/);
   assert.doesNotMatch(promotionWorkflow, /push\s+--force|--force-with-lease/);
   assert.doesNotMatch(guard, /push[^\n]*--force|--force-with-lease/);
+  const promotionParityJob = promotionWorkflow.match(
+    /\n  production_parity:[\s\S]*?(?=\n  promote:)/,
+  )?.[0];
+  assert.ok(promotionParityJob, 'promotion must define a production parity job');
+  assert.match(promotionParityJob, /name: Production parity/);
+  assert.match(promotionParityJob, /test "\$GITHUB_REF" = 'refs\/heads\/main'/);
+  assert.match(promotionParityJob, /ref: \$\{\{ inputs\.staging_sha \}\}/);
+  assert.match(
+    promotionParityJob,
+    /git fetch --no-tags origin refs\/heads\/staging:refs\/remotes\/origin\/staging/,
+    'promotion parity must compare the checked-out candidate with live origin/staging',
+  );
+  assert.match(
+    promotionParityJob,
+    /bash tests\/release\/test-production-cutover-transaction\.sh/,
+    'promotion must rehearse production behavior on the exact staging candidate',
+  );
+  assert.doesNotMatch(
+    promotionParityJob,
+    /create-github-app-token|OPSHUB_RELEASE_APP_PRIVATE_KEY|permission-contents: write/,
+    'candidate code must not receive the write-capable release credential',
+  );
+  assert.match(
+    promotionWorkflow,
+    /\n  promote:[\s\S]*?\n    needs: production_parity\n/,
+    'promotion must wait for exact-SHA production parity before minting the release token',
+  );
+  assert.match(
+    promotionWorkflow,
+    /if \[ "\$GITHUB_REF" != 'refs\/heads\/main' \]; then[\s\S]*?Production environment is accepted only from main/,
+    'secret-bearing promotion must fail closed outside main',
+  );
+  assert.doesNotMatch(
+    promotionWorkflow,
+    /OPSHUB_VPS_SSH_KEY|sudo -n true|ssh-keyscan/,
+    'promotion must not label a general-shell production deploy principal as read-only readiness',
+  );
 
   assert.match(prWorkflow, /name: Release Guard PR/);
   assert.match(prWorkflow, /pull_request:/);
@@ -347,6 +388,11 @@ test('workflow and policy preserve existing deploy consumers and never force pus
   assert.match(prWorkflow, /- main/);
   assert.match(prWorkflow, /name: Release guard/);
   assert.match(prWorkflow, /node scripts\/test-git-release-workflow\.mjs/);
+  assert.match(
+    prWorkflow,
+    /bash tests\/release\/test-production-cutover-transaction\.sh/,
+    'PR release guard must execute the production cutover transaction contract',
+  );
   assert.match(
     prWorkflow,
     /name: Run Caddy exact-host isolation contract[\s\S]*?node tests\/release\/test-caddy-host-isolation\.mjs/,
@@ -357,7 +403,31 @@ test('workflow and policy preserve existing deploy consumers and never force pus
   assert.doesNotMatch(prWorkflow, /secrets\.|GH_TOKEN|GITHUB_TOKEN/);
 
   assert.match(productionWorkflow, /push:\s*\n\s*branches:\s*\n\s*- main/);
+  assert.match(productionWorkflow, /group: opshub-production-deploy/);
   assert.match(stagingWorkflow, /push:\s*\n\s*branches:\s*\n\s*- staging/);
+  const stagingParityJob = stagingWorkflow.match(
+    /\n  production_parity:[\s\S]*?(?=\n  prepare:)/,
+  )?.[0];
+  assert.ok(stagingParityJob, 'staging deploy must define a production parity job');
+  assert.match(stagingParityJob, /test "\$GITHUB_REF" = 'refs\/heads\/staging'/);
+  assert.match(stagingParityJob, /test "\$\(git rev-parse HEAD\)" = "\$GITHUB_SHA"/);
+  assert.match(stagingParityJob, /bash tests\/release\/test-production-cutover-transaction\.sh/);
+  for (const jobName of ['build_android', 'build_windows']) {
+    const job = stagingWorkflow.match(
+      new RegExp(`\\n  ${jobName}:[\\s\\S]*?(?=\\n  [a-z_]+:)`),
+    )?.[0];
+    assert.ok(job, `staging ${jobName} job is missing`);
+    assert.match(
+      job,
+      /needs:\s*\n\s*- prepare\s*\n\s*- production_parity/,
+      `staging ${jobName} must wait for production parity before spending build capacity`,
+    );
+  }
+  assert.match(
+    stagingWorkflow,
+    /\n  deploy:[\s\S]*?needs:\s*\n\s*- prepare\s*\n\s*- production_parity\s*\n\s*- build_android/,
+    'staging deployment must retain production parity as a direct dependency',
+  );
   for (const [environment, workflow] of [
     ['staging', stagingWorkflow],
     ['production', productionWorkflow],
@@ -372,6 +442,15 @@ test('workflow and policy preserve existing deploy consumers and never force pus
     bidvBootstrap,
     /docker compose --env-file "\$ENV_FILE" -f "\$COMPOSE_FILE" "\$@" < \/dev\/null/,
     'BIDV bootstrap must isolate Compose from the remote SSH heredoc stdin',
+  );
+  const safeIdentityRefresh = productionBaselineReconciler.match(
+    /validate_safe_identity_refresh\(\) \{[\s\S]*?\n\}/,
+  )?.[0];
+  assert.ok(safeIdentityRefresh, 'production retained-identity validator is missing');
+  assert.match(
+    safeIdentityRefresh,
+    /privileged python3 - "\$retained" "\$candidate"/,
+    'root-owned retained identity records must be compared inside the privilege boundary',
   );
   assert.match(stagingWorkflow, /verify_download_artifact\(\)/);
   assert.match(stagingWorkflow, /opshub_cloudflare_public_artifact "\$url"/);

@@ -37,6 +37,25 @@ env:
   COMPOSE_PROJECT_NAME: opshub_staging
 
 jobs:
+  production_parity:
+    name: Production parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact staging candidate
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+
+      - name: Verify exact staging SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = 'refs/heads/staging'
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+
+      - name: Rehearse production cutover transaction
+        shell: bash
+        run: bash tests/release/test-production-cutover-transaction.sh
+
   prepare:
     runs-on: ubuntu-latest
     outputs:
@@ -76,7 +95,9 @@ jobs:
 
   build_android:
     runs-on: ubuntu-latest
-    needs: prepare
+    needs:
+      - prepare
+      - production_parity
     environment: staging
     steps:
       - name: Check out repository
@@ -194,7 +215,9 @@ jobs:
 
   build_windows:
     runs-on: windows-latest
-    needs: prepare
+    needs:
+      - prepare
+      - production_parity
     environment: staging
     steps:
       - name: Check out repository
@@ -482,6 +505,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - prepare
+      - production_parity
       - build_android
       - build_windows
     environment: staging
