@@ -27,6 +27,9 @@ jobs:
       - name: Run release workflow tests
         run: node scripts/test-git-release-workflow.mjs
 
+      - name: Run Caddy exact-host isolation contract
+        run: node tests/release/test-caddy-host-isolation.mjs
+
       - name: Run production release transaction tests
         run: |
           bash tests/release/test-release-transaction.sh

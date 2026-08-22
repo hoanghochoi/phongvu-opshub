@@ -347,6 +347,11 @@ test('workflow and policy preserve existing deploy consumers and never force pus
   assert.match(prWorkflow, /- main/);
   assert.match(prWorkflow, /name: Release guard/);
   assert.match(prWorkflow, /node scripts\/test-git-release-workflow\.mjs/);
+  assert.match(
+    prWorkflow,
+    /name: Run Caddy exact-host isolation contract[\s\S]*?node tests\/release\/test-caddy-host-isolation\.mjs/,
+    'PR release guard must execute the pinned-image Caddy routing contract',
+  );
   assert.match(prWorkflow, /node scripts\/test-task-lifecycle\.mjs/);
   assert.match(prWorkflow, /git diff --check/);
   assert.doesNotMatch(prWorkflow, /secrets\.|GH_TOKEN|GITHUB_TOKEN/);
@@ -457,9 +462,19 @@ test('workflow and policy preserve existing deploy consumers and never force pus
   assert.match(stagingWorkflow, /wait_for_caddy_ready\(\)/);
   assert.match(stagingWorkflow, /expected_caddy_config_hash/);
   assert.match(stagingWorkflow, /test -s \/srv\/web\/index\.html/);
+  assert.match(
+    stagingWorkflow,
+    /Host: unknown\.staging\.phongvu\.work[\s\S]*?unknown\.staging\.phongvu\.work\/health returned \$\{unknown_host_status\}; expected 404/,
+    'staging must reject unknown direct-origin hostnames before release acceptance',
+  );
   assert.match(productionWorkflow, /run_compose_or_rollback up -d --no-deps --force-recreate --wait --wait-timeout 120 caddy/);
   assert.match(productionWorkflow, /expected_caddy_config_hash/);
   assert.match(homeCompose, /healthcheck:/);
+  assert.match(
+    fs.readFileSync(path.join(repoRoot, 'scripts', 'verification-profiles.mjs'), 'utf8'),
+    /caddy-host-isolation-runtime-contract[\s\S]*?test-caddy-host-isolation\.mjs/,
+    'deployment verification must execute the real Caddy host-isolation contract',
+  );
   assert.match(homeCompose, /wget -qO- --header="Host: \$\$OPSHUB_DOMAIN"/);
   assert.match(homeCompose, /http:\/\/127\.0\.0\.1\/health \| grep -qx ok/);
   assert.match(

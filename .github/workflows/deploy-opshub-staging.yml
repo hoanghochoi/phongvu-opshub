@@ -1424,6 +1424,16 @@ jobs:
           verify_direct_origin_route '/download/' 'staging.phongvu.work' '/download'
           verify_direct_origin_route '/download/?probe=1' 'staging.phongvu.work' '/download?probe=1'
           verify_direct_origin_route '/help/' 'staging.phongvu.work' '/help'
+          unknown_host_status="$(
+            curl -sS -o /dev/null -w '%{http_code}' \
+              -H 'Host: unknown.staging.phongvu.work' \
+              -H 'X-Forwarded-Proto: https' \
+              'http://127.0.0.1:8090/health'
+          )"
+          if [ "$unknown_host_status" != '404' ]; then
+            echo "Direct origin unknown.staging.phongvu.work/health returned ${unknown_host_status}; expected 404." >&2
+            false
+          fi
           compose_cmd ps
           trap - ERR
           REMOTE

@@ -385,3 +385,10 @@ http://{$OPSHUB_LEGACY_DOMAIN} {
     redir https://{$OPSHUB_DOMAIN}{uri} 308
   }
 }
+
+# Caddy returns an empty 200 when no configured host route matches. Keep the
+# shared Tunnel origin fail-closed so an unknown or misrouted hostname can
+# never be mistaken for a healthy environment.
+http:// {
+  respond "Not found" 404
+}

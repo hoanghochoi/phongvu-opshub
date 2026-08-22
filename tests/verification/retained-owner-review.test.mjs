@@ -13,11 +13,27 @@ test('OPS-73 retained-owner review proves every candidate has an owner and rollb
   const result = validateRetainedOwnerReview(artifact);
   assert.equal(result.status, 'passed');
   assert.equal(result.candidateCount, 4);
-  assert.equal(result.retainedPathCount, 19);
+  assert.equal(result.retainedPathCount, 20);
   assert.equal(result.deletionDecision, 'no-safe-deletion-candidate');
   assert.deepEqual(
     artifact.candidates.map((candidate) => candidate.disposition),
     ['retain', 'retain', 'retain', 'retain'],
+  );
+  const releaseControlPlane = artifact.candidates.find(
+    (candidate) => candidate.id === 'release-and-shadow-allowlists',
+  );
+  assert.ok(releaseControlPlane);
+  assert.ok(
+    releaseControlPlane.paths.some(
+      (entry) => entry.path === '.github/workflows/release-guard-pr.yml',
+    ),
+    'mandatory PR release guard must have retained-owner evidence',
+  );
+  assert.ok(
+    releaseControlPlane.ownerReferences.includes(
+      '.github/workflows/release-guard-pr.yml',
+    ),
+    'mandatory PR release guard must have an owner reference',
   );
 });
 

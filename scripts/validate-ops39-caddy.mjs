@@ -36,6 +36,12 @@ for (const forbidden of [
 }
 const legacyStart = caddy.indexOf('http://{$OPSHUB_LEGACY_DOMAIN} {');
 assert.notEqual(legacyStart, -1, 'Legacy bridge site is missing');
+const unknownHostStart = caddy.indexOf('\nhttp:// {', legacyStart);
+assert.notEqual(
+  unknownHostStart,
+  -1,
+  'Unknown-host fail-closed site is missing',
+);
 assert.match(
   caddy,
   /handle \/help \{[\s\S]*?root \* \/srv\/web[\s\S]*?rewrite \* \/index\.html[\s\S]*?file_server/,
@@ -56,6 +62,12 @@ assert.match(
   legacySite,
   /@legacy_help path \/help \/help\/[\s\S]*?rewrite \* \/help[\s\S]*?redir \* https:\/\/\{\$OPSHUB_DOMAIN\}\{uri\} 308/,
   'Legacy help redirect normalizes path and preserves query',
+);
+const unknownHostSite = caddy.slice(unknownHostStart);
+assert.match(
+  unknownHostSite,
+  /http:\/\/ \{\s*respond "Not found" 404\s*\}/,
+  'Unknown hostnames must return an explicit 404',
 );
 assert.equal(caddy.includes('BIDV_H2H_DOMAIN'), false);
 assert.match(compose, /OPSHUB_API_DOMAIN: \$\{OPSHUB_API_DOMAIN:\?/);
