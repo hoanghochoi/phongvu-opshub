@@ -2,8 +2,8 @@
   "formatVersion": 1,
   "issue": "OPS-73",
   "phase": "retained-owner-review",
-  "sourceRevision": "35ee8f7934616f26c8ff8bf61f0216390757e5d3",
-  "reviewedAtUtc": "2026-08-22T04:46:47.0316977Z",
+  "sourceRevision": "c1f67ea4d0bbdd891f25b74f57ba096053fe603e",
+  "reviewedAtUtc": "2026-08-22T12:33:22.8116135Z",
   "sourceInventory": "docs/migrations/ops-73-artifact-inventory.json",
   "sourceInventorySha256": "241e54629ffe9d2d12f33b5100a3854f0ed3f8c6daeacdc92195d064440cd713",
   "candidates": [
@@ -199,8 +199,8 @@
         {
           "path": ".github/workflows/deploy-opshub.yml",
           "kind": "file",
-          "sha256": "eb1504a681c1c433e1ea3699f447859c2cff2fcabdd3c96b894bb8710ef573e1",
-          "bytes": 90058
+          "sha256": "44091a481cd0c3312a78e14450508ff68334714f4de90f73ba4ac1011a8e9190",
+          "bytes": 90355
         },
         {
           "path": "deploy/staging/README.md",
