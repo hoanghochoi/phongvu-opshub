@@ -1231,6 +1231,16 @@ contains(
   "verify_direct_origin_route '/help/' 'staging.phongvu.work' '/help'",
   'guarded staging direct-origin help smoke',
 );
+contains(
+  stagingWorkflow,
+  'Host: unknown.staging.phongvu.work',
+  'guarded staging unknown-host isolation smoke',
+);
+contains(
+  stagingWorkflow,
+  'unknown.staging.phongvu.work/health returned ${unknown_host_status}; expected 404',
+  'guarded staging unknown-host 404 contract',
+);
 for (const expected of [
   'javascript-typescript',
   '- go',

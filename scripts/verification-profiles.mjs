@@ -386,6 +386,7 @@ export const PROFILES = Object.freeze([
       /^deploy\//,
       /^docker-compose\.yml$/,
       /^tests\/release\/test-cloudflare-public-probe\.sh$/,
+      /^tests\/release\/test-caddy-host-isolation\.mjs$/,
       /^scripts\/(?:build-runtime-release|validate-ops39-(?:backup-boundary|caddy|local-boundary)|verify-(?:help-content-sentinel|platform-security))\.mjs$/,
       /^scripts\/generate-bidv-h2h-playbook-pdf\.py$/,
       /^scripts\/load\/opshub-staging-(?:home-100qps|rate-limit-semantics|targets(?:\.test)?)\.(?:js|mjs)$/,
@@ -405,6 +406,12 @@ export const PROFILES = Object.freeze([
         cwd: ".",
         executable: process.execPath,
         argv: ["scripts/validate-ops39-caddy.mjs"],
+      },
+      {
+        id: "caddy-host-isolation-runtime-contract",
+        cwd: ".",
+        executable: process.execPath,
+        argv: ["tests/release/test-caddy-host-isolation.mjs"],
       },
       {
         id: "platform-security-contract",

@@ -308,3 +308,22 @@ Compose invocation that does not receive the exact expected path. Validation
 must include the cutover transaction fixture, release workflow tests, platform
 security checks, YAML/shell parsing, whitespace proof, and the full task gate
 before another staging deploy or production promotion.
+
+## Unknown-host fail-closed follow-up
+
+Production deploy run `32549706821` reached a healthy candidate runtime, then
+the direct-origin acceptance gate rejected it because
+`unknown.phongvu.work/health` returned Caddy's default empty `200` instead of
+`404`. The production transaction restored release `430e1ffd`, runtime env,
+containers, shared metadata and package publication, and the legacy public
+web/API/Help/download surfaces returned `200` after rollback. The production
+Tunnel was never activated.
+
+The root cause is Caddy's behavior when no configured host route matches. Add
+an explicit hostless HTTP catch-all site that returns `404`; Caddy's exact site
+addresses retain precedence for the three allowed environment hostnames. Also add
+the equivalent unknown-host direct-origin assertion to the guarded staging
+deploy transaction; staging previously verified canonical/legacy routes but
+did not exercise this production acceptance contract. Static workflow/security
+guards and a live Caddy routing smoke must prove known web/legacy hosts still
+work while an unknown host returns `404` before another staging deploy.
