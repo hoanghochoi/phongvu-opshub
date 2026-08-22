@@ -35,7 +35,7 @@ bash "$script_dir/verify-release-manifest.sh" "$target_release" >/dev/null || {
 compose_for() {
   local release="$1" env_file="$2"
   shift 2
-  docker compose --project-name "$compose_project" --env-file "$env_file" \
+  OPSHUB_ENV_FILE="$env_file" docker compose --project-name "$compose_project" --env-file "$env_file" \
     -f "$release/deploy/home-server/docker-compose.home.yml" "$@" < /dev/null
 }
 env_value() { privileged sed -n "s/^${2}=//p" "$1" | tail -n 1; }
